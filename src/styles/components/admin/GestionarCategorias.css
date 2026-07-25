@@ -1,0 +1,406 @@
+/* GestionarCategorias.css — Inline Table Edition */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+/* ── Page shell ── */
+.cat-page {
+  font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  max-width: 70rem;
+  margin: 2rem auto;
+  padding: 2.25rem;
+  background: #ffffff;
+  border-radius: 24px;
+  border: 1px solid #e2e8f0;
+  box-shadow:
+    0 0 0 1px rgba(15, 44, 89, 0.05),
+    0 8px 28px rgba(15, 44, 89, 0.05),
+    0 2px 6px rgba(15, 44, 89, 0.03);
+  position: relative;
+  overflow: hidden;
+}
+
+.cat-page::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, #0f2c59 0%, #2563eb 55%, #ff9f1c 100%);
+  border-radius: 24px 24px 0 0;
+}
+
+/* ── Header row ── */
+.cat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.cat-heading {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.75rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, #0f2c59, #1e40af);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin: 0 0 0.2rem;
+}
+
+.cat-subheading {
+  font-size: 0.875rem;
+  color: #64748b;
+  font-weight: 500;
+  margin: 0;
+}
+
+.cat-btn-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: 0.875rem;
+  padding: 0.65rem 1.5rem;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.22s ease;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.22);
+}
+
+.cat-btn-add:hover {
+  background: linear-gradient(135deg, #1d4ed8, #1e40af);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.3);
+}
+
+/* ── Table wrapper ── */
+.cat-table-wrapper {
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1.5px solid #e2e8f0;
+  box-shadow:
+    0 0 0 1px rgba(15, 44, 89, 0.04),
+    0 4px 14px rgba(15, 44, 89, 0.04);
+}
+
+/* ── Table ── */
+.cat-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+/* thead */
+.cat-table thead {
+  background: linear-gradient(90deg, #f8fafc, #eff4ff);
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.cat-table thead th {
+  padding: 1rem 1.4rem;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #475569;
+  white-space: nowrap;
+}
+
+/* tbody rows */
+.cat-row td,
+.cat-row-editing td,
+.cat-row-adding td {
+  padding: 1.1rem 1.4rem;
+  border-bottom: 1.5px solid #f1f5f9;
+  vertical-align: middle;
+  transition: background 0.15s;
+}
+
+.cat-row:last-child td,
+.cat-row-editing:last-child td,
+.cat-row-adding:last-child td {
+  border-bottom: none;
+}
+
+.cat-row:hover td {
+  background: #fafbff;
+}
+
+/* index column */
+.cat-idx {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #94a3b8;
+  width: 3rem;
+  text-align: center;
+}
+
+/* name column */
+.cat-name {
+  font-weight: 700;
+  color: #0f2c59;
+}
+
+/* ── Color badge (display) ── */
+.cat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  border: 1.5px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.cat-badge-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,.12);
+  flex-shrink: 0;
+}
+
+.cat-badge-hex {
+  font-family: 'Courier New', monospace;
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 700;
+}
+
+/* ── Native color picker + swatches ── */
+.cat-color-picker-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* The native <input type="color"> styled as a round swatch */
+.cat-color-native {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2.5px solid #e2e8f0;
+  padding: 2px;
+  cursor: pointer;
+  background: none;
+  appearance: none;
+  -webkit-appearance: none;
+  box-shadow: 0 2px 8px rgba(15, 44, 89, 0.1);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.cat-color-native::-webkit-color-swatch-wrapper {
+  padding: 0;
+  border-radius: 50%;
+}
+
+.cat-color-native::-webkit-color-swatch {
+  border-radius: 50%;
+  border: none;
+}
+
+.cat-color-native:hover {
+  border-color: #2563eb;
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+}
+
+/* Quick-access swatches row */
+.cat-swatches {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.cat-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow: 0 1px 4px rgba(0,0,0,.12);
+  flex-shrink: 0;
+}
+
+.cat-swatch:hover {
+  transform: scale(1.2) translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,.18);
+}
+
+.cat-swatch.active {
+  border-color: #0f2c59;
+  transform: scale(1.25);
+  box-shadow: 0 0 0 3px rgba(15, 44, 89, 0.18);
+}
+
+.cat-hex-label {
+  font-family: 'Courier New', monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+  margin-left: 2px;
+}
+
+/* ── Inline input ── */
+.cat-inline-input {
+  width: 100%;
+  min-width: 180px;
+  border: 1.5px solid #93c5fd;
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #0f2c59;
+  background: #eff6ff;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.cat-inline-input:focus {
+  border-color: #2563eb;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.cat-inline-input::placeholder {
+  color: #93a3bb;
+  font-weight: 400;
+}
+
+/* ── Adding / editing row highlights ── */
+.cat-row-adding td {
+  background: #f0f7ff;
+}
+
+.cat-row-editing td {
+  background: #fffbeb;
+}
+
+/* ── Inline action icons ── */
+.cat-inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* ✔ checkmark confirm */
+.cat-btn-confirm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  transition: all 0.22s ease;
+  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.25);
+  flex-shrink: 0;
+}
+
+.cat-btn-confirm:hover {
+  transform: scale(1.12) translateY(-1px);
+  box-shadow: 0 7px 16px rgba(16, 185, 129, 0.35);
+}
+
+/* ✕ cancel */
+.cat-btn-cancel-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  border: 1.5px solid #e2e8f0;
+  cursor: pointer;
+  color: #64748b;
+  transition: all 0.22s ease;
+  flex-shrink: 0;
+}
+
+.cat-btn-cancel-inline:hover {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #fff;
+  transform: scale(1.1);
+}
+
+/* ── Row action buttons (edit / delete) ── */
+.cat-row-actions {
+  display: inline-flex;
+  gap: 8px;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.cat-btn-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #2563eb;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: 0.78rem;
+  background: #fff;
+  border: 1.5px solid #2563eb;
+  padding: 5px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.22s ease;
+}
+
+.cat-btn-edit:hover {
+  background: #2563eb;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2);
+}
+
+.cat-btn-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #ef4444;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: 0.78rem;
+  background: #fff;
+  border: 1.5px solid #ef4444;
+  padding: 5px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.22s ease;
+}
+
+.cat-btn-delete:hover {
+  background: #ef4444;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(239, 68, 68, 0.2);
+}
+
+/* ── Empty / loading state ── */
+.cat-empty-cell {
+  text-align: center;
+  padding: 2.5rem !important;
+  color: #94a3b8;
+  font-style: italic;
+  font-size: 0.9rem;
+}

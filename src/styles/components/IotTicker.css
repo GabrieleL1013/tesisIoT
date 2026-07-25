@@ -1,0 +1,103 @@
+/* CSS for the IoT Infinite Icons Ticker */
+
+.iot-ticker-section {
+  padding: 4rem 0;
+  background-color: #ffffff;
+  border-top: 1px solid #f1f5f9;
+  text-align: center;
+  overflow: hidden;
+}
+
+.iot-ticker-section-title {
+  font-family: 'Outfit', 'Inter', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.15em;
+  margin-bottom: 2rem;
+}
+
+.iot-ticker-container {
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 1rem 0;
+  /* Smooth fading gradient at both edges */
+  mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+}
+
+.iot-ticker-track {
+  display: flex;
+  gap: 5rem;
+  width: max-content;
+  animation: iot-ticker-slide 28s linear infinite;
+}
+
+/* Pause scroll when user hovers */
+.iot-ticker-container:hover .iot-ticker-track {
+  animation-play-state: paused;
+}
+
+.iot-ticker-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: transparent;
+  border: none;
+  padding: 0.5rem 0;
+  transition: all 0.3s ease;
+  user-select: none;
+}
+
+.iot-ticker-item:hover {
+  transform: translateY(-4px);
+}
+
+.ticker-svg {
+  width: 52px;
+  height: 52px;
+  color: #2563eb;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: all 0.3s ease;
+}
+
+.iot-ticker-item:hover .ticker-svg {
+  color: #1d4ed8;
+  animation: pulse 1s infinite alternate;
+}
+
+.iot-ticker-label {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #334155;
+  white-space: nowrap;
+  transition: color 0.3s ease;
+}
+
+.iot-ticker-item:hover .iot-ticker-label {
+  color: #1e293b;
+}
+
+@keyframes iot-ticker-slide {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1.1);
+  }
+}

@@ -1,0 +1,58 @@
+/* Reseteo global para eliminar márgenes por defecto de Vite/React */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body, html {
+  width: 100%;
+  overflow-x: hidden; /* Evita que aparezca una barra de desplazamiento horizontal innecesaria */
+}
+
+/* Estilos para textos editables */
+.editable-text-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.edit-text-pencil-btn {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: all 0.2s ease-in-out;
+  padding: 0;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.edit-text-pencil-btn:hover {
+  opacity: 1;
+  transform: scale(1.1);
+  background: #ef4444;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(239, 68, 68, 0.3);
+}
+
+/* Permitir que el botón no rompa el bloque si se requiere */
+.editable-text-container.block-layout {
+  display: block;
+  position: relative;
+}
+
+.editable-text-container.block-layout .edit-text-pencil-btn {
+  position: absolute;
+  top: 0;
+  right: -36px;
+}

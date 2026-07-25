@@ -1,0 +1,564 @@
+/* ── Estilos del Portal Informativo IoT ULEAM ── */
+
+:root {
+  --primary-red: #d0182b;
+  --primary-red-hover: #b31222;
+  --accent-green: #2ecc71;
+  --accent-neon: #62ffb1;
+  --bg-dark: #0f172a;
+  --text-dark: #1e293b;
+  --text-muted: #64748b;
+  --border-light: #e2e8f0;
+}
+
+.public-portal-main {
+  font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+  color: var(--text-dark);
+  background-color: #ffffff;
+  overflow-x: hidden;
+}
+
+/* ── HERO CON FOTO DE FONDO IOT Y GRADIENTES ── */
+.portal-hero {
+  position: relative;
+  background: 
+    linear-gradient(rgba(11, 15, 25, 0.8), rgba(11, 15, 25, 0.95)), 
+    url('https://images.unsplash.com/photo-1563770660941-20978e870e26?q=80&w=1600') no-repeat center center/cover;
+  color: #ffffff;
+  padding: 10rem 2rem;
+  display: flex;
+  align-items: center;
+  min-height: 85vh;
+  box-shadow: inset 0 -50px 100px rgba(11, 15, 25, 0.95);
+}
+
+.hero-bg-overlay {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 80% 20%, rgba(208, 24, 43, 0.15) 0%, transparent 50%),
+              radial-gradient(circle at 20% 80%, rgba(46, 204, 113, 0.15) 0%, transparent 50%);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.hero-grid-pattern {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px), 
+    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+  background-size: 35px 35px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.hero-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 3;
+  text-align: left;
+}
+
+.hero-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 1.5rem;
+}
+
+.hero-badge .badge-line {
+  width: 45px;
+  height: 3px;
+  background-color: var(--primary-red);
+  border-radius: 2px;
+}
+
+.hero-badge .badge-text {
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.2em;
+  color: var(--primary-red);
+}
+
+.hero-title-main {
+  font-size: clamp(2.4rem, 5vw, 4.2rem);
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  max-width: 850px;
+  margin: 0 0 1.8rem 0;
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+.text-neon-green {
+  color: var(--accent-neon);
+  text-shadow: 0 0 15px rgba(98, 255, 177, 0.45);
+}
+
+.hero-desc {
+  font-size: clamp(1.05rem, 1.8vw, 1.25rem);
+  color: #94a3b8;
+  line-height: 1.7;
+  max-width: 750px;
+  margin: 0 0 3rem 0;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  text-align: justify;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+}
+
+/* Botones Premium */
+.btn-portal-primary {
+  display: inline-block;
+  background-color: var(--primary-red);
+  color: #ffffff;
+  padding: 0.95rem 2.4rem;
+  font-size: 0.92rem;
+  font-weight: 800;
+  border-radius: 30px;
+  text-decoration: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 18px rgba(208, 24, 43, 0.35);
+}
+
+.btn-portal-primary:hover {
+  background-color: var(--primary-red-hover);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(208, 24, 43, 0.5);
+}
+
+.btn-portal-secondary {
+  display: inline-block;
+  background: transparent;
+  color: #ffffff;
+  padding: 0.95rem 2.4rem;
+  font-size: 0.92rem;
+  font-weight: 800;
+  border-radius: 30px;
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+.btn-portal-secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #ffffff;
+  transform: translateY(-3px);
+}
+
+/* ── SECCIONES PÚBLICAS GENERALES ── */
+.section-header {
+  max-width: 750px;
+  margin: 0 auto 4.5rem;
+}
+
+.section-label {
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--primary-red);
+  display: inline-block;
+  margin-bottom: 0.6rem;
+}
+
+.section-title {
+  font-size: clamp(1.8rem, 3.2vw, 2.5rem);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+  margin: 0 0 1rem 0;
+  line-height: 1.2;
+}
+
+.section-subtitle-text {
+  font-size: 1.05rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  text-align: justify;
+}
+
+.text-center { text-align: center; }
+.text-red { color: var(--primary-red) !important; }
+.text-white { color: #ffffff !important; }
+.text-gray { color: #94a3b8 !important; }
+
+/* ── SECCIÓN: SOBRE EL PROYECTO ── */
+.about-project-section {
+  padding: 7rem 2rem;
+  background-color: #ffffff;
+}
+
+.about-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 5rem;
+  align-items: center;
+}
+
+@media (max-width: 1024px) {
+  .about-container {
+    grid-template-columns: 1fr;
+    gap: 4rem;
+  }
+}
+
+.about-text-content {
+  text-align: left;
+}
+
+.about-text-content .body-text {
+  font-size: 1.05rem;
+  color: #475569;
+  line-height: 1.75;
+  margin-top: 1rem;
+  text-align: justify;
+}
+
+.about-bullets {
+  margin-top: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.bullet-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.bullet-check {
+  color: var(--accent-green);
+  font-weight: 900;
+  font-size: 1.15rem;
+}
+
+/* Grilla de Estadísticas */
+.about-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.8rem;
+}
+
+.about-stat-card {
+  background: #f8fafc;
+  border: 1px solid var(--border-light);
+  padding: 2.2rem 1.6rem;
+  border-radius: 12px;
+  text-align: left;
+  transition: all 0.3s ease;
+}
+
+.about-stat-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(208, 24, 43, 0.2);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+}
+
+.stat-icon-wrapper {
+  color: var(--primary-red);
+  margin-bottom: 0.8rem;
+  display: inline-block;
+}
+
+.card-stat-num {
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: var(--primary-red);
+  line-height: 1.1;
+  display: block;
+}
+
+.card-stat-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-top: 0.4rem;
+  display: block;
+}
+
+.card-stat-desc {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0.4rem 0 0 0;
+}
+
+/* ── SECCIÓN: VARIABLES MONITOREADAS (PILARES PÚBLICOS) ── */
+.portal-pillars-section {
+  padding: 7rem 2rem;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.pillars-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+}
+
+.pillar-card {
+  background: #f8fafc;
+  border: 1px solid var(--border-light);
+  padding: 2.4rem 2rem;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  text-align: left;
+}
+
+.pillar-card:hover {
+  transform: translateY(-6px);
+  background: #ffffff;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08);
+  border-color: rgba(46, 204, 113, 0.35);
+}
+
+.pillar-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 10px;
+  background: rgba(46, 204, 113, 0.06);
+  color: var(--accent-green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.6rem;
+  border: 1px solid rgba(46, 204, 113, 0.12);
+}
+
+.pillar-card h3 {
+  font-size: 1.15rem;
+  font-weight: 800;
+  margin: 0 0 0.8rem 0;
+  color: #0f172a;
+}
+
+.pillar-card p {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.65;
+  margin: 0;
+}
+
+/* ── SECCIÓN: ARQUITECTURA / CÓMO FUNCIONA (DARK IOT) ── */
+.architecture-section {
+  background-color: var(--bg-dark);
+  color: #ffffff;
+  padding: 7rem 2rem;
+}
+
+.architecture-grid {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+}
+
+.glassmorphic {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.arch-card {
+  padding: 2.2rem 1.8rem;
+  text-align: left;
+}
+
+.arch-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(98, 255, 177, 0.25);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.arch-step-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.6rem;
+}
+
+.arch-step-num {
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.15);
+  font-family: 'Consolas', monospace;
+}
+
+.arch-step-icon {
+  color: var(--accent-neon);
+}
+
+.arch-card h3 {
+  font-size: 1.1rem;
+  font-weight: 800;
+  margin: 0 0 0.8rem 0;
+  color: #ffffff;
+}
+
+.arch-card p {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  line-height: 1.6;
+  margin: 0;
+  text-align: justify;
+}
+
+/* ── SECCIÓN NOTICIAS E INVESTIGACIONES ── */
+.portal-news-section {
+  padding: 7rem 2rem;
+  background-color: #f8fafc;
+  border-top: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.news-cards-grid {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 2.2rem;
+}
+
+.portal-news-card {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s ease;
+  text-align: left;
+}
+
+.portal-news-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08);
+  border-color: rgba(208, 24, 43, 0.15);
+}
+
+.news-tag-banner {
+  height: 6px;
+  width: 100%;
+}
+.news-tag-banner.news-green { background-color: var(--accent-green); }
+.news-tag-banner.news-blue { background-color: #3b82f6; }
+.news-tag-banner.news-red { background-color: var(--primary-red); }
+
+.news-card-content {
+  padding: 2.2rem 1.8rem;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.news-date-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.news-date-row svg {
+  color: var(--primary-red);
+}
+
+.portal-news-card h3 {
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1.45;
+  margin: 0 0 1rem 0;
+  color: #0f172a;
+}
+
+.portal-news-card p {
+  font-size: 0.88rem;
+  color: #475569;
+  line-height: 1.65;
+  margin: 0 0 1.5rem 0;
+  flex-grow: 1;
+  text-align: justify;
+}
+
+.news-academic-tag {
+  align-self: flex-start;
+  background: rgba(208, 24, 43, 0.06);
+  border: 1px solid rgba(208, 24, 43, 0.1);
+  color: var(--primary-red);
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.25rem 0.65rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+/* ── LLAMADO A LA ACCIÓN ACADÉMICO (CTA BANNER) ── */
+.portal-cta-banner {
+  background-color: var(--bg-dark);
+  color: #ffffff;
+  padding: 7rem 2rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.cta-banner-glow {
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  background: var(--primary-red);
+  border-radius: 50%;
+  filter: blur(180px);
+  opacity: 0.1;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.cta-container {
+  max-width: 800px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 2;
+  text-align: center;
+}
+
+.cta-container h2 {
+  font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  margin: 0 0 1.2rem 0;
+}
+
+.cta-container p {
+  font-size: clamp(1rem, 1.5vw, 1.15rem);
+  color: #94a3b8;
+  line-height: 1.65;
+  margin: 0 0 2.5rem 0;
+}
+
+.cta-btn-row {
+  display: flex;
+  gap: 1.2rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}

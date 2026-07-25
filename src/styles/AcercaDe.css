@@ -1,0 +1,222 @@
+/* ── Estilos de Acerca de (¿Quiénes somos?) ── */
+
+.about-page {
+  font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+  color: #1e293b;
+  background-color: #ffffff;
+}
+
+/* ── HERO BANNER ── */
+.about-hero {
+  position: relative;
+  background: 
+    linear-gradient(rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 0.93)), 
+    url('https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=1600') no-repeat center center/cover;
+  color: #ffffff;
+  padding: 8rem 2rem 7rem;
+  min-height: 50vh;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  box-shadow: inset 0 -40px 80px rgba(15, 23, 42, 0.95);
+}
+
+.about-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 80% 20%, rgba(208, 24, 43, 0.12) 0%, transparent 55%),
+              radial-gradient(circle at 10% 80%, rgba(46, 204, 113, 0.12) 0%, transparent 55%);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.about-hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px), 
+    linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
+  background-size: 40px 40px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.about-hero-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 3;
+  width: 100%;
+}
+
+.about-hero-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.2em;
+  color: #ef4444;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid #ef4444;
+  padding-bottom: 4px;
+}
+
+.about-hero-title {
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  margin: 0 0 1.2rem 0;
+  text-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.about-hero-desc {
+  font-size: clamp(1rem, 1.5vw, 1.15rem);
+  color: #94a3b8;
+  line-height: 1.65;
+  max-width: 700px;
+  margin: 0;
+  text-align: justify;
+}
+
+/* ── CONTENEDOR COMÚN ── */
+.about-section-container {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+/* ── SECCIÓN PRESENTACIÓN PRINCIPAL (INTRO) ── */
+.about-intro-section {
+  padding: 6rem 0;
+  background-color: #ffffff;
+}
+
+.about-intro-text-block {
+  text-align: center;
+  max-width: 900px;
+  margin: 0 auto 4.5rem;
+}
+
+.about-label-red {
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #ef4444;
+  margin-bottom: 0.6rem;
+  display: inline-block;
+}
+
+.about-intro-text-block h2 {
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  font-weight: 900;
+  color: #0f172a;
+  margin: 0.5rem 0 1.5rem;
+  letter-spacing: -0.03em;
+}
+
+.about-intro-p {
+  font-size: 1.1rem;
+  color: #475569;
+  line-height: 1.8;
+  text-align: justify;
+}
+
+/* ── MOSAICO DE IMÁGENES Y CONTENIDO (Ancho completo de pantalla) ── */
+.about-mosaic-section {
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+.about-mosaic-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px; /* Finer gap */
+  width: 100%;
+}
+
+.mosaic-card {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1 / 1.18; /* Slightly taller */
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+/* Image Card */
+.mosaic-card.image-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.4s ease;
+}
+
+.mosaic-card.image-card:hover img {
+  transform: scale(1.05);
+}
+
+/* Text Card */
+.mosaic-card.text-card {
+  padding: 2.2rem 1.8rem;
+  justify-content: center;
+  text-align: left;
+  color: #ffffff;
+}
+
+.mosaic-card.text-card.bg-cyan {
+  background-color: #0098da; /* Sky Blue matches image */
+}
+
+.mosaic-card.text-card.bg-red {
+  background-color: #d0182b; /* Uleam Red matches image */
+}
+
+.mosaic-card .card-number {
+  font-size: 3.2rem;
+  font-weight: 900;
+  opacity: 0.22;
+  font-family: 'Consolas', monospace;
+  line-height: 1;
+  margin-bottom: 0.4rem;
+  display: block;
+}
+
+.mosaic-card.text-card h3 {
+  font-size: 1.6rem;
+  margin: 0 0 0.8rem 0;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.mosaic-card.text-card p {
+  font-size: 1.02rem;
+  line-height: 1.65;
+  margin: 0;
+  opacity: 0.95;
+  text-align: justify;
+}
+
+/* Responsive Grid */
+@media (max-width: 1200px) {
+  .about-mosaic-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .about-mosaic-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .about-mosaic-grid {
+    grid-template-columns: 1fr;
+  }
+}

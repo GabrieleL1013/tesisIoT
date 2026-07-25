@@ -1,0 +1,85 @@
+.admin-navbar-mobile {
+  display: none; /* Oculto en PC */
+  background-color: #0b0f19; /* Dark Navy Slate */
+  padding: 10px 15px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 80px; /* Altura suficiente para el logo y el badge */
+  z-index: 1100; /* Siempre por encima de todo */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  justify-content: space-between;
+  align-items: center;
+  box-sizing: border-box;
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+}
+
+/* Contenedor central para alinear logo y letras verticalmente */
+.mobile-header-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.logo-admin-flex-mobile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-admin-flex-mobile img {
+  height: 35px; /* Tamaño ajustado para móvil */
+  width: auto;
+}
+
+.logo-admin-flex-mobile h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  letter-spacing: 1px;
+  color: #ffffff;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.logo-admin-flex-mobile .gold {
+  color: #d0182b; /* Uleam Red accent */
+}
+
+.btn-hamburger {
+  background: transparent;
+  border: none;
+  color: #d0182b; /* Uleam Red hamburger */
+  font-size: 1.8rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 5px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.btn-hamburger:active {
+  background: rgba(255, 255, 255, 0.05);
+  transform: scale(0.92);
+}
+
+/* Badge de rol en móvil */
+.role-badge-mobile {
+  font-size: 0.58rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+/* Mostrar solo en pantallas menores a 768px */
+@media (max-width: 768px) {
+  .admin-navbar-mobile {
+    display: flex;
+  }
+}
