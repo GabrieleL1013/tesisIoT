@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/api';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -115,7 +116,7 @@ const Notificaciones = () => {
     if (filterStatus !== 'all') params.append('status', filterStatus);
     if (search) params.append('search', search);
 
-    fetch(`http://127.0.0.1:8000/api/node-alerts?${params.toString()}`)
+    fetch(`${API_BASE_URL}/node-alerts?${params.toString()}`)
       .then(res => res.json())
       .then(data => {
         setAlerts(data.data || []);
@@ -148,7 +149,7 @@ const Notificaciones = () => {
   };
 
   const markAsRead = (id) => {
-    fetch(`http://127.0.0.1:8000/api/node-alerts/${id}/read`, {
+    fetch(`${API_BASE_URL}/node-alerts/${id}/read`, {
       method: 'PUT'
     })
     .then(res => res.json())
@@ -159,7 +160,7 @@ const Notificaciones = () => {
   };
 
   const markAllAsRead = () => {
-    fetch('http://127.0.0.1:8000/api/node-alerts/mark-all-read', {
+    fetch(`${API_BASE_URL}/node-alerts/mark-all-read`, {
       method: 'PUT'
     })
     .then(res => res.json())
@@ -192,7 +193,7 @@ const Notificaciones = () => {
       color: '#ffffff'
     }).then((result) => {
       if (result.isConfirmed) {
-        fetch(`http://127.0.0.1:8000/api/node-alerts/${id}`, {
+        fetch(`${API_BASE_URL}/node-alerts/${id}`, {
           method: 'DELETE'
         })
         .then(res => res.json())

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/api';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import html2canvas from 'html2canvas';
@@ -230,7 +231,7 @@ export default function HistoricoAgregado() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/api/nodos')
+    fetch(`${API_BASE_URL}/nodos`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data) && data.length > 0) {
@@ -288,7 +289,7 @@ export default function HistoricoAgregado() {
       const mergedMap = new Map();
       
       for (const lectura of nodoActivo.lecturas) {
-        const res = await fetch(`http://127.0.0.1:8000/api/lecturas?${params.toString()}&clave_mqtt=${lectura.data_type}`);
+        const res = await fetch(`${API_BASE_URL}/lecturas?${params.toString()}&clave_mqtt=${lectura.data_type}`);
         const data = await res.json();
         if (Array.isArray(data)) {
           data.forEach(item => {

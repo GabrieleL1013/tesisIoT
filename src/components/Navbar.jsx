@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../config/api";
 import { useState, useEffect } from "react";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
@@ -64,7 +65,7 @@ export default function Navbar() {
   const [appInterfaces, setAppInterfaces] = useState([]);
 
   const cargarInterfaces = () => {
-    fetch('http://127.0.0.1:8000/api/interfaces')
+    fetch(`${API_BASE_URL}/interfaces`)
       .then(res => res.json())
       .then(data => setAppInterfaces(Array.isArray(data) ? data : []))
       .catch(err => console.error("Error fetching interfaces in Navbar:", err));
@@ -79,7 +80,7 @@ export default function Navbar() {
           setSessionUser(parsed);
 
           if (parsed.id) {
-            fetch(`http://127.0.0.1:8000/api/users/${parsed.id}`)
+            fetch(`${API_BASE_URL}/users/${parsed.id}`)
               .then(res => res.json())
               .then(dbUser => {
                 if (dbUser && dbUser.name) {
@@ -147,7 +148,7 @@ export default function Navbar() {
   const [categoriasDinamicas, setCategoriasDinamicas] = useState([]);
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/api/categorias')
+    fetch(`${API_BASE_URL}/categorias`)
       .then(res => res.json())
       .then(catData => {
         const catList = Array.isArray(catData) ? catData : [];

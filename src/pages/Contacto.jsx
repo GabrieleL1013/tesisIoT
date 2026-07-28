@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../config/api";
 import { useState, useEffect } from "react";
 import "../styles/Contacto.css";
 import IotBgImg from "../assets/IOT.jpg";
@@ -202,7 +203,7 @@ export default function Contacto() {
     setServerError("");
 
     // Enviar datos reales al backend Laravel
-    fetch("http://127.0.0.1:8000/api/contactos", {
+    fetch(`${API_BASE_URL}/contactos`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

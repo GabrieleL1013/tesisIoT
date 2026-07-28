@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import { usePageTitle } from '../../context/PageTitleContext';
@@ -248,7 +249,7 @@ export default function GestionarMetricas() {
 
   const cargarMetricas = () => {
     setLoading(true);
-    fetch('http://127.0.0.1:8000/api/metricas')
+    fetch(`${API_BASE_URL}/metricas`)
       .then(r => r.json())
       .then(data => { setMetricas(Array.isArray(data) ? data : []); })
       .catch((err) => {
@@ -321,10 +322,10 @@ export default function GestionarMetricas() {
       return;
     }
     setSaving(true);
-    const url    = editandoId ? `http://127.0.0.1:8000/api/metricas/${editandoId}` : 'http://127.0.0.1:8000/api/metricas';
+    const endpoint = editandoId ? `${API_BASE_URL}/metricas/${editandoId}` : `${API_BASE_URL}/metricas`;
     const method = editandoId ? 'PUT' : 'POST';
     try {
-      const res = await fetch(url, {
+      const res = await fetch(endpoint, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -370,7 +371,7 @@ export default function GestionarMetricas() {
     }).then(async (r) => {
       if (!r.isConfirmed) return;
       try {
-        await fetch(`http://127.0.0.1:8000/api/metricas/${id}`, { method: 'DELETE' });
+        await fetch(`${API_BASE_URL}/metricas/${id}`, { method: 'DELETE' });
         if (editandoId === id) cancelar();
         cargarMetricas();
       } catch {

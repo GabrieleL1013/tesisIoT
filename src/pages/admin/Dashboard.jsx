@@ -1,23 +1,11 @@
+import { API_BASE_URL } from '../../config/api';
+import { echo } from '../../config/echo';
 import React, { useState, useEffect } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
-import Echo from 'laravel-echo';
-import Pusher from 'pusher-js';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import '../../styles/components/admin/Dashboard.css';
-
-window.Pusher = Pusher;
-
-const echo = new Echo({
-    broadcaster: 'reverb',
-    key: 'rc7n4lowtj8tna8o0eug',
-    wsHost: 'localhost',
-    wsPort: 8080,
-    wssPort: 8080,
-    forceTLS: false,
-    enabledTransports: ['ws', 'wss'],
-});
 
 // Custom Inline SVG Icons matching the image
 const NodesIcon = () => (
@@ -243,11 +231,11 @@ export default function Dashboard() {
     
     // Fetch dashboard stats from backend database APIs
     Promise.all([
-      fetch('http://127.0.0.1:8000/api/nodos').then(res => res.json()),
-      fetch('http://127.0.0.1:8000/api/ubicaciones').then(res => res.json()),
-      fetch('http://127.0.0.1:8000/api/noticias').then(res => res.json()),
-      fetch('http://127.0.0.1:8000/api/users').then(res => res.json()),
-      fetch('http://127.0.0.1:8000/api/categorias').then(res => res.json())
+      fetch(`${API_BASE_URL}/nodos`).then(res => res.json()),
+      fetch(`${API_BASE_URL}/ubicaciones`).then(res => res.json()),
+      fetch(`${API_BASE_URL}/noticias`).then(res => res.json()),
+      fetch(`${API_BASE_URL}/users`).then(res => res.json()),
+      fetch(`${API_BASE_URL}/categorias`).then(res => res.json())
     ])
       .then(([nodosData, ubiData, noticiasData, usersData, catsData]) => {
         setNodos(Array.isArray(nodosData) ? nodosData : []);
@@ -331,7 +319,7 @@ export default function Dashboard() {
       return;
     }
     
-    fetch('http://127.0.0.1:8000/api/lecturas/live-history', {
+    fetch(`${API_BASE_URL}/lecturas/live-history`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify({ selections: appliedSelections })

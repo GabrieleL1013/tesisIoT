@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../config/api";
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "../styles/Inicio.css";
@@ -146,10 +147,10 @@ export default function Inicio() {
   };
 
   useEffect(() => {
-    const fetchNoticias = fetch('http://127.0.0.1:8000/api/noticias').then(res => res.json()).catch(() => []);
-    const fetchArticulos = fetch('http://127.0.0.1:8000/api/articulos').then(res => res.json()).catch(() => []);
-    const fetchNodos = fetch('http://127.0.0.1:8000/api/nodos').then(res => res.json()).catch(() => []);
-    const fetchCategorias = fetch('http://127.0.0.1:8000/api/categorias').then(res => res.json()).catch(() => []);
+    const fetchNoticias = fetch(`${API_BASE_URL}/noticias`).then(res => res.json()).catch(() => []);
+    const fetchArticulos = fetch(`${API_BASE_URL}/articulos`).then(res => res.json()).catch(() => []);
+    const fetchNodos = fetch(`${API_BASE_URL}/nodos`).then(res => res.json()).catch(() => []);
+    const fetchCategorias = fetch(`${API_BASE_URL}/categorias`).then(res => res.json()).catch(() => []);
 
     Promise.all([fetchNoticias, fetchArticulos, fetchNodos, fetchCategorias])
       .then(([dataNoticias, dataArticulos, dataNodos, dataCategorias]) => {

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
@@ -185,7 +186,7 @@ const AdminLayout = () => {
       try {
         const parsed = JSON.parse(ses);
         if (parsed && parsed.id) {
-          fetch(`http://127.0.0.1:8000/api/users/${parsed.id}`)
+          fetch(`${API_BASE_URL}/users/${parsed.id}`)
             .then(res => {
               if (!res.ok) throw new Error("Could not load user profile");
               return res.json();
@@ -219,7 +220,7 @@ const AdminLayout = () => {
 
   const fetchNotificaciones = () => {
     // 1. Fetch Contactos
-    fetch('http://127.0.0.1:8000/api/contactos')
+    fetch(`${API_BASE_URL}/contactos`)
       .then(res => {
         if (!res.ok) throw new Error("Error fetching contacts");
         return res.json();
@@ -230,19 +231,19 @@ const AdminLayout = () => {
       .catch(err => console.error("Error loading notifications:", err));
 
     // 2. Fetch System Alerts Latest
-    fetch('http://127.0.0.1:8000/api/node-alerts/latest')
+    fetch(`${API_BASE_URL}/node-alerts/latest`)
       .then(res => res.json())
       .then(data => setAlertasSistema(Array.isArray(data) ? data : []))
       .catch(err => console.error("Error loading system alerts:", err));
 
     // 3. Fetch System Alerts Unread Count
-    fetch('http://127.0.0.1:8000/api/node-alerts/unread-count')
+    fetch(`${API_BASE_URL}/node-alerts/unread-count`)
       .then(res => res.json())
       .then(data => setUnreadAlertsCount(data.count || 0))
       .catch(err => console.error("Error loading unread count:", err));
 
     // 4. Fetch App Interfaces for RBAC
-    fetch('http://127.0.0.1:8000/api/interfaces')
+    fetch(`${API_BASE_URL}/interfaces`)
       .then(res => res.json())
       .then(data => setAppInterfaces(Array.isArray(data) ? data : []))
       .catch(err => console.error("Error loading interfaces:", err));
@@ -263,7 +264,7 @@ const AdminLayout = () => {
     setMostrarNotificaciones(false);
     
     if (!notif.leido) {
-      fetch(`http://127.0.0.1:8000/api/contactos/${notif.id}`, {
+      fetch(`${API_BASE_URL}/contactos/${notif.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

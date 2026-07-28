@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/api';
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import '../../styles/components/admin/GestionarArticulos.css';
@@ -51,7 +52,7 @@ export default function GestionarArticulos() {
 
   // Load articles on mount
   const cargarArticulos = () => {
-    fetch('http://127.0.0.1:8000/api/articulos')
+    fetch(`${API_BASE_URL}/articulos`)
       .then(res => {
         if (!res.ok) throw new Error("Network response error");
         return res.json();
@@ -220,13 +221,13 @@ export default function GestionarArticulos() {
       estado
     };
 
-    const url = editandoId
-      ? `http://127.0.0.1:8000/api/articulos/${editandoId}`
-      : 'http://127.0.0.1:8000/api/articulos';
+    const endpoint = editandoId
+      ? `${API_BASE_URL}/articulos/${editandoId}`
+      : `${API_BASE_URL}/articulos`;
 
     const method = editandoId ? 'PUT' : 'POST';
 
-    fetch(url, {
+    fetch(endpoint, {
       method: method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -306,7 +307,7 @@ export default function GestionarArticulos() {
       cancelButtonText: 'Cancelar'
     }).then((result) => {
       if (result.isConfirmed) {
-        fetch(`http://127.0.0.1:8000/api/articulos/${id}`, {
+        fetch(`${API_BASE_URL}/articulos/${id}`, {
           method: 'DELETE'
         })
           .then(res => {

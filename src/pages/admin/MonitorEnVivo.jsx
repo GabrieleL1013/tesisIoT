@@ -1,22 +1,10 @@
+import { API_BASE_URL } from '../../config/api';
+import { echo } from '../../config/echo';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import '../../styles/pages/admin/MonitorEnVivo.css';
-import Echo from 'laravel-echo';
-import Pusher from 'pusher-js';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
-
-window.Pusher = Pusher;
-
-const echo = new Echo({
-    broadcaster: 'reverb',
-    key: 'rc7n4lowtj8tna8o0eug',
-    wsHost: 'localhost',
-    wsPort: 8080,
-    wssPort: 8080,
-    forceTLS: false,
-    enabledTransports: ['ws', 'wss'],
-});
 
 const formatTimeSeconds = () => {
   const d = new Date();
@@ -69,7 +57,7 @@ export default function MonitorEnVivo() {
   }, [history, chartWindow]);
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/nodos')
+    fetch(`${API_BASE_URL}/nodos`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data) && data.length > 0) {
@@ -99,7 +87,7 @@ export default function MonitorEnVivo() {
     setIsLoadingHistory(true);
     const fetchRecentHistory = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/lecturas/recientes?serial_number=${nodoActivo.serial_number}`);
+        const res = await fetch(`${API_BASE_URL}/lecturas/recientes?serial_number=${nodoActivo.serial_number}`);
         const data = await res.json();
         if (data && data.length > 0) {
             setHistory(data);

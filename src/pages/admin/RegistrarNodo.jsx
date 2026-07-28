@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/api';
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
@@ -77,7 +78,7 @@ export default function RegistrarNodo() {
     }
 
     const fetchReadings = () => {
-      fetch(`http://127.0.0.1:8000/api/lecturas/ultimas?node_id=${previewNode.id}`)
+      fetch(`${API_BASE_URL}/lecturas/ultimas?node_id=${previewNode.id}`)
         .then(res => res.json())
         .then(data => {
           setLatestReadings(data);
@@ -286,7 +287,7 @@ export default function RegistrarNodo() {
 
   useEffect(() => {
     // Fetch locations from PostgreSQL backend
-    fetch('http://127.0.0.1:8000/api/ubicaciones')
+    fetch(`${API_BASE_URL}/ubicaciones`)
       .then(res => {
         if (!res.ok) throw new Error("HTTP error " + res.status);
         return res.json();
@@ -302,7 +303,7 @@ export default function RegistrarNodo() {
       });
 
     // Fetch nodes from PostgreSQL backend
-    fetch('http://127.0.0.1:8000/api/nodos')
+    fetch(`${API_BASE_URL}/nodos`)
       .then(res => {
         if (!res.ok) throw new Error("HTTP error " + res.status);
         return res.json();
@@ -318,7 +319,7 @@ export default function RegistrarNodo() {
       });
 
     // Fetch categories from Laravel API
-    fetch('http://127.0.0.1:8000/api/categorias')
+    fetch(`${API_BASE_URL}/categorias`)
       .then(res => {
         if (!res.ok) throw new Error("HTTP error " + res.status);
         return res.json();
@@ -340,7 +341,7 @@ export default function RegistrarNodo() {
       });
 
     // Load Metrics presets from PostgreSQL database
-    fetch('http://127.0.0.1:8000/api/metricas')
+    fetch(`${API_BASE_URL}/metricas`)
       .then(res => {
         if (!res.ok) throw new Error("HTTP error " + res.status);
         return res.json();
@@ -598,7 +599,7 @@ export default function RegistrarNodo() {
       }).then((result) => {
         if (result.isConfirmed) {
           // API UPDATE NODE (PUT)
-          fetch(`http://127.0.0.1:8000/api/nodos/${editandoId}`, {
+          fetch(`${API_BASE_URL}/nodos/${editandoId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -636,7 +637,7 @@ export default function RegistrarNodo() {
 
     } else {
       // API CREATE NODE (POST)
-      fetch('http://127.0.0.1:8000/api/nodos', {
+      fetch(`${API_BASE_URL}/nodos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -732,7 +733,7 @@ export default function RegistrarNodo() {
     }).then((result) => {
       if (result.isConfirmed) {
         // API DELETE
-        fetch(`http://127.0.0.1:8000/api/nodos/${id}`, { method: 'DELETE' })
+        fetch(`${API_BASE_URL}/nodos/${id}`, { method: 'DELETE' })
           .then(() => {
             const listaActualizada = nodosRegistrados.filter(nodo => nodo.id !== id);
             setNodosRegistrados(listaActualizada);
@@ -906,7 +907,7 @@ export default function RegistrarNodo() {
     let lastKnownTime = new Date().getTime(); // Fallback
     
     // Obtenemos el timestamp exacto que tiene la BD en este momento
-    fetch(`http://127.0.0.1:8000/api/lecturas/ultimas?node_id=${nodeId}`)
+    fetch(`${API_BASE_URL}/lecturas/ultimas?node_id=${nodeId}`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data) && data.length > 0 && data[0].fecha) {
@@ -924,7 +925,7 @@ export default function RegistrarNodo() {
         setTerminalStatus('failed');
         setTerminalLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ❌ Tiempo agotado. No se recibieron datos. El nodo quedará inactivo.`]);
         
-        fetch(`http://127.0.0.1:8000/api/nodos/${nodeId}`, {
+        fetch(`${API_BASE_URL}/nodos/${nodeId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ estado: false })
@@ -935,7 +936,7 @@ export default function RegistrarNodo() {
     }, 1000);
 
     const pollInterval = setInterval(() => {
-      fetch(`http://127.0.0.1:8000/api/lecturas/ultimas?node_id=${nodeId}`)
+      fetch(`${API_BASE_URL}/lecturas/ultimas?node_id=${nodeId}`)
         .then(res => res.json())
         .then(data => {
           if (Array.isArray(data) && data.length > 0) {

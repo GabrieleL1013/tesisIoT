@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import '../../styles/components/admin/GestionarCategorias.css';
@@ -327,7 +328,7 @@ export default function GestionarCategorias() {
   const fetchCategorias = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/categorias');
+      const res = await fetch(`${API_BASE_URL}/categorias`);
       const data = await res.json();
       setCategorias(Array.isArray(data) ? data : []);
     } catch (e) {
@@ -350,7 +351,7 @@ export default function GestionarCategorias() {
       return;
     }
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/categorias', {
+      const res = await fetch(`${API_BASE_URL}/categorias`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: newNombre.trim(), color: newColorHex, colorHex: newColorHex })
@@ -381,7 +382,7 @@ export default function GestionarCategorias() {
       return;
     }
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/categorias/${editId}`, {
+      const res = await fetch(`${API_BASE_URL}/categorias/${editId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: editNombre.trim(), color: editColorHex, colorHex: editColorHex })
@@ -413,7 +414,7 @@ export default function GestionarCategorias() {
     }).then(async (result) => {
       if (!result.isConfirmed) return;
       try {
-        const res = await fetch(`http://127.0.0.1:8000/api/categorias/${id}`, { method: 'DELETE' });
+        const res = await fetch(`${API_BASE_URL}/categorias/${id}`, { method: 'DELETE' });
         if (res.ok) {
           if (editId === id) cancelEdit();
           fetchCategorias();

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import '../styles/NoticiasPublicas.css';
@@ -107,7 +108,7 @@ export default function NoticiasPublicas() {
   }, [busqueda, filtroAnio, criterioOrden, ordenFecha, ordenAlfa]);
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/api/noticias')
+    fetch(`${API_BASE_URL}/noticias`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {

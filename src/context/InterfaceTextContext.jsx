@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../config/api";
 import { createContext, useState, useContext, useEffect } from "react";
 
 const InterfaceTextContext = createContext();
@@ -9,7 +10,7 @@ export function InterfaceTextProvider({ children }) {
 
   // Cargar todos los textos al iniciar
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/api/interface-texts")
+    fetch(`${API_BASE_URL}/interface-texts`)
       .then((res) => {
         if (!res.ok) throw new Error("Error cargando textos de interfaz.");
         return res.json();
@@ -29,7 +30,7 @@ export function InterfaceTextProvider({ children }) {
   // Función para actualizar o crear un texto
   const updateText = async (key, textValue) => {
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/interface-texts", {
+      const response = await fetch(`${API_BASE_URL}/interface-texts`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

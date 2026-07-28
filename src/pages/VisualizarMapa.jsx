@@ -1,3 +1,5 @@
+import { API_BASE_URL } from '../config/api';
+import { echo } from '../config/echo';
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -207,7 +209,7 @@ const PublicRechartsChart = ({ nodoSeleccionado, activeVariables = {}, liveTrigg
         }
 
         for (const l of activeList) {
-          const res = await fetch(`http://127.0.0.1:8000/api/lecturas?node_id=${nodoSeleccionado.id}&clave_mqtt=${l.data_type}&periodo=24h`);
+          const res = await fetch(`${API_BASE_URL}/lecturas?node_id=${nodoSeleccionado.id}&clave_mqtt=${l.data_type}&periodo=24h`);
           const data = await res.json();
           if (Array.isArray(data)) {
             data.forEach(item => {
@@ -221,26 +223,6 @@ const PublicRechartsChart = ({ nodoSeleccionado, activeVariables = {}, liveTrigg
         }
 
         let mergedArray = Array.from(mergedMap.values());
-
-        // Fallback simulación en caso de BD vacía
-        if (mergedArray.length === 0) {
-          const now = new Date();
-          for (let i = 9; i >= 0; i--) {
-            const past = new Date(now.getTime() - i * 30000);
-            const timeLabel = past.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).toLowerCase();
-            const point = { time: timeLabel };
-
-            activeList.forEach(l => {
-              const baseHash = (l.data_type.charCodeAt(0) || 10) + liveTrigger;
-              if (l.data_type.includes('temp')) point[l.data_type] = parseFloat((24 + (baseHash % 4) + Math.sin(i + liveTrigger) * 0.4).toFixed(1));
-              else if (l.data_type.includes('hum')) point[l.data_type] = parseFloat((55 + Math.sin(i * 1.2 + liveTrigger * 0.4) * 0.6).toFixed(1));
-              else if (l.data_type.includes('press')) point[l.data_type] = parseFloat((1012 + Math.sin(i) * 3).toFixed(1));
-              else point[l.data_type] = parseFloat((10 + (baseHash % 8)).toFixed(1));
-            });
-            mergedArray.push(point);
-          }
-        }
-
         setChartData(mergedArray);
       } catch (err) {
         console.error("Error loading public chart data:", err);
@@ -248,7 +230,7 @@ const PublicRechartsChart = ({ nodoSeleccionado, activeVariables = {}, liveTrigg
     };
 
     fetchHistoryData();
-  }, [nodoSeleccionado, activeVariables, liveTrigger]);
+  }, [nodoSeleccionado, activeVariables]);
 
   return (
     <div className="dashboard-chart-svg-container" style={{ padding: isAmpliado ? '1rem' : '0.5rem 0' }}>
@@ -410,8 +392,8 @@ export default function VisualizarMapa() {
   // Cargar categorías y nodos
   useEffect(() => {
     Promise.all([
-      fetch('http://127.0.0.1:8000/api/categorias').then(res => res.json()),
-      fetch('http://127.0.0.1:8000/api/nodos').then(res => res.json())
+      fetch(`${API_BASE_URL}/categorias`).then(res => res.json()),
+      fetch(`${API_BASE_URL}/nodos`).then(res => res.json())
     ])
       .then(([catData, nodosData]) => {
         setCategorias(Array.isArray(catData) ? catData : []);
@@ -454,38 +436,58 @@ export default function VisualizarMapa() {
       });
   }, [catParam, nodeParam, lecturaParam]);
 
-  // Cargar últimas lecturas reales registradas en la base de datos para el nodo activo
+  // Cargar lecturas reales registradas en la BD y escuchar eventos en tiempo real via WebSockets / Polling
   useEffect(() => {
     if (!nodoSeleccionado) return;
 
-    fetch(`http://127.0.0.1:8000/api/lecturas/ultimas?node_id=${nodoSeleccionado.id}`)
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          const map = {};
-          data.forEach(item => {
-            if (item.valor !== null && item.valor !== undefined) {
-              map[item.clave_mqtt] = {
-                valor: item.valor,
-                fecha: item.fecha
-              };
-            }
-          });
-          setValoresUltimos(map);
-        }
-      })
-      .catch(err => {
-        console.error("Error loading latest readings from backend:", err);
-      });
-  }, [nodoSeleccionado, liveTrigger]);
+    const fetchLatestRealReadings = () => {
+      fetch(`${API_BASE_URL}/lecturas/ultimas?node_id=${nodoSeleccionado.id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            const map = {};
+            data.forEach(item => {
+              if (item.valor !== null && item.valor !== undefined) {
+                map[item.clave_mqtt] = {
+                  valor: item.valor,
+                  fecha: item.fecha
+                };
+              }
+            });
+            setValoresUltimos(map);
+          }
+        })
+        .catch(err => {
+          console.error("Error loading latest readings from backend:", err);
+        });
+    };
 
-  // Simulador de telemetría dinámica en tiempo real
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLiveTrigger(prev => prev + 1);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
+    fetchLatestRealReadings();
+
+    // Consultar lecturas reales registradas cada 5 segundos
+    const pollInterval = setInterval(fetchLatestRealReadings, 5000);
+
+    // Escuchar eventos de telemetría por WebSockets en vivo si están disponibles
+    let channel;
+    if (nodoSeleccionado.serial_number) {
+      try {
+        const channelName = `telemetry.${nodoSeleccionado.serial_number}`;
+        channel = echo.channel(channelName);
+        channel.listen('.LecturaRecibida', () => {
+          fetchLatestRealReadings();
+        });
+      } catch (e) {
+        console.warn("WebSocket channel error:", e);
+      }
+    }
+
+    return () => {
+      clearInterval(pollInterval);
+      if (channel && nodoSeleccionado.serial_number) {
+        echo.leaveChannel(`telemetry.${nodoSeleccionado.serial_number}`);
+      }
+    };
+  }, [nodoSeleccionado]);
 
   const handleCategoryClick = (catName) => {
     setSearchParams({ categoria: catName });
@@ -561,7 +563,7 @@ export default function VisualizarMapa() {
     }
 
     const promises = selectedKeys.map(key => {
-      return fetch(`http://127.0.0.1:8000/api/lecturas?node_id=${nodoSeleccionado.id}&clave_mqtt=${key}&periodo=${descargaRango}`)
+      return fetch(`${API_BASE_URL}/lecturas?node_id=${nodoSeleccionado.id}&clave_mqtt=${key}&periodo=${descargaRango}`)
         .then(res => res.json())
         .then(data => ({ key, data }));
     });

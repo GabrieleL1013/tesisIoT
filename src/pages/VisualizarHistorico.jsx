@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -231,7 +232,7 @@ export default function VisualizarHistorico() {
 
   // Cargar nodos al montar y seleccionar el nodo inicial
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/api/nodos')
+    fetch(`${API_BASE_URL}/nodos`)
       .then(res => res.json())
       .then(data => {
         const nodeList = Array.isArray(data) ? data : [];
@@ -277,7 +278,7 @@ export default function VisualizarHistorico() {
     if (!nodoSeleccionadoId) return;
 
     setLoading(true);
-    fetch(`http://127.0.0.1:8000/api/public/lecturas/historico?node_id=${nodoSeleccionadoId}&periodo=${periodo}&intervalo=${intervalo}`)
+    fetch(`${API_BASE_URL}/public/lecturas/historico?node_id=${nodoSeleccionadoId}&periodo=${periodo}&intervalo=${intervalo}`)
       .then(res => res.json())
       .then(data => {
         setSeriesData(data.series || {});
@@ -380,7 +381,7 @@ export default function VisualizarHistorico() {
     }
 
     const promises = selectedKeys.map(key => {
-      return fetch(`http://127.0.0.1:8000/api/public/lecturas/historico?node_id=${nodoSeleccionadoId}&periodo=${descargaRango}&clave_mqtt=${key}`)
+      return fetch(`${API_BASE_URL}/public/lecturas/historico?node_id=${nodoSeleccionadoId}&periodo=${descargaRango}&clave_mqtt=${key}`)
         .then(res => res.json())
         .then(data => ({ key, data }));
     });

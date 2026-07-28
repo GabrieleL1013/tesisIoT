@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import '../styles/ArticulosPublicos.css';
@@ -22,7 +23,7 @@ export default function ArticulosPublicos() {
   const articuloIdParam = searchParams.get('id');
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/api/articulos')
+    fetch(`${API_BASE_URL}/articulos`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {

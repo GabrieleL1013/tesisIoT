@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import '../../styles/components/admin/GestionarUsuarios.css';
@@ -254,7 +255,7 @@ export default function GestionarUsuarios() {
 
   const cargarUsuarios = () => {
     setLoading(true);
-    fetch('http://127.0.0.1:8000/api/users')
+    fetch(`${API_BASE_URL}/users`)
       .then(res => res.json())
       .then(data => {
         setUsuarios(data);
@@ -267,7 +268,7 @@ export default function GestionarUsuarios() {
   };
 
   const cargarRoles = () => {
-    fetch('http://127.0.0.1:8000/api/roles')
+    fetch(`${API_BASE_URL}/roles`)
       .then(res => res.json())
       .then(data => setRoles(data))
       .catch(err => console.error("Error fetching roles:", err));
@@ -337,13 +338,13 @@ export default function GestionarUsuarios() {
       payload.password = password;
     }
 
-    const url = editandoId 
-      ? `http://127.0.0.1:8000/api/users/${editandoId}` 
-      : 'http://127.0.0.1:8000/api/users';
+    const endpoint = editandoId 
+      ? `${API_BASE_URL}/users/${editandoId}` 
+      : `${API_BASE_URL}/users`;
 
     const method = editandoId ? 'PUT' : 'POST';
 
-    fetch(url, {
+    fetch(endpoint, {
       method: method,
       headers: {
         'Content-Type': 'application/json',
@@ -417,7 +418,7 @@ export default function GestionarUsuarios() {
       cancelButtonText: 'Cancelar'
     }).then((result) => {
       if (result.isConfirmed) {
-        fetch(`http://127.0.0.1:8000/api/users/${id}`, {
+        fetch(`${API_BASE_URL}/users/${id}`, {
           method: 'DELETE',
           headers: { 'Accept': 'application/json' }
         })

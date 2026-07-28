@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../config/api";
 import { useState, useEffect } from "react";
 import { useInterfaceText } from "../context/InterfaceTextContext";
 import Swal from "sweetalert2";
@@ -43,7 +44,7 @@ export default function EditableText({ textKey, defaultText, isTextArea = false,
         }
 
         // Consultar permisos configurados para /modo-edicion
-        fetch('http://127.0.0.1:8000/api/interfaces')
+        fetch(`${API_BASE_URL}/interfaces`)
           .then(res => res.json())
           .then(ifaces => {
             const editModeIface = ifaces.find(i => i.path === '/modo-edicion');

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import '../../styles/components/admin/GestionarUsuarios.css';
@@ -379,7 +380,7 @@ export default function GestionarRoles() {
 
   const cargarRoles = () => {
     setLoading(true);
-    fetch('http://127.0.0.1:8000/api/roles')
+    fetch(`${API_BASE_URL}/roles`)
       .then(res => res.json())
       .then(data => {
         setRoles(data);
@@ -448,13 +449,13 @@ export default function GestionarRoles() {
       level_permission: parseInt(levelPermission, 10) || 1
     };
 
-    const url = editandoId 
-      ? `http://127.0.0.1:8000/api/roles/${editandoId}` 
-      : 'http://127.0.0.1:8000/api/roles';
+    const endpoint = editandoId 
+      ? `${API_BASE_URL}/roles/${editandoId}` 
+      : `${API_BASE_URL}/roles`;
 
     const method = editandoId ? 'PUT' : 'POST';
 
-    fetch(url, {
+    fetch(endpoint, {
       method: method,
       headers: {
         'Content-Type': 'application/json',
@@ -525,7 +526,7 @@ export default function GestionarRoles() {
       color: '#ffffff'
     }).then((result) => {
       if (result.isConfirmed) {
-        fetch(`http://127.0.0.1:8000/api/roles/${id}`, {
+        fetch(`${API_BASE_URL}/roles/${id}`, {
           method: 'DELETE',
           headers: { 'Accept': 'application/json' }
         })
