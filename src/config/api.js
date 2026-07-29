@@ -1,2 +1,2 @@
-// URL base del backend configurada a través de variables de entorno (Vite)
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+// En desarrollo, usar ruta relativa permite que Vite resuelva /api via proxy.
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
