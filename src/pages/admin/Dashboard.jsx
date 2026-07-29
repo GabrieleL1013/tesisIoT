@@ -35,14 +35,20 @@ const StarIcon = () => (
     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
   </svg>
 );
-// Componente de Select Personalizado para Estación / Nodo
+// Componente de Select Personalizado para Estación / Nodo (igual a MonitorEnVivo & HistoricoAgregado)
 const DashboardCustomSelectNode = ({ nodos, selectedSerial, onSelect }) => {
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedCategories, setExpandedCategories] = useState({});
   const ref = React.useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target)) {
+        setOpen(false);
+        setSearchQuery('');
+        setExpandedCategories({});
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -50,16 +56,44 @@ const DashboardCustomSelectNode = ({ nodos, selectedSerial, onSelect }) => {
 
   const selectedNode = nodos.find(n => n.serial_number === selectedSerial);
 
+  const groupedNodos = React.useMemo(() => {
+    const groups = {};
+    (nodos || []).forEach(n => {
+      const cat = n.categoria || 'Estación meteorológica';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(n);
+    });
+    return groups;
+  }, [nodos]);
+
+  const activeCategoryKey = Object.keys(expandedCategories).find(k => expandedCategories[k]);
+
+  const filteredNodos = React.useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase();
+    return (nodos || []).filter(n => 
+      (n.serial_number && n.serial_number.toLowerCase().includes(q)) || 
+      (n.nombre && n.nombre.toLowerCase().includes(q)) ||
+      (n.categoria && n.categoria.toLowerCase().includes(q))
+    );
+  }, [nodos, searchQuery]);
+
   return (
-    <div className="dash-select-container" ref={ref}>
+    <div className="dash-select-container" ref={ref} style={{ position: 'relative' }}>
       <label className="dash-select-label">Seleccione estación</label>
       <button
         type="button"
         className={`dash-select-trigger ${open ? 'active' : ''}`}
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          setOpen(!open);
+          if (open) {
+            setSearchQuery('');
+            setExpandedCategories({});
+          }
+        }}
       >
         <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {selectedNode ? selectedNode.nombre : '-- Nodo --'}
+          {selectedNode ? (selectedNode.nombre || `${selectedNode.categoria || 'Nodo'} (${selectedNode.serial_number})`) : '-- Nodo --'}
         </span>
         <svg className={`dash-select-chevron ${open ? 'rotated' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
           <polyline points="6 9 12 15 18 9" />
@@ -67,41 +101,107 @@ const DashboardCustomSelectNode = ({ nodos, selectedSerial, onSelect }) => {
       </button>
 
       {open && (
-        <div className="dash-select-dropdown">
-          <div
-            className={`dash-select-item ${!selectedSerial ? 'selected' : ''}`}
-            onClick={() => {
-              onSelect('');
-              setOpen(false);
-            }}
-          >
-            <span>-- Nodo --</span>
-            {!selectedSerial && (
-              <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="3" width="14" height="14">
-                <polyline points="20 6 9 17 4 12" />
+        <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '6px', zIndex: 100, display: 'flex' }}>
+          <div className="custom-dropdown-menu" style={{ position: 'relative', top: 0, marginTop: 0, minWidth: '280px' }}>
+            <div className="dropdown-search-wrapper" onClick={e => e.stopPropagation()}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               </svg>
-            )}
+              <input 
+                type="text" 
+                placeholder="Buscar nodo..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                autoFocus
+              />
+            </div>
+            
+            <div className="dropdown-list-wrapper">
+              {searchQuery.trim() !== '' ? (
+                filteredNodos.length > 0 ? (
+                  filteredNodos.map(n => (
+                    <div 
+                      key={n.id || n.serial_number} 
+                      className={`custom-dropdown-item ${selectedSerial === n.serial_number ? 'active' : ''}`}
+                      onClick={() => {
+                        onSelect(n.serial_number);
+                        setOpen(false);
+                        setSearchQuery('');
+                        setExpandedCategories({});
+                      }}
+                    >
+                      {n.nombre || n.categoria} ({n.serial_number})
+                    </div>
+                  ))
+                ) : (
+                  <div className="dropdown-no-results">No se encontraron nodos</div>
+                )
+              ) : (
+                <>
+                  <div 
+                    className={`custom-dropdown-item ${!selectedSerial ? 'active' : ''}`}
+                    onClick={() => {
+                      onSelect('');
+                      setOpen(false);
+                      setSearchQuery('');
+                      setExpandedCategories({});
+                    }}
+                  >
+                    -- Todos los nodos --
+                  </div>
+                  {Object.entries(groupedNodos).map(([cat, catNodos]) => (
+                    <div key={cat} className="dropdown-category-group">
+                      <div 
+                        className="dropdown-category-header"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpandedCategories(prev => {
+                            if (prev[cat]) return {};
+                            return { [cat]: true };
+                          });
+                        }}
+                        style={{ background: expandedCategories[cat] ? '#f1f5f9' : '' }}
+                      >
+                        <span className="dropdown-category-title">{cat}</span>
+                        <span className="dropdown-category-count">{catNodos.length}</span>
+                        <svg className="dropdown-category-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ transform: 'rotate(-90deg)', transition: 'none' }}>
+                          <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
           </div>
-          {nodos.map(n => {
-            const isSelected = selectedSerial === n.serial_number;
-            return (
-              <div
-                key={n.serial_number}
-                className={`dash-select-item ${isSelected ? 'selected' : ''}`}
-                onClick={() => {
-                  onSelect(n.serial_number);
-                  setOpen(false);
-                }}
-              >
-                <span>{n.nombre}</span>
-                {isSelected && (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="3" width="14" height="14">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
+
+          {/* Sub Menu / Flyout */}
+          {searchQuery.trim() === '' && activeCategoryKey && groupedNodos[activeCategoryKey] && (
+            <div className="custom-dropdown-menu" style={{ position: 'relative', top: 0, marginTop: 0, marginLeft: '4px', minWidth: '220px' }}>
+              <div className="dropdown-category-header" style={{ cursor: 'default', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                <span className="dropdown-category-title" style={{ color: '#0f2c59' }}>
+                  {activeCategoryKey}
+                </span>
               </div>
-            );
-          })}
+              <div className="dropdown-list-wrapper">
+                {groupedNodos[activeCategoryKey].map(n => (
+                  <div 
+                    key={n.id || n.serial_number} 
+                    className={`custom-dropdown-item ${selectedSerial === n.serial_number ? 'active' : ''}`}
+                    onClick={() => {
+                      onSelect(n.serial_number);
+                      setOpen(false);
+                      setSearchQuery('');
+                      setExpandedCategories({});
+                    }}
+                  >
+                    {n.nombre || n.categoria} ({n.serial_number})
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

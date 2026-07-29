@@ -4,6 +4,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import '../styles/VisualizarHistorico.css';
 import EditableText from '../components/EditableText';
+import ModalExportarCSV from '../components/ModalExportarCSV';
 
 // Mapeador de Íconos y Temas
 const DYNAMIC_ICONS_PUBLIC = {
@@ -358,60 +359,7 @@ export default function VisualizarHistorico() {
 
   const handleOpenDescargaModal = () => {
     if (!nodoActual) return;
-    const initialChecked = {};
-    (nodoActual.lecturas || []).forEach(l => {
-      initialChecked[l.data_type] = true;
-    });
-    setDescargaMetrics(initialChecked);
     setShowModalDescarga(true);
-  };
-
-  const handleCheckboxChangeModal = (key) => {
-    setDescargaMetrics(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-  };
-
-  const handleDescargarCSVFisico = () => {
-    const selectedKeys = Object.keys(descargaMetrics).filter(k => descargaMetrics[k]);
-    if (selectedKeys.length === 0) {
-      alert("Por favor, selecciona al menos una variable para exportar.");
-      return;
-    }
-
-    const promises = selectedKeys.map(key => {
-      return fetch(`${API_BASE_URL}/public/lecturas/historico?node_id=${nodoSeleccionadoId}&periodo=${descargaRango}&clave_mqtt=${key}`)
-        .then(res => res.json())
-        .then(data => ({ key, data }));
-    });
-
-    Promise.all(promises)
-      .then(results => {
-        let csvContent = "data:text/csv;charset=utf-8,";
-        csvContent += "Dispositivo,Fecha/Hora,Variable,Valor Promedio,Min,Max,Unidad\n";
-
-        results.forEach(res => {
-          const lTemplate = nodoActual.lecturas.find(l => l.data_type === res.key);
-          const points = res.data.series?.[res.key] || [];
-          points.forEach(item => {
-            csvContent += `"${nodoActual.nombre}","${item.fecha || item.label}","${lTemplate?.tipo || res.key}",${item.valor},${item.min || item.valor},${item.max || item.valor},"${lTemplate?.unidad || ''}"\n`;
-          });
-        });
-
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `reporte_historico_${nodoActual?.nombre.toLowerCase().replace(/\s+/g, '_')}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setShowModalDescarga(false);
-      })
-      .catch(err => {
-        console.error("Error al exportar CSV:", err);
-        alert("Ocurrió un error al obtener las lecturas para la descarga.");
-      });
   };
 
   const nodosFiltrados = catQueryParam
@@ -788,65 +736,12 @@ export default function VisualizarHistorico() {
         </div>
       )}
 
-      {/* ── MODAL DE EXPORTACIÓN CSV ── */}
-      {showModalDescarga && nodoActual && (
-        <div className="modal-descarga-overlay" onClick={() => setShowModalDescarga(false)}>
-          <div className="modal-descarga-card" onClick={(e) => e.stopPropagation()}>
-            <h3 className="modal-descarga-title">Exportar Datos Históricos en CSV</h3>
-            
-            <div className="modal-field-group">
-              <label className="modal-field-label">Dispositivo Seleccionado:</label>
-              <input type="text" value={nodoActual.nombre} readOnly className="modal-field-input" />
-            </div>
-
-            <div className="modal-field-group">
-              <label className="modal-field-label">Período de Exportación:</label>
-              <select 
-                value={descargaRango} 
-                onChange={(e) => setDescargaRango(e.target.value)}
-                className="modal-field-input"
-              >
-                <option value="24h">Últimas 24 Horas</option>
-                <option value="7d">Últimos 7 Días</option>
-                <option value="30d">Últimos 30 Días (Máximo)</option>
-              </select>
-            </div>
-
-            <div className="modal-field-group">
-              <label className="modal-field-label">Variables a Incluir:</label>
-              <div className="modal-checkbox-list">
-                {lecturas.map(l => (
-                  <label key={l.data_type} className="modal-checkbox-item">
-                    <input 
-                      type="checkbox"
-                      checked={!!descargaMetrics[l.data_type]}
-                      onChange={() => handleCheckboxChangeModal(l.data_type)}
-                    />
-                    <span>{l.tipo} ({l.unidad})</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="modal-action-buttons-row">
-              <button 
-                type="button" 
-                onClick={() => setShowModalDescarga(false)}
-                className="modal-btn-cancel"
-              >
-                Cancelar
-              </button>
-              <button 
-                type="button" 
-                onClick={handleDescargarCSVFisico}
-                className="modal-btn-confirm"
-              >
-                Descargar CSV
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── MODAL POPUP: DESCARGAR CSV ── */}
+      <ModalExportarCSV
+        show={showModalDescarga}
+        onClose={() => setShowModalDescarga(false)}
+        nodo={nodoActual}
+      />
 
     </div>
   );

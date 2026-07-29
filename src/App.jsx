@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation }
 import { LanguageProvider } from "./context/LanguageContext";
 import { AuthProvider } from "./context/AuthContext";
 import { InterfaceTextProvider } from "./context/InterfaceTextContext";
+import { InterfaceImageProvider } from "./context/InterfaceImageContext";
 import Inicio from "./pages/Inicio";
 import Navbar from "../src/components/Navbar";
 import Footer from "../src/components/Footer";
@@ -67,6 +68,7 @@ export default function App() {
     <LanguageProvider>
       <AuthProvider>
         <InterfaceTextProvider>
+          <InterfaceImageProvider>
           <Router>
             {/* Restaura el scroll vertical a 0 en cada cambio de ruta */}
             <ScrollToTop />
@@ -102,6 +104,7 @@ export default function App() {
                 <Route path="/noticias" element={<NoticiasPublicas />} />
                 <Route path="/articulos" element={<ArticulosPublicos />} />
                 <Route path="/acerca-de" element={<AcercaDe />} />
+                <Route path="/software" element={<AcercaDe />} />
                 <Route path="/contacto" element={<Contacto />} />
               </Route>
 
@@ -109,6 +112,7 @@ export default function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Router>
+          </InterfaceImageProvider>
         </InterfaceTextProvider>
       </AuthProvider>
     </LanguageProvider>

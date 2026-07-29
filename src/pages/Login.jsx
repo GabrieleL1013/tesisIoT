@@ -1,6 +1,6 @@
 import { API_BASE_URL } from '../config/api';
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
 import LogoImg from '../assets/LOGO.png';
@@ -31,12 +31,19 @@ const EyeOffIcon = () => (
 );
 
 export default function Login() {
+  const { login, isLoggedIn } = useAuth();
+  const session = localStorage.getItem('iot_sesion_activa') || localStorage.getItem('iot_token_seguro');
+
+  // Si el usuario ya está autenticado, no debe poder ver el formulario de login y se le redirige al panel de administración
+  if (session || isLoggedIn) {
+    return <Navigate to="/admin/dashboard" replace />;
+  }
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { login } = useAuth();
   const handleBackToHome = (e) => {
     e.preventDefault();
     setEmail('');

@@ -179,6 +179,7 @@ export default function Navbar() {
     { label: "Artículos", path: "/articulos" }, 
     { 
       label: "Acerca de", 
+      path: "/acerca-de",
       children: [
         { label: "¿Quiénes somos?", path: "/acerca-de" },
         { label: "Contacto", path: "/contacto" }

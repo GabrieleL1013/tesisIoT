@@ -4,7 +4,9 @@ import { Link, useNavigate } from "react-router-dom";
 import "../styles/Inicio.css";
 import "../styles/ArticulosPublicos.css";
 import EditableText from "../components/EditableText";
+import EditableImage from "../components/EditableImage";
 import HideableSection from "../components/HideableSection";
+import { useInterfaceImage } from "../context/InterfaceImageContext";
 import IotJpg from "../assets/IOT.jpg";
 
 const formatFecha = (dateStr) => {
@@ -130,9 +132,15 @@ const ARCHITECTURE_STEPS = [
 
 export default function Inicio() {
   const navigate = useNavigate();
+  const { images } = useInterfaceImage();
   const [novedades, setNovedades] = useState([]);
   const [nodosCount, setNodosCount] = useState(0);
   const [categoriasCount, setCategoriasCount] = useState(0);
+
+  const dbHeroEntry = images["home_hero_bg"];
+  const heroBgUrl = dbHeroEntry?.image_data
+    ? `data:${dbHeroEntry.mime_type};base64,${dbHeroEntry.image_data.replace(/^data:[^;]+;base64,/, "")}`
+    : IotJpg;
 
   const handleItemClick = (n) => {
     if (n.tipo === 'articulo') {
@@ -230,8 +238,19 @@ export default function Inicio() {
       <HideableSection sectionKey="home_hero">
         <section 
           className="portal-hero"
-          style={{ backgroundImage: `linear-gradient(rgba(11, 15, 25, 0.72), rgba(11, 15, 25, 0.88)), url(${IotJpg})` }}
+          style={{ backgroundImage: `linear-gradient(rgba(11, 15, 25, 0.76), rgba(11, 15, 25, 0.90)), url(${heroBgUrl})` }}
         >
+          <EditableImage
+            imageKey="home_hero_bg"
+            defaultSrc={IotJpg}
+            alt="Fondo Héroe IoT ULEAM"
+            recommendedWidth={1920}
+            recommendedHeight={1080}
+            compress={false}
+            hint="Imagen de fondo principal de la sección héroe de la página de Inicio (Recomendado 1920 × 1080 px)."
+            style={{ display: "none" }}
+            wrapperStyle={{ position: "absolute", top: "24px", right: "24px", zIndex: 30, width: "36px", height: "36px" }}
+          />
           <div className="hero-bg-overlay" />
           <div className="hero-grid-pattern" />
 

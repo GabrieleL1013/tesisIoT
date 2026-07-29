@@ -1,6 +1,7 @@
 import { API_BASE_URL } from "../config/api";
 import { useState, useEffect } from "react";
 import { useInterfaceText } from "../context/InterfaceTextContext";
+import { checkEditPermission } from "../utils/checkEditPermission";
 import Swal from "sweetalert2";
 
 // Icono Lápiz SVG Autocontenido
@@ -21,49 +22,13 @@ const PencilIcon = () => (
 );
 
 export default function EditableText({ textKey, defaultText, isTextArea = false, className = "", style = {}, block = false }) {
-  const { texts, updateText, editMode } = useInterfaceText();
+  const { texts, updateText, editMode, loading } = useInterfaceText();
   const [hasPermission, setHasPermission] = useState(false);
 
   // Leer sesión de localStorage y evaluar permisos RBAC para Modo Edición
   useEffect(() => {
     const checkRole = () => {
-      const activeSes = localStorage.getItem("iot_sesion_activa");
-      if (!activeSes) {
-        setHasPermission(false);
-        return;
-      }
-      try {
-        const parsed = JSON.parse(activeSes);
-        const userRoleId = parsed.role_id || parsed.role?.id;
-        const userRoleName = parsed.role?.name || parsed.rol;
-        const userLevel = parsed.role?.level_permission ?? 1;
-
-        if (userRoleName === "Superusuario" || userRoleId === 1) {
-          setHasPermission(true);
-          return;
-        }
-
-        // Consultar permisos configurados para /modo-edicion
-        fetch(`${API_BASE_URL}/interfaces`)
-          .then(res => res.json())
-          .then(ifaces => {
-            const editModeIface = ifaces.find(i => i.path === '/modo-edicion');
-            if (!editModeIface) { setHasPermission(false); return; }
-            let allowed = [];
-            try { 
-              allowed = typeof editModeIface.allowed_roles === 'string' 
-                ? JSON.parse(editModeIface.allowed_roles) 
-                : editModeIface.allowed_roles; 
-            } catch(e){}
-            if (!Array.isArray(allowed)) allowed = [];
-            const isRoleAdmitted = allowed.some(item => item === userRoleId || item === String(userRoleId) || item === userRoleName);
-            const isLevelSufficient = editModeIface.min_level === null || userLevel >= editModeIface.min_level;
-            setHasPermission(isRoleAdmitted && isLevelSufficient);
-          })
-          .catch(() => setHasPermission(false));
-      } catch (e) {
-        setHasPermission(false);
-      }
+      checkEditPermission().then(res => setHasPermission(res));
     };
 
     checkRole();
@@ -74,6 +39,39 @@ export default function EditableText({ textKey, defaultText, isTextArea = false,
       window.removeEventListener("appInterfacesUpdated", checkRole);
     };
   }, []);
+
+  // Si los textos de la BD aún están cargando, mostrar Skeleton Loader en lugar del defaultText para evitar destello
+  if (loading) {
+    if (isTextArea) {
+      return (
+        <span 
+          className={`editable-text-skeleton-container ${className}`}
+          style={{ display: 'block', width: '100%', margin: '4px 0', ...style }}
+        >
+          <span className="editable-text-skeleton" style={{ width: '100%', height: '0.9em', display: 'block', marginBottom: '6px' }} />
+          <span className="editable-text-skeleton" style={{ width: '86%', height: '0.9em', display: 'block', marginBottom: '6px' }} />
+          <span className="editable-text-skeleton" style={{ width: '62%', height: '0.9em', display: 'block' }} />
+        </span>
+      );
+    }
+
+    const calcWidth = defaultText 
+      ? `${Math.min(Math.max(defaultText.length * 8, 80), 400)}px` 
+      : '120px';
+
+    return (
+      <span 
+        className={`editable-text-skeleton ${className}`}
+        style={{
+          width: calcWidth,
+          height: '1.1em',
+          display: block ? 'block' : 'inline-block',
+          margin: '2px 0',
+          ...style
+        }}
+      />
+    );
+  }
 
   // El texto a mostrar: prioriza el de la base de datos, si no existe usa el predeterminado
   const displayText = texts[textKey] !== undefined ? texts[textKey] : defaultText;

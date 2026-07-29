@@ -1,6 +1,7 @@
 import { API_BASE_URL } from '../../config/api';
 import { echo } from '../../config/echo';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import '../../styles/pages/admin/MonitorEnVivo.css';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -28,20 +29,43 @@ export default function MonitorEnVivo() {
   const [isConnected, setIsConnected] = useState(false);
   const [logs, setLogs] = useState([]);
   const [chartWindow, setChartWindow] = useState('15'); // minutes
+  const [showWindowDropdown, setShowWindowDropdown] = useState(false);
+  const windowDropdownRef = useRef(null);
   const [visibleRows, setVisibleRows] = useState(5);
+  const [activeVariables, setActiveVariables] = useState({});
 
-  const [updateFrequency, setUpdateFrequency] = useState(5);
-  const updateFrequencyRef = useRef(5);
-  const lastProcessedTimeRef = useRef(0);
   const sensorDataRef = useRef({});
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (windowDropdownRef.current && !windowDropdownRef.current.contains(e.target)) {
+        setShowWindowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
 
   useEffect(() => {
     sensorDataRef.current = sensorData;
   }, [sensorData]);
 
   useEffect(() => {
-    updateFrequencyRef.current = updateFrequency;
-  }, [updateFrequency]);
+    if (nodoActivo?.lecturas) {
+      const initialMap = {};
+      nodoActivo.lecturas.forEach(l => {
+        initialMap[l.data_type] = true;
+      });
+      setActiveVariables(initialMap);
+    }
+  }, [nodoActivo]);
+
+  const toggleVariable = (dataType) => {
+    setActiveVariables(prev => ({
+      ...prev,
+      [dataType]: prev[dataType] === false ? true : false
+    }));
+  };
 
   const addLog = (message, type = 'info') => {
     setLogs(prev => {
@@ -50,10 +74,36 @@ export default function MonitorEnVivo() {
     });
   };
 
+  const getItemTimestampMs = (item) => {
+    if (!item) return 0;
+    if (item.timestamp) {
+      return item.timestamp > 1e11 ? item.timestamp : item.timestamp * 1000;
+    }
+    if (item.dateTime) {
+      const parsed = new Date(item.dateTime).getTime();
+      if (!isNaN(parsed)) return parsed;
+    }
+    if (item.created_at) {
+      const parsed = new Date(item.created_at).getTime();
+      if (!isNaN(parsed)) return parsed;
+    }
+    return 0;
+  };
+
   const chartData = useMemo(() => {
-    // Si asuminos 1 lectura cada 5 segundos: 60 seg / 5 = 12 lecturas por min.
-    const maxPoints = parseInt(chartWindow) * 12;
-    return history.slice(-maxPoints);
+    if (!history || history.length === 0) return [];
+
+    const windowMinutes = parseInt(chartWindow, 10) || 15;
+    const windowMs = windowMinutes * 60 * 1000;
+
+    const lastItem = history[history.length - 1];
+    const latestMs = (lastItem && getItemTimestampMs(lastItem)) || Date.now();
+    const cutoffMs = latestMs - windowMs;
+
+    return history.filter(item => {
+      const itemMs = getItemTimestampMs(item);
+      return itemMs === 0 || itemMs >= cutoffMs;
+    });
   }, [history, chartWindow]);
 
   useEffect(() => {
@@ -120,19 +170,9 @@ export default function MonitorEnVivo() {
     channel.subscribed(() => {
         setIsConnected(true);
         addLog(`Conexión establecida con broker.`, 'success');
-        lastProcessedTimeRef.current = 0; // Reset timer
     });
 
     channel.listen('.LecturaRecibida', (e) => {
-      const now = Date.now();
-      const delay = (updateFrequencyRef.current * 1000) / 2;
-      
-      if (now - lastProcessedTimeRef.current < delay) {
-        return; 
-      }
-      
-      lastProcessedTimeRef.current = now;
-
       const newData = e.data || e;
       if (!newData) return;
       
@@ -258,22 +298,20 @@ export default function MonitorEnVivo() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const [portalTarget, setPortalTarget] = useState(null);
+
+  useEffect(() => {
+    setPortalTarget(document.getElementById('admin-navbar-portal-target'));
+  }, []);
+
   return (
     <div className="monitor-vivo-container">
-      
-      {/* 1. HEADER */}
-      <div className="monitor-header-bar">
-        <div className="monitor-title-box">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="24" height="24">
-            <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path>
-            <path d="M12 12v9"></path>
-            <path d="m8 17 4 4 4-4"></path>
-          </svg>
-          <div className="monitor-live-badge">
-            <span className="dot"></span> En Vivo
-          </div>
-        </div>
-      </div>
+      {portalTarget && createPortal(
+        <div className="monitor-live-badge">
+          <span className="dot"></span> En Vivo
+        </div>,
+        portalTarget
+      )}
 
       {/* 2. TOP INFO BAR */}
       <div className="monitor-node-info-card">
@@ -432,19 +470,7 @@ export default function MonitorEnVivo() {
             {isLoadingNodos ? (
               <div className="skeleton skeleton-text" style={{width: '100px', marginTop: '4px'}}></div>
             ) : (
-              <select 
-                className="node-info-value" 
-                style={{ border: 'none', background: 'transparent', outline: 'none', color: '#0f172a', fontWeight: '600', cursor: 'pointer', padding: 0, fontFamily: 'inherit', fontSize: 'inherit' }}
-                value={updateFrequency}
-                onChange={(e) => setUpdateFrequency(Number(e.target.value))}
-              >
-                <option value={5}>1 msg / 5s</option>
-                <option value={10}>1 msg / 10s</option>
-                <option value={15}>1 msg / 15s</option>
-                <option value={20}>1 msg / 20s</option>
-                <option value={30}>1 msg / 30s</option>
-                <option value={60}>1 msg / 1m</option>
-              </select>
+              <span className="node-info-value">1 msg / 5s</span>
             )}
           </div>
         </div>
@@ -575,22 +601,102 @@ export default function MonitorEnVivo() {
             <div className="monitor-live-badge" style={{ padding: '4px 8px', fontSize: '0.65rem' }}>
               <span className="dot" style={{width: '4px', height: '4px'}}></span> En Vivo
             </div>
-            <select value={chartWindow} onChange={e => setChartWindow(e.target.value)}>
-              <option value="5">5 min</option>
-              <option value="15">15 min</option>
-              <option value="30">30 min</option>
-            </select>
+            <div className="chart-window-dropdown-container" ref={windowDropdownRef} style={{ position: 'relative' }}>
+              <button 
+                type="button"
+                className="chart-window-trigger-btn"
+                onClick={() => setShowWindowDropdown(prev => !prev)}
+              >
+                <span>{chartWindow} min</span>
+                <svg 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2.5" 
+                  width="14" 
+                  height="14" 
+                  style={{ 
+                    transform: showWindowDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s ease',
+                    color: '#64748b' 
+                  }}
+                >
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+
+              {showWindowDropdown && (
+                <div className="chart-window-dropdown-menu">
+                  {[
+                    { value: '5', label: '5 min' },
+                    { value: '15', label: '15 min' },
+                    { value: '30', label: '30 min' },
+                    { value: '60', label: '60 min' },
+                  ].map((opt) => {
+                    const isSelected = chartWindow === opt.value;
+                    return (
+                      <div
+                        key={opt.value}
+                        className={`chart-window-dropdown-item ${isSelected ? 'active' : ''}`}
+                        onClick={() => {
+                          setChartWindow(opt.value);
+                          setShowWindowDropdown(false);
+                        }}
+                      >
+                        <span>{opt.label}</span>
+                        {isSelected && (
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="14" height="14" style={{ color: '#2563eb' }}>
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                          </svg>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="chart-legend">
+        <div className="chart-legend" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', marginBottom: '14px' }}>
            {nodoActivo?.lecturas?.map((l, i) => {
              const t = getTheme(l.data_type, l.icono);
+             const isChecked = activeVariables[l.data_type] !== false;
              return (
-               <div key={i} className="legend-item" style={{ color: t.hex }}>
-                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="12" height="12"><circle cx="12" cy="12" r="10"></circle></svg>
-                 {l.tipo} ({l.unidad})
-               </div>
+               <label 
+                 key={i} 
+                 className="variable-toggle-chip"
+                 onClick={() => toggleVariable(l.data_type)}
+                 style={{
+                   display: 'inline-flex',
+                   alignItems: 'center',
+                   gap: '8px',
+                   padding: '5px 12px',
+                   borderRadius: '20px',
+                   fontSize: '0.8rem',
+                   fontWeight: 600,
+                   cursor: 'pointer',
+                   userSelect: 'none',
+                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                   backgroundColor: isChecked ? `${t.hex}15` : '#f1f5f9',
+                   border: `1.5px solid ${isChecked ? t.hex : '#cbd5e1'}`,
+                   color: isChecked ? t.hex : '#94a3b8',
+                   boxShadow: isChecked ? `0 2px 4px ${t.hex}20` : 'none'
+                 }}
+               >
+                 <input 
+                   type="checkbox"
+                   checked={isChecked}
+                   onChange={() => {}} 
+                   style={{
+                     accentColor: t.hex,
+                     cursor: 'pointer',
+                     width: '14px',
+                     height: '14px'
+                   }}
+                 />
+                 <span>{l.tipo} ({l.unidad})</span>
+               </label>
              );
            })}
         </div>
@@ -617,13 +723,31 @@ export default function MonitorEnVivo() {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="shortTime" tick={{fontSize: 10, fill: '#94a3b8'}} tickMargin={10} axisLine={{stroke: '#e2e8f0'}} tickLine={false} />
                 
-                {/* Dynamically render YAxis based on available readings */}
-                {nodoActivo?.lecturas?.[0] && <YAxis yAxisId="left" tick={{fontSize: 10, fill: getTheme(nodoActivo.lecturas[0].data_type, nodoActivo.lecturas[0].icono).hex}} axisLine={false} tickLine={false} dx={-10} />}
-                {nodoActivo?.lecturas?.[1] && <YAxis yAxisId="right" orientation="right" tick={{fontSize: 10, fill: getTheme(nodoActivo.lecturas[1].data_type, nodoActivo.lecturas[1].icono).hex}} axisLine={false} tickLine={false} dx={10} />}
+                {/* Dynamically render YAxis based on active readings */}
+                {nodoActivo?.lecturas?.some((l, idx) => idx % 2 === 0 && activeVariables[l.data_type] !== false) && (
+                  <YAxis 
+                    yAxisId="left" 
+                    tick={{fontSize: 10, fill: getTheme(nodoActivo.lecturas[0]?.data_type, nodoActivo.lecturas[0]?.icono).hex}} 
+                    axisLine={false} 
+                    tickLine={false} 
+                    dx={-10} 
+                  />
+                )}
+                {nodoActivo?.lecturas?.some((l, idx) => idx % 2 === 1 && activeVariables[l.data_type] !== false) && (
+                  <YAxis 
+                    yAxisId="right" 
+                    orientation="right" 
+                    tick={{fontSize: 10, fill: getTheme(nodoActivo.lecturas[1]?.data_type, nodoActivo.lecturas[1]?.icono).hex}} 
+                    axisLine={false} 
+                    tickLine={false} 
+                    dx={10} 
+                  />
+                )}
                 
                 <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }} />
                 
                 {nodoActivo?.lecturas?.map((l, idx) => {
+                   if (activeVariables[l.data_type] === false) return null;
                    const theme = getTheme(l.data_type, l.icono);
                    return (
                      <Area 
@@ -678,13 +802,15 @@ export default function MonitorEnVivo() {
                   ))
                 ) : (
                   nodoActivo?.lecturas?.map((l, i) => {
-                    const theme = getTheme(l.data_type);
+                    const theme = getTheme(l.data_type, l.icono);
                     const st = stats?.[l.data_type];
                     return (
                       <tr key={i}>
-                        <td>
-                          <div className="kpi-icon-wrapper" style={{ width: '32px', height: '32px', background: theme.bg, color: theme.hex, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><path d={theme.icon} /></svg>
+                        <td style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div className="kpi-icon-wrapper" style={{ width: '32px', height: '32px', background: theme.bg, color: theme.hex, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                               {theme.icon}
+                             </svg>
                           </div>
                           <span style={{ fontWeight: 700, color: '#0f172a' }}>{l.tipo} ({l.unidad})</span>
                         </td>

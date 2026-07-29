@@ -1,10 +1,11 @@
 import { API_BASE_URL } from '../config/api';
 import { echo } from '../config/echo';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import '../styles/VisualizarMapa.css';
 import EditableText from '../components/EditableText';
+import ModalExportarCSV from '../components/ModalExportarCSV';
 
 // Icono de Calendario SVG
 const CalendarIcon = () => (
@@ -189,48 +190,14 @@ const PublicCustomSelectNode = ({ nodos, selectedNodeId, onSelect, placeholder =
 };
 
 // Componente para dibujar la gráfica Recharts interactiva en tiempo real
-const PublicRechartsChart = ({ nodoSeleccionado, activeVariables = {}, liveTrigger, tipoGrafico, onDescargarClick, onAmpliarClick, isAmpliado = false }) => {
-  const [chartData, setChartData] = useState([]);
-
+const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables = {}, tipoGrafico, onDescargarClick, onAmpliarClick, isAmpliado = false }) => {
   const lecturas = nodoSeleccionado?.lecturas || [];
   const activeLecturas = lecturas.filter(l => activeVariables[l.data_type] !== false);
 
-  useEffect(() => {
-    if (!nodoSeleccionado) return;
-
-    const fetchHistoryData = async () => {
-      try {
-        const mergedMap = new Map();
-        const activeList = lecturas.filter(l => activeVariables[l.data_type] !== false);
-        
-        if (activeList.length === 0) {
-          setChartData([]);
-          return;
-        }
-
-        for (const l of activeList) {
-          const res = await fetch(`${API_BASE_URL}/lecturas?node_id=${nodoSeleccionado.id}&clave_mqtt=${l.data_type}&periodo=24h`);
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            data.forEach(item => {
-              const label = item.label || item.fecha;
-              if (!mergedMap.has(label)) {
-                mergedMap.set(label, { time: label });
-              }
-              mergedMap.get(label)[l.data_type] = item.valor;
-            });
-          }
-        }
-
-        let mergedArray = Array.from(mergedMap.values());
-        setChartData(mergedArray);
-      } catch (err) {
-        console.error("Error loading public chart data:", err);
-      }
-    };
-
-    fetchHistoryData();
-  }, [nodoSeleccionado, activeVariables]);
+  const chartData = useMemo(() => {
+    if (!history || history.length === 0) return [];
+    return history;
+  }, [history]);
 
   return (
     <div className="dashboard-chart-svg-container" style={{ padding: isAmpliado ? '1rem' : '0.5rem 0' }}>
@@ -260,49 +227,85 @@ const PublicRechartsChart = ({ nodoSeleccionado, activeVariables = {}, liveTrigg
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#94a3b8', fontSize: '0.9rem' }}>
             Sin variables activas marcadas
           </div>
+        ) : chartData.length === 0 ? (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#94a3b8', fontSize: '0.9rem' }}>
+            Cargando datos en tiempo real...
+          </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
-              <defs>
+            {tipoGrafico === 'bar' ? (
+              <BarChart data={chartData} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} tickMargin={10} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
+                
+                {activeLecturas[0] && (
+                  <YAxis yAxisId="left" tick={{ fontSize: 10, fill: getTheme(activeLecturas[0].data_type, activeLecturas[0].icono).hex }} axisLine={false} tickLine={false} dx={-10} />
+                )}
+                {activeLecturas[1] && (
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: getTheme(activeLecturas[1].data_type, activeLecturas[1].icono).hex }} axisLine={false} tickLine={false} dx={10} />
+                )}
+
+                <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }} />
+
                 {activeLecturas.map((l, idx) => {
                   const theme = getTheme(l.data_type, l.icono);
                   return (
-                    <linearGradient key={idx} id={`colorPub${l.data_type}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={theme.hex} stopOpacity={0.4} />
-                      <stop offset="95%" stopColor={theme.hex} stopOpacity={0} />
-                    </linearGradient>
+                    <Bar
+                      key={l.data_type}
+                      yAxisId={idx % 2 === 0 ? "left" : "right"}
+                      dataKey={l.data_type}
+                      name={`${l.tipo} (${l.unidad})`}
+                      fill={theme.hex}
+                      radius={[4, 4, 0, 0]}
+                    />
                   );
                 })}
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} tickMargin={10} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
-              
-              {activeLecturas[0] && (
-                <YAxis yAxisId="left" tick={{ fontSize: 10, fill: getTheme(activeLecturas[0].data_type, activeLecturas[0].icono).hex }} axisLine={false} tickLine={false} dx={-10} />
-              )}
-              {activeLecturas[1] && (
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: getTheme(activeLecturas[1].data_type, activeLecturas[1].icono).hex }} axisLine={false} tickLine={false} dx={10} />
-              )}
+              </BarChart>
+            ) : (
+              <AreaChart data={chartData} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
+                <defs>
+                  {activeLecturas.map((l, idx) => {
+                    const theme = getTheme(l.data_type, l.icono);
+                    return (
+                      <linearGradient key={idx} id={`colorPub${l.data_type}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={theme.hex} stopOpacity={0.4} />
+                        <stop offset="95%" stopColor={theme.hex} stopOpacity={0} />
+                      </linearGradient>
+                    );
+                  })}
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} tickMargin={10} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
+                
+                {activeLecturas[0] && (
+                  <YAxis yAxisId="left" tick={{ fontSize: 10, fill: getTheme(activeLecturas[0].data_type, activeLecturas[0].icono).hex }} axisLine={false} tickLine={false} dx={-10} />
+                )}
+                {activeLecturas[1] && (
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: getTheme(activeLecturas[1].data_type, activeLecturas[1].icono).hex }} axisLine={false} tickLine={false} dx={10} />
+                )}
 
-              <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }} />
+                <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }} />
 
-              {activeLecturas.map((l, idx) => {
-                const theme = getTheme(l.data_type, l.icono);
-                return (
-                  <Area
-                    key={l.data_type}
-                    yAxisId={idx % 2 === 0 ? "left" : "right"}
-                    type={tipoGrafico === 'bar' ? 'stepAfter' : 'monotone'}
-                    dataKey={l.data_type}
-                    name={`${l.tipo} (${l.unidad})`}
-                    stroke={theme.hex}
-                    strokeWidth={2.5}
-                    fillOpacity={1}
-                    fill={`url(#colorPub${l.data_type})`}
-                  />
-                );
-              })}
-            </AreaChart>
+                {activeLecturas.map((l, idx) => {
+                  const theme = getTheme(l.data_type, l.icono);
+                  return (
+                    <Area
+                      key={l.data_type}
+                      yAxisId={idx % 2 === 0 ? "left" : "right"}
+                      type="monotone"
+                      dataKey={l.data_type}
+                      name={`${l.tipo} (${l.unidad})`}
+                      stroke={theme.hex}
+                      strokeWidth={2.5}
+                      fillOpacity={1}
+                      fill={`url(#colorPub${l.data_type})`}
+                      dot={{ r: 3, strokeWidth: 1.5, fill: '#ffffff', stroke: theme.hex }}
+                      activeDot={{ r: 5, strokeWidth: 0, fill: theme.hex }}
+                    />
+                  );
+                })}
+              </AreaChart>
+            )}
           </ResponsiveContainer>
         )}
       </div>
@@ -353,12 +356,90 @@ export default function VisualizarMapa() {
   // Valores de telemetría más recientes en BD
   const [valoresUltimos, setValoresUltimos] = useState({});
 
+  // Puntos del gráfico histórico y tiempo real
+  const [history, setHistory] = useState([]);
+
+  // Cargar datos históricos iniciales cuando cambia el nodo seleccionado (50 lecturas recientes)
+  useEffect(() => {
+    const serial = nodoSeleccionado?.serial_number;
+    if (!serial) {
+      setHistory([]);
+      return;
+    }
+
+    const fetchInitialHistory = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/lecturas/recientes?serial_number=${serial}&limit=50`);
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const points = data.map(item => {
+            let shortT = item.shortTime;
+            let fullT = item.dateTime;
+
+            if (!shortT && fullT) {
+              shortT = fullT.includes(',') ? fullT.split(', ')[1] : fullT;
+            } else if (shortT && !fullT) {
+              fullT = `${new Date().toLocaleDateString('es-ES')}, ${shortT}`;
+            }
+
+            return {
+              ...item,
+              time: shortT,
+              dateTime: fullT
+            };
+          });
+
+          setHistory(points);
+
+          const lastItem = points[points.length - 1];
+          if (lastItem && nodoSeleccionado?.lecturas) {
+            const map = {};
+            nodoSeleccionado.lecturas.forEach(l => {
+              if (lastItem[l.data_type] !== undefined && lastItem[l.data_type] !== null) {
+                map[l.data_type] = {
+                  valor: parseFloat(lastItem[l.data_type]),
+                  fecha: lastItem.dateTime
+                };
+              }
+            });
+            setValoresUltimos(map);
+          }
+        }
+      } catch (err) {
+        console.error("Error al cargar historial inicial público:", err);
+      }
+    };
+
+    fetchInitialHistory();
+  }, [nodoSeleccionado?.serial_number]);
+
   // Estados del Modal de Descarga CSV
   const [showModalDescarga, setShowModalDescarga] = useState(false);
   const [descargaMetrics, setDescargaMetrics] = useState({});
-  const [descargaRango, setDescargaRango] = useState('30d');
+  const [descargaRango, setDescargaRango] = useState('24h');
+  const [descargaIntervalo, setDescargaIntervalo] = useState('min');
   const [descargaFechaInicio, setDescargaFechaInicio] = useState('2025-07-04');
   const [descargaFechaFin, setDescargaFechaFin] = useState('2025-08-02');
+
+  const getNodeSaveFrequencySeconds = () => {
+    if (!nodoSeleccionado) return 5;
+    const freq = parseInt(nodoSeleccionado.save_frequency, 10);
+    return isNaN(freq) || freq <= 0 ? 5 : freq;
+  };
+
+  const getIntervalOptions = () => {
+    const freqSec = getNodeSaveFrequencySeconds();
+    const freqLabel = freqSec < 60 ? `${freqSec}s` : `${Math.round(freqSec / 60)}min`;
+
+    return [
+      { id: 'min', label: `Mínimo (${freqLabel})`, disabled: false },
+      { id: '1', label: '1 min', disabled: freqSec > 60 },
+      { id: '5', label: '5 min', disabled: freqSec > 300 },
+      { id: '15', label: '15 min', disabled: freqSec > 900 },
+      { id: '30', label: '30 min', disabled: freqSec > 1800 },
+      { id: '60', label: '60 min', disabled: freqSec > 3600 }
+    ];
+  };
 
   // Trigger para simulación de telemetría dinámica en tiempo real
   const [liveTrigger, setLiveTrigger] = useState(0);
@@ -376,7 +457,7 @@ export default function VisualizarMapa() {
     } else {
       setActiveVariables({});
     }
-  }, [nodoSeleccionado]);
+  }, [nodoSeleccionado?.id]);
 
   const toggleVariable = (dataType) => {
     setActiveVariables(prev => ({
@@ -410,7 +491,7 @@ export default function VisualizarMapa() {
             if (nodeParam) {
               const found = filtered.find(n => n.id.toString() === nodeParam.toString());
               if (found) {
-                setNodoSeleccionado(found);
+                setNodoSeleccionado(prev => (prev?.id === found.id ? prev : found));
                 if (found.lecturas && found.lecturas.length > 0) {
                   let activeLect = found.lecturas[0];
                   if (lecturaParam) {
@@ -436,58 +517,75 @@ export default function VisualizarMapa() {
       });
   }, [catParam, nodeParam, lecturaParam]);
 
-  // Cargar lecturas reales registradas en la BD y escuchar eventos en tiempo real via WebSockets / Polling
+  // Cargar lecturas reales registradas en la BD y escuchar eventos en tiempo real cada 5s via WebSockets
   useEffect(() => {
-    if (!nodoSeleccionado) return;
+    const serial = nodoSeleccionado?.serial_number;
+    if (!serial) return;
 
-    const fetchLatestRealReadings = () => {
-      fetch(`${API_BASE_URL}/lecturas/ultimas?node_id=${nodoSeleccionado.id}`)
-        .then(res => res.json())
-        .then(data => {
-          if (Array.isArray(data)) {
-            const map = {};
-            data.forEach(item => {
-              if (item.valor !== null && item.valor !== undefined) {
-                map[item.clave_mqtt] = {
-                  valor: item.valor,
-                  fecha: item.fecha
-                };
-              }
-            });
-            setValoresUltimos(map);
-          }
-        })
-        .catch(err => {
-          console.error("Error loading latest readings from backend:", err);
+    const processTelemetryPacket = (newData) => {
+      if (!newData) return;
+      
+      let shortT = newData.shortTime;
+      let fullT = newData.dateTime;
+
+      if (!shortT && fullT) {
+        shortT = fullT.includes(',') ? fullT.split(', ')[1] : fullT;
+      } else if (shortT && !fullT) {
+        fullT = `${new Date().toLocaleDateString('es-ES')}, ${shortT}`;
+      } else if (!shortT && !fullT) {
+        shortT = new Date().toLocaleTimeString('es-ES', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+        fullT = `${new Date().toLocaleDateString('es-ES')}, ${shortT}`;
+      }
+
+      const parsedData = {
+        ...newData,
+        time: shortT,
+        dateTime: fullT
+      };
+
+      if (nodoSeleccionado?.lecturas) {
+        setValoresUltimos(prev => {
+          const updated = { ...prev };
+          nodoSeleccionado.lecturas.forEach(l => {
+            if (newData[l.data_type] !== undefined && newData[l.data_type] !== null) {
+              updated[l.data_type] = {
+                valor: parseFloat(newData[l.data_type]),
+                fecha: fullT
+              };
+            }
+          });
+          return updated;
         });
+      }
+
+      setHistory(prev => {
+        const updated = [...prev, parsedData];
+        if (updated.length > 200) updated.shift();
+        return updated;
+      });
     };
 
-    fetchLatestRealReadings();
-
-    // Consultar lecturas reales registradas cada 5 segundos
-    const pollInterval = setInterval(fetchLatestRealReadings, 5000);
-
-    // Escuchar eventos de telemetría por WebSockets en vivo si están disponibles
+    // Escuchar canal WebSocket de Laravel Reverb en vivo (emitido cada 5s por el listener MQTT)
     let channel;
-    if (nodoSeleccionado.serial_number) {
-      try {
-        const channelName = `telemetry.${nodoSeleccionado.serial_number}`;
-        channel = echo.channel(channelName);
-        channel.listen('.LecturaRecibida', () => {
-          fetchLatestRealReadings();
-        });
-      } catch (e) {
-        console.warn("WebSocket channel error:", e);
-      }
+    try {
+      const channelName = `telemetry.${serial}`;
+      channel = echo.channel(channelName);
+      channel.listen('.LecturaRecibida', (e) => {
+        const newData = e.data || e;
+        if (newData) {
+          processTelemetryPacket(newData);
+        }
+      });
+    } catch (e) {
+      console.warn("WebSocket channel error:", e);
     }
 
     return () => {
-      clearInterval(pollInterval);
-      if (channel && nodoSeleccionado.serial_number) {
-        echo.leaveChannel(`telemetry.${nodoSeleccionado.serial_number}`);
+      if (channel && serial) {
+        echo.leaveChannel(`telemetry.${serial}`);
       }
     };
-  }, [nodoSeleccionado]);
+  }, [nodoSeleccionado?.serial_number]);
 
   const handleCategoryClick = (catName) => {
     setSearchParams({ categoria: catName });
@@ -512,7 +610,7 @@ export default function VisualizarMapa() {
         nodo: nodeId,
         lectura: firstLectura
       });
-      setNodoSeleccionado(nodeObj);
+      setNodoSeleccionado(prev => (prev?.id === nodeObj.id ? prev : nodeObj));
     }
   };
 
@@ -536,63 +634,9 @@ export default function VisualizarMapa() {
     setTabActiva('realtime');
   };
 
-  // Preparar checklist de variables cuando se abre el modal
   const handleOpenDescargaModal = () => {
     if (!nodoSeleccionado) return;
-    const initialChecked = {};
-    nodoSeleccionado.lecturas.forEach(l => {
-      initialChecked[l.data_type] = true;
-    });
-    setDescargaMetrics(initialChecked);
     setShowModalDescarga(true);
-  };
-
-  const handleCheckboxChange = (key) => {
-    setDescargaMetrics(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-  };
-
-  // Descarga del CSV desde la BD
-  const handleDescargarCSVFisico = () => {
-    const selectedKeys = Object.keys(descargaMetrics).filter(k => descargaMetrics[k]);
-    if (selectedKeys.length === 0) {
-      alert("Por favor, selecciona al menos una lectura.");
-      return;
-    }
-
-    const promises = selectedKeys.map(key => {
-      return fetch(`${API_BASE_URL}/lecturas?node_id=${nodoSeleccionado.id}&clave_mqtt=${key}&periodo=${descargaRango}`)
-        .then(res => res.json())
-        .then(data => ({ key, data }));
-    });
-
-    Promise.all(promises)
-      .then(results => {
-        let csvContent = "data:text/csv;charset=utf-8,";
-        csvContent += "Dispositivo,Fecha/Hora,Variable,Valor,Unidad\n";
-
-        results.forEach(res => {
-          const lTemplate = nodoSeleccionado.lecturas.find(l => l.data_type === res.key);
-          res.data.forEach(item => {
-            csvContent += `"${nodoSeleccionado.nombre}","${item.fecha || item.label}","${lTemplate?.tipo || res.key}",${item.valor},"${lTemplate?.unidad || ''}"\n`;
-          });
-        });
-
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `reporte_vivo_${nodoSeleccionado?.nombre.toLowerCase().replace(/\s+/g, '_')}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setShowModalDescarga(false);
-      })
-      .catch(err => {
-        console.error("Error al exportar CSV:", err);
-        alert("Ocurrió un error al obtener las lecturas para la descarga.");
-      });
   };
 
   // Obtener valor live preferentemente de BD o fallback simulador
@@ -1166,9 +1210,20 @@ export default function VisualizarMapa() {
                         .map((l) => {
                           const theme = getTheme(l.data_type, l.icono);
                           const liveVal = generarValorLive(l.data_type);
-                          const timestamp = valoresUltimos[l.data_type]?.fecha 
-                            ? new Date(valoresUltimos[l.data_type].fecha).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'medium', hour12: true })
-                            : `${new Date().toLocaleDateString('es-ES')}, ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`;
+                          const rawFecha = valoresUltimos[l.data_type]?.fecha;
+                          const timestamp = (() => {
+                            if (!rawFecha) return `${new Date().toLocaleDateString('es-ES')}, ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`;
+                            if (typeof rawFecha === 'string' && (rawFecha.includes('/') || rawFecha.includes('a. m.') || rawFecha.includes('p. m.') || rawFecha.includes('AM') || rawFecha.includes('PM'))) {
+                              return rawFecha;
+                            }
+                            try {
+                              const parsed = new Date(rawFecha);
+                              if (!isNaN(parsed.getTime())) {
+                                return parsed.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'medium', hour12: true });
+                              }
+                            } catch(e) {}
+                            return rawFecha;
+                          })();
 
                           return (
                             <div 
@@ -1248,6 +1303,7 @@ export default function VisualizarMapa() {
                   {/* Lienzo del Gráfico Analítico Recharts en Tiempo Real */}
                   {nodoSeleccionado && nodoSeleccionado.lecturas && nodoSeleccionado.lecturas.length > 0 && (
                     <PublicRechartsChart
+                      history={history}
                       nodoSeleccionado={nodoSeleccionado}
                       activeVariables={activeVariables}
                       liveTrigger={liveTrigger}
@@ -1448,108 +1504,11 @@ export default function VisualizarMapa() {
       )}
 
       {/* ── MODAL POPUP: DESCARGAR CSV ── */}
-      {showModalDescarga && nodoSeleccionado && (
-        <div className="modal-descarga-overlay">
-          <div className="modal-descarga-card">
-            <h3 className="modal-descarga-title">Descargar CSV</h3>
-            <p className="modal-descarga-subtitle">
-              Se descargará un archivo CSV para el dispositivo: <br />
-              <strong>{nodoSeleccionado.nombre}</strong>
-            </p>
-
-            <div className="modal-section-group">
-              <span className="modal-section-label">Selecciona las lecturas:</span>
-              <div className="modal-checkbox-list">
-                {nodoSeleccionado.lecturas.map(l => (
-                  <label key={l.data_type} className="modal-checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={!!descargaMetrics[l.data_type]}
-                      onChange={() => handleCheckboxChange(l.data_type)}
-                      className="modal-checkbox-input"
-                    />
-                    <span>{l.tipo} ({l.unidad})</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="modal-section-group">
-              <span className="modal-section-label">Selecciona el rango de fechas: *</span>
-              <div className="modal-range-pills">
-                {['hoy', '7d', '30d', '90d'].map(r => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => {
-                      setDescargaRango(r);
-                      const DashboardNow = new Date();
-                      let days = 30;
-                      if (r === '7d') days = 7;
-                      else if (r === '90d') days = 90;
-                      else if (r === 'hoy') days = 0;
-
-                      const past = new Date();
-                      past.setDate(DashboardNow.getDate() - days);
-
-                      setDescargaFechaInicio(past.toISOString().split('T')[0]);
-                      setDescargaFechaFin(DashboardNow.toISOString().split('T')[0]);
-                    }}
-                    className={`modal-range-pill ${descargaRango === r ? 'active' : ''}`}
-                  >
-                    {r === 'hoy' ? 'Hoy' : r === '7d' ? 'Últimos 7 días' : r === '30d' ? 'Últimos 30 días' : 'Últimos 90 días'}
-                  </button>
-                ))}
-              </div>
-
-              <div className="modal-date-picker-row">
-                <div className="date-input-wrapper">
-                  <label>Fecha de inicio: *</label>
-                  <div className="date-picker-box">
-                    <input
-                      type="date"
-                      value={descargaFechaInicio}
-                      onChange={(e) => setDescargaFechaInicio(e.target.value)}
-                    />
-                    <CalendarIcon />
-                  </div>
-                </div>
-
-                <span className="date-arrow-separator">→</span>
-
-                <div className="date-input-wrapper">
-                  <label>Fecha de fin: *</label>
-                  <div className="date-picker-box">
-                    <input
-                      type="date"
-                      value={descargaFechaFin}
-                      onChange={(e) => setDescargaFechaFin(e.target.value)}
-                    />
-                    <CalendarIcon />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="modal-action-buttons-row">
-              <button
-                type="button"
-                onClick={() => setShowModalDescarga(false)}
-                className="modal-btn-cancel"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleDescargarCSVFisico}
-                className="modal-btn-confirm"
-              >
-                Descargar CSV
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ModalExportarCSV
+        show={showModalDescarga}
+        onClose={() => setShowModalDescarga(false)}
+        nodo={nodoSeleccionado}
+      />
 
       {/* ── MODAL POPUP: GRÁFICO AMPLIADO ── */}
       {showModalAmpliado && nodoSeleccionado && lecturaSeleccionada && (
@@ -1595,6 +1554,7 @@ export default function VisualizarMapa() {
 
             {/* Canvas del gráfico ampliado */}
             <PublicRechartsChart
+              history={history}
               nodoSeleccionado={nodoSeleccionado}
               activeVariables={activeVariables}
               liveTrigger={liveTrigger}

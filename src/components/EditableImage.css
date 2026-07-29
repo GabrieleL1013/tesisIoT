@@ -1,0 +1,397 @@
+/* ── EditableImage Component Styles ── */
+
+/* ── Wrapper & Skeleton ── */
+.eimg-wrapper {
+  position: relative;
+}
+
+/* ── Pencil button overlay ── */
+.eimg-pencil-btn {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(239, 68, 68, 0.95);
+  border: none;
+  color: #fff;
+  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.92;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  z-index: 30;
+  padding: 0;
+}
+
+.eimg-wrapper:hover .eimg-pencil-btn {
+  opacity: 1;
+}
+
+/* Circular variant: always slightly visible and positioned outside the clip */
+.eimg-pencil-btn--circular {
+  bottom: 4px;
+  right: 4px;
+  opacity: 0.85;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.eimg-pencil-btn:hover {
+  transform: scale(1.12);
+  background: #dc2626;
+  opacity: 1 !important;
+}
+
+
+/* ── Modal Backdrop ── */
+.eimg-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9000;
+  animation: eimgFadeIn 0.2s ease;
+}
+
+@keyframes eimgFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* ── Modal Box ── */
+.eimg-modal {
+  background: #fff;
+  border-radius: 18px;
+  padding: 1.75rem;
+  width: 520px;
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.2);
+  animation: eimgSlideUp 0.25s ease;
+}
+
+@keyframes eimgSlideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.eimg-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.eimg-modal-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #18181b;
+  margin: 0 0 4px 0;
+}
+
+.eimg-modal-key {
+  font-size: 0.72rem;
+  color: #71717a;
+  background: #f4f4f5;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-family: "Consolas", monospace;
+}
+
+.eimg-modal-close {
+  background: none;
+  border: none;
+  color: #71717a;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  transition: background 0.2s, color 0.2s;
+}
+
+.eimg-modal-close:hover {
+  background: #f4f4f5;
+  color: #18181b;
+}
+
+.eimg-modal-hint-text {
+  font-size: 0.86rem;
+  color: #52525b;
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+}
+
+.eimg-modal-recommended {
+  font-size: 0.82rem;
+  color: #3f3f46;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 1.25rem;
+}
+
+.eimg-modal-compression-badge {
+  color: #0369a1;
+  font-weight: 600;
+}
+
+.eimg-modal-preview-wrap {
+  margin-bottom: 1.25rem;
+}
+
+.eimg-modal-preview-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #71717a;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.eimg-modal-preview-img-wrap {
+  display: flex;
+  justify-content: center;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #e4e4e7;
+  padding: 12px;
+  min-height: 120px;
+  align-items: center;
+}
+
+.eimg-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+/* ── Generic Buttons ── */
+.eimg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.55rem 1.2rem;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.eimg-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.eimg-btn-primary {
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.eimg-btn-primary:hover:not(:disabled) {
+  background: #1e40af;
+}
+
+.eimg-btn-secondary {
+  background: #f1f5f9;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
+}
+
+.eimg-btn-secondary:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.eimg-btn-ghost {
+  background: transparent;
+  color: #52525b;
+  border: 1px solid #e4e4e7;
+}
+
+.eimg-btn-ghost:hover:not(:disabled) {
+  background: #f4f4f5;
+}
+
+.eimg-btn-danger {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+}
+
+.eimg-btn-danger:hover:not(:disabled) {
+  background: #fecaca;
+}
+
+/* ─────────────────────────────────────────── */
+/* ── CROPPER STYLES ── */
+/* ─────────────────────────────────────────── */
+
+.eimg-cropper-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9500;
+  animation: eimgFadeIn 0.2s ease;
+}
+
+.eimg-cropper-box {
+  background: #1e1e2e;
+  border-radius: 18px;
+  padding: 1.5rem;
+  width: min(700px, 96vw);
+  max-height: 96vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+}
+
+.eimg-cropper-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: #e2e8f0;
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.eimg-cropper-hint {
+  font-size: 0.76rem;
+  font-weight: 400;
+  color: #94a3b8;
+}
+
+.eimg-cropper-stage {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.eimg-cropper-img {
+  display: block;
+  max-width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+
+/* Dark shade outside crop area */
+.eimg-crop-shade {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+/* The crop rectangle */
+.eimg-crop-rect {
+  position: absolute;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  cursor: move;
+  box-sizing: border-box;
+  /* overflow visible so handles at edges aren't clipped */
+  overflow: visible;
+}
+
+
+/* Rule of thirds grid */
+.eimg-crop-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.eimg-crop-grid-h,
+.eimg-crop-grid-v {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.eimg-crop-grid-h {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
+.eimg-crop-grid-v {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+/* Corner handles */
+.eimg-crop-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-radius: 3px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.eimg-crop-handle.nw {
+  top: -7px;
+  left: -7px;
+  cursor: nwse-resize;
+}
+
+.eimg-crop-handle.se {
+  bottom: -7px;
+  right: -7px;
+  cursor: nwse-resize;
+}
+
+.eimg-crop-handle.ne {
+  top: -7px;
+  right: -7px;
+  cursor: nesw-resize;
+}
+
+.eimg-crop-handle.sw {
+  bottom: -7px;
+  left: -7px;
+  cursor: nesw-resize;
+}
+
+.eimg-cropper-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}

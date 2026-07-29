@@ -21,9 +21,9 @@
 /* ── HERO CON FOTO DE FONDO IOT Y GRADIENTES ── */
 .portal-hero {
   position: relative;
-  background: 
-    linear-gradient(rgba(11, 15, 25, 0.8), rgba(11, 15, 25, 0.95)), 
-    url('https://images.unsplash.com/photo-1563770660941-20978e870e26?q=80&w=1600') no-repeat center center/cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
   color: #ffffff;
   padding: 10rem 2rem;
   display: flex;

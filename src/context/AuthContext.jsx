@@ -6,7 +6,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem("app_user");
+    const savedUser = localStorage.getItem("app_user") || localStorage.getItem("iot_sesion_activa");
     if (savedUser) {
       try {
         setUser(JSON.parse(savedUser));
@@ -27,6 +27,8 @@ export function AuthProvider({ children }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem("app_user");
+    localStorage.removeItem("iot_sesion_activa");
+    localStorage.removeItem("iot_token_seguro");
   };
 
   return (
