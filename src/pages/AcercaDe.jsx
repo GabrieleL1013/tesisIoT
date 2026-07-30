@@ -6,6 +6,7 @@ import "../styles/AcercaDe.css";
 import EditableText from "../components/EditableText";
 import EditableImage from "../components/EditableImage";
 import { useInterfaceText } from "../context/InterfaceTextContext";
+import { useInterfaceImage } from "../context/InterfaceImageContext";
 import { checkEditPermission } from "../utils/checkEditPermission";
 
 import LogoIoTDark from "../assets/uleam_iot_oscuro.svg";
@@ -18,41 +19,39 @@ import EToalaImg from "../assets/erick.jpeg";
 const SocialIcons = {
   web: (
     <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" height="20" width="20">
-      <circle cx="12" cy="12" r="9"></circle>
-      <line x1="3.6" y1="9" x2="20.4" y2="9"></line>
-      <line x1="3.6" y1="15" x2="20.4" y2="15"></line>
-      <path d="M11.5 3a17 17 0 0 0 0 18"></path>
-      <path d="M12.5 3a17 17 0 0 1 0 18"></path>
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="2" y1="12" x2="22" y2="12"></line>
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
     </svg>
   ),
   github: (
-    <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 496 512" height="20" width="20">
-      <path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"></path>
+    <svg viewBox="0 0 24 24" fill="currentColor" height="20" width="20">
+      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
     </svg>
   ),
   facebook: (
-    <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 512 512" height="20" width="20">
-      <path d="M504 256C504 119 393 8 256 8S8 119 8 256c0 123.78 90.69 226.38 209.25 245V327.69h-63V256h63v-54.64c0-62.15 37-96.48 93.67-96.48 27.14 0 55.52 4.84 55.52 4.84v61h-31.28c-30.8 0-40.41 19.12-40.41 38.73V256h68.78l-11 71.69h-57.78V501C413.31 482.38 504 379.78 504 256z"></path>
+    <svg fill="currentColor" viewBox="0 0 24 24" height="20" width="20">
+      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
     </svg>
   ),
   instagram: (
-    <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 448 512" height="20" width="20">
-      <path d="M224.1 141c-63.6 0-114.9 51.3-114.9 114.9s51.3 114.9 114.9 114.9S339 319.5 339 255.9 287.7 141 224.1 141zm0 189.6c-41.1 0-74.7-33.5-74.7-74.7s33.5-74.7 74.7-74.7 74.7 33.5 74.7 74.7-33.6 74.7-74.7 74.7zm146.4-194.3c0 14.9-12 26.8-26.8 26.8-14.9 0-26.8-12-26.8-26.8s12-26.8 26.8-26.8 26.8 12 26.8 26.8zm76.1 27.2c-1.7-35.9-9.9-67.7-36.2-93.9-26.2-26.2-58-34.4-93.9-36.2-37-2.1-147.9-2.1-184.9 0-35.8 1.7-67.6 9.9-93.9 36.1s-34.4 58-36.2 93.9c-2.1 37-2.1 147.9 0 184.9 1.7 35.9 9.9 67.7 36.2 93.9s58 34.4 93.9 36.2c37 2.1 147.9 2.1 184.9 0 35.9-1.7 67.7-9.9 93.9-36.2 26.2-26.2 34.4-58 36.2-93.9 2.1-37 2.1-147.8 0-184.8zM398.8 388c-7.8 19.6-22.9 34.7-42.6 42.6-29.5 11.7-99.5 9-132.1 9s-102.7 2.6-132.1-9c-19.6-7.8-34.7-22.9-42.6-42.6-11.7-29.5-9-99.5-9-132.1s-2.6-102.7 9-132.1c7.8-19.6 22.9-34.7 42.6-42.6 29.5-11.7 99.5-9 132.1-9s102.7-2.6 132.1 9c19.6 7.8 34.7 22.9 42.6 42.6 11.7 29.5 9 99.5 9 132.1s2.7 102.7-9 132.1z"></path>
+    <svg fill="currentColor" viewBox="0 0 24 24" height="20" width="20">
+      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/>
     </svg>
   ),
   twitter: (
-    <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 512 512" height="20" width="20">
-      <path d="M389.2 48h70.6L305.6 224.2 487 464H345L233.7 318.6 106.5 464H35.8L200.7 275.5 26.8 48H172.4L272.9 180.9 389.2 48zM364.4 421.8h39.1L151.1 88h-42L364.4 421.8z"></path>
+    <svg fill="currentColor" viewBox="0 0 24 24" height="20" width="20">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
     </svg>
   ),
   linkedin: (
-    <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 448 512" height="20" width="20">
-      <path d="M100.28 448H7.4V148.9h92.88zM53.79 108.1C24.09 108.1 0 83.5 0 53.8a53.79 53.79 0 0 1 107.58 0c0 29.7-24.1 54.3-53.79 54.3zM447.9 448h-92.68V302.4c0-34.7-.7-79.2-48.29-79.2-48.3 0-55.7 37.7-55.7 76.7V448h-92.78V148.9h89.08v40.8h1.3c12.4-23.5 42.7-48.3 87.9-48.3 94 0 111.3 61.9 111.3 142.3V448z"></path>
+    <svg fill="currentColor" viewBox="0 0 24 24" height="20" width="20">
+      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
     </svg>
   ),
   youtube: (
-    <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 576 512" height="20" width="20">
-      <path d="M549.655 124.083c-6.281-23.65-24.787-42.276-48.284-48.597C458.781 64 288 64 288 64S117.22 64 74.629 75.486c-23.497 6.322-42.003 24.947-48.284 48.597-11.412 42.867-11.412 132.305-11.412 132.305s0 89.438 11.412 132.305c6.281 23.65 24.787 41.5 48.284 47.821C117.22 448 288 448 288 448s170.78 0 213.371-11.486c23.497-6.321 42.003-24.171 48.284-47.821 11.412-42.867 11.412-132.305 11.412-132.305s0-89.438-11.412-132.305zm-317.51 213.508V175.185l142.739 81.205-142.739 81.201z"></path>
+    <svg fill="currentColor" viewBox="0 0 24 24" height="20" width="20">
+      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
     </svg>
   ),
 };
@@ -152,7 +151,7 @@ function EditableSocials({ textKey, defaultData = {}, canEdit = false }) {
             href={currentData[key]}
             target="_blank"
             rel="noopener noreferrer"
-            className="dev-social-link"
+            className={`dev-social-link dev-social-${key}`}
             title={SocialNames[key] || key}
           >
             {SocialIcons[key]}
@@ -248,7 +247,14 @@ const DEFAULT_INTERNS = [
 
 export default function AcercaDe() {
   const { texts, updateText, editMode } = useInterfaceText();
+  const { images } = useInterfaceImage();
   const [isAdmin, setIsAdmin] = useState(false);
+
+  // SVG placeholder for new members without a photo yet
+  const USER_SVG_PLACEHOLDER = `data:image/svg+xml;utf8,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#e2e8f0"/><circle cx="50" cy="36" r="20" fill="#94a3b8"/><ellipse cx="50" cy="88" rx="34" ry="26" fill="#94a3b8"/>'
+    + '</svg>'
+  )}`;
 
   useEffect(() => {
     document.title = "IoT ULEAM - Investigación Multidisciplinaria con IoT e IA";
@@ -270,13 +276,21 @@ export default function AcercaDe() {
 
   const canEdit = editMode && isAdmin;
 
+  const getAvatarSrc = (key, fallback) => {
+    const dbEntry = images?.[key];
+    if (dbEntry?.image_data) {
+      return `data:${dbEntry.mime_type};base64,${dbEntry.image_data.replace(/^data:[^;]+;base64,/, "")}`;
+    }
+    return fallback;
+  };
+
   // Counts from DB or defaults
-  const leadsCount    = parseInt(texts["ad-leads-count"]    || "2", 10);
-  const devsCount     = parseInt(texts["ad-devs-count"]     || "1", 10);
+  const leadsCount = parseInt(texts["ad-leads-count"] || "2", 10);
+  const devsCount = parseInt(texts["ad-devs-count"] || "1", 10);
   const teachersCount = parseInt(texts["ad-teachers-count"] || "5", 10);
-  const collabsCount  = parseInt(texts["ad-collabs-count"]  || "2", 10);
+  const collabsCount = parseInt(texts["ad-collabs-count"] || "2", 10);
   const studentsCount = parseInt(texts["ad-students-count"] || "5", 10);
-  const internsCount  = parseInt(texts["ad-interns-count"]  || "2", 10);
+  const internsCount = parseInt(texts["ad-interns-count"] || "2", 10);
 
   // Add a new member to a category
   const handleAddMember = async (countKey, currentCount, defaultText, keyPrefix) => {
@@ -344,7 +358,7 @@ export default function AcercaDe() {
   return (
     <div className="about-page">
       <main className="about-main-container">
-        
+
         {/* ── SECCIÓN HÉROE / LOGO PRINCIPAL ── */}
         <div className="about-hero-block">
           <div className="about-logo-wrapper">
@@ -375,10 +389,10 @@ export default function AcercaDe() {
             <EditableText textKey="ad-about-title" defaultText="¿De qué trata este proyecto?" />
           </h2>
           <p className="about-paragraph">
-            <EditableText 
-              textKey="ad-about-description" 
+            <EditableText
+              textKey="ad-about-description"
               defaultText="IoT ULEAM es una plataforma desarrollada por estudiantes y docentes de la Universidad Laica Eloy Alfaro de Manabí, enfocada en la investigación multidisciplinaria mediante el uso de sensores inteligentes, redes inalámbricas y análisis de datos. Su objetivo es integrar áreas como ingeniería, salud, medio ambiente y educación a través de tecnologías IoT."
-              isTextArea={true} 
+              isTextArea={true}
             />
           </p>
         </section>
@@ -388,9 +402,9 @@ export default function AcercaDe() {
           <h2 className="about-section-heading">
             <EditableText textKey="ad-tech-title" defaultText="Tecnologías Utilizadas" />
           </h2>
-          
+
           <div className="about-tech-grid">
-            
+
             {/* Next.js */}
             <div className="tech-card">
               <EditableImage
@@ -608,14 +622,14 @@ export default function AcercaDe() {
         {/* ── CARACTERÍSTICAS & METODOLOGÍA (GRID 2 COLS) ── */}
         <section className="about-section">
           <div className="about-two-cols-grid">
-            
+
             {/* Características Principales */}
             <div className="about-info-card">
               <h3 className="about-info-card-title">
                 <EditableText textKey="ad-feat-title" defaultText="Características Principales" />
               </h3>
               <div className="about-info-card-list">
-                
+
                 <div className="info-item-row">
                   <span className="info-item-icon">
                     <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 512 512" height="1em" width="1em">
@@ -671,7 +685,7 @@ export default function AcercaDe() {
                 <EditableText textKey="ad-method-title" defaultText="Metodología de Desarrollo" />
               </h3>
               <div className="about-info-card-list">
-                
+
                 <div className="info-item-row">
                   <span className="info-item-icon">
                     <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 512 512" height="1em" width="1em">
@@ -730,11 +744,12 @@ export default function AcercaDe() {
                 const i = idx + 1;
                 const isFirst = i === 1;
                 const isSecond = i === 2;
-                const defaultPhoto = isFirst ? WZamoraImg : isSecond ? MMachucaImg : WZamoraImg;
-                const defaultName  = isFirst ? "Willian Zamora" : isSecond ? "Mike Machuca" : `Líder ${i}`;
-                const defaultRole  = isFirst ? "Líder de Proyecto" : isSecond ? "Co-Líder del Proyecto" : "Líder de Proyecto";
+                const defaultPhoto = isFirst ? WZamoraImg : isSecond ? MMachucaImg : USER_SVG_PLACEHOLDER;
+                const defaultName = isFirst ? "Willian Zamora" : isSecond ? "Mike Machuca" : `Líder ${i}`;
+                const defaultRole = isFirst ? "Líder de Proyecto" : isSecond ? "Co-Líder del Proyecto" : "Líder de Proyecto";
                 const defaultEmail = isFirst ? "willian.zamora@uleam.edu.ec" : isSecond ? "mike.machuca@uleam.edu.ec" : "correo@uleam.edu.ec";
-                const defaultLink  = isFirst ? "https://sites.google.com/view/willianzamora/home" : isSecond ? "https://sites.google.com/view/mike-machuca-avalos" : undefined;
+                const defaultLink = isFirst ? "https://sites.google.com/view/willianzamora/home" : isSecond ? "https://sites.google.com/view/mike-machuca-avalos" : undefined;
+                const avatarSrc = getAvatarSrc(`ad-lead${i}-photo`, defaultPhoto);
 
                 return (
                   <div className="lead-card" key={`lead-${i}`} style={{ position: "relative" }}>
@@ -812,17 +827,19 @@ export default function AcercaDe() {
               {Array.from({ length: devsCount }).map((_, idx) => {
                 const i = idx + 1;
                 const isFirst = i === 1;
-                const defaultPhoto = isFirst ? EToalaImg : EToalaImg;
-                const defaultName  = isFirst ? "Erick Alexander Toala Intriago" : `Desarrollador ${i}`;
-                const defaultRole  = isFirst ? "Desarrollador Full Stack" : "Desarrollador";
+                const defaultPhoto = isFirst ? EToalaImg : USER_SVG_PLACEHOLDER;
+                const defaultName = isFirst ? "Erick Alexander Toala Intriago" : `Desarrollador ${i}`;
+                const defaultRole = isFirst ? "Desarrollador Full Stack" : "Desarrollador";
                 const defaultEmail = isFirst ? "e0803413111@live.uleam.edu.ec" : "correo@uleam.edu.ec";
-                const defaultBio   = isFirst ? "Desarrollador de la plataforma web. Encargado de todo el sistema backend con Django REST y la interfaz frontend con Next.js." : "Descripción del desarrollador...";
+                const defaultBio = isFirst ? "Desarrollador de la plataforma web. Encargado de todo el sistema backend con Django REST y la interfaz frontend con Next.js." : "Descripción del desarrollador...";
                 const defaultDevSocials = isFirst ? {
                   web: "https://erick-dev-zeta.vercel.app/",
                   github: "https://github.com/Erick-Toala",
                   facebook: "https://www.facebook.com/erick.toala.92",
                   instagram: "https://www.instagram.com/toalaerick56/"
                 } : {};
+                const devAvatarKey = isFirst ? "ad-dev-photo" : `ad-dev${i}-photo`;
+                const avatarSrc = getAvatarSrc(devAvatarKey, defaultPhoto);
 
                 return (
                   <div className="dev-card" key={`dev-${i}`} style={{ position: "relative" }}>
@@ -838,7 +855,7 @@ export default function AcercaDe() {
                     )}
                     <div className="dev-avatar-wrapper">
                       <EditableImage
-                        imageKey={isFirst ? "ad-dev-photo" : `ad-dev${i}-photo`}
+                        imageKey={devAvatarKey}
                         defaultSrc={defaultPhoto}
                         alt={defaultName}
                         className="dev-avatar-img"
@@ -859,13 +876,13 @@ export default function AcercaDe() {
                       <EditableText textKey={isFirst ? "ad-dev-email" : `ad-dev${i}-email`} defaultText={defaultEmail} />
                     </p>
                     <p className="dev-bio">
-                      <EditableText 
-                        textKey={isFirst ? "ad-dev-bio" : `ad-dev${i}-bio`} 
-                        defaultText={defaultBio} 
-                        isTextArea={true} 
+                      <EditableText
+                        textKey={isFirst ? "ad-dev-bio" : `ad-dev${i}-bio`}
+                        defaultText={defaultBio}
+                        isTextArea={true}
                       />
                     </p>
-                    
+
                     {/* Redes Sociales del Desarrollador */}
                     <EditableSocials
                       textKey={isFirst ? "ad-dev-socials" : `ad-dev${i}-socials`}
@@ -888,14 +905,22 @@ export default function AcercaDe() {
             )}
           </div>
 
-          {/* Miembros en Categorías / Chips */}
+          {/* Miembros en Categorías */}
           <div className="about-members-group">
-            
+
             {/* Docentes */}
-            <div className="members-category-box">
-              <h3 className="members-category-title">
-                <EditableText textKey="ad-teachers-title" defaultText="Docentes del grupo de investigación" />
-              </h3>
+            <div className="members-category-box teachers-box">
+              <div className="members-category-header">
+                <span className="members-category-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
+                    <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+                    <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+                  </svg>
+                </span>
+                <h3 className="members-category-title">
+                  <EditableText textKey="ad-teachers-title" defaultText="Docentes del grupo de investigación" />
+                </h3>
+              </div>
               <div className="members-chips-wrap">
                 {Array.from({ length: teachersCount }).map((_, idx) => {
                   const i = idx + 1;
@@ -906,85 +931,79 @@ export default function AcercaDe() {
                         <EditableText textKey={`ad-teacher${i}`} defaultText={defaultName} />
                       </span>
                       {canEdit && teachersCount > 1 && (
-                        <button
-                          type="button"
-                          className="chip-delete-btn"
-                          title="Eliminar este docente"
-                          onClick={() => handleRemoveMember("ad-teachers-count", teachersCount, i, "ad-teacher")}
-                        >
-                          ✕
-                        </button>
+                        <button type="button" className="chip-delete-btn" title="Eliminar este docente"
+                          onClick={() => handleRemoveMember("ad-teachers-count", teachersCount, i, "ad-teacher")}>✕</button>
                       )}
                     </span>
                   );
                 })}
               </div>
               {canEdit && (
-                <button
-                  type="button"
-                  className="add-member-btn"
-                  title="Añadir docente"
-                  onClick={() => handleAddMember("ad-teachers-count", teachersCount, "Nuevo docente", "ad-teacher")}
-                >
-                  +
-                </button>
+                <button type="button" className="add-member-btn" title="Añadir docente"
+                  onClick={() => handleAddMember("ad-teachers-count", teachersCount, "Nuevo docente", "ad-teacher")}>+</button>
               )}
             </div>
 
-            {/* Colaboradores externos */}
-            <div className="members-category-box">
-              <h3 className="members-category-title">
-                <EditableText textKey="ad-collab-title" defaultText="Colaboradores externos" />
-              </h3>
-              <div className="members-chips-wrap">
+            {/* Colaboradores externos — diseño distinto: lista con líneas */}
+            <div className="members-category-box collabs-box">
+              <div className="members-category-header">
+                <span className="members-category-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="2" y1="12" x2="22" y2="12"/>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                  </svg>
+                </span>
+                <h3 className="members-category-title">
+                  <EditableText textKey="ad-collab-title" defaultText="Colaboradores externos" />
+                </h3>
+              </div>
+              <ul className="collabs-list">
                 {Array.from({ length: collabsCount }).map((_, idx) => {
                   const i = idx + 1;
                   const item = DEFAULT_COLLABS[idx];
                   const defaultName = item ? item.name : `Colaborador ${i}`;
                   const link = item ? item.link : undefined;
-
                   return (
-                    <span className="chip-wrapper-editable" key={`collab-${i}`}>
+                    <li className="collab-list-item chip-wrapper-editable" key={`collab-${i}`}>
+                      <span className="collab-dot"/>
                       {link ? (
-                        <a href={link} target="_blank" rel="noopener noreferrer" className="member-chip member-chip-link">
+                        <a href={link} target="_blank" rel="noopener noreferrer" className="collab-list-link">
                           <EditableText textKey={`ad-collab${i}`} defaultText={defaultName} />
                         </a>
                       ) : (
-                        <span className="member-chip">
+                        <span className="collab-list-text">
                           <EditableText textKey={`ad-collab${i}`} defaultText={defaultName} />
                         </span>
                       )}
                       {canEdit && collabsCount > 1 && (
-                        <button
-                          type="button"
-                          className="chip-delete-btn"
-                          title="Eliminar este colaborador"
-                          onClick={() => handleRemoveMember("ad-collabs-count", collabsCount, i, "ad-collab")}
-                        >
-                          ✕
-                        </button>
+                        <button type="button" className="chip-delete-btn" title="Eliminar este colaborador"
+                          onClick={() => handleRemoveMember("ad-collabs-count", collabsCount, i, "ad-collab")}>✕</button>
                       )}
-                    </span>
+                    </li>
                   );
                 })}
-              </div>
+              </ul>
               {canEdit && (
-                <button
-                  type="button"
-                  className="add-member-btn"
-                  title="Añadir colaborador"
-                  onClick={() => handleAddMember("ad-collabs-count", collabsCount, "Nuevo colaborador", "ad-collab")}
-                >
-                  +
-                </button>
+                <button type="button" className="add-member-btn" title="Añadir colaborador"
+                  onClick={() => handleAddMember("ad-collabs-count", collabsCount, "Nuevo colaborador", "ad-collab")}>+</button>
               )}
             </div>
 
             {/* Estudiantes */}
-            <div className="members-category-box">
-              <h3 className="members-category-title">
-                <EditableText textKey="ad-students-title" defaultText="Estudiantes" />
-              </h3>
+            <div className="members-category-box students-box">
+              <div className="members-category-header">
+                <span className="members-category-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                    <line x1="8" y1="21" x2="16" y2="21"/>
+                    <line x1="12" y1="17" x2="12" y2="21"/>
+                  </svg>
+                </span>
+                <h3 className="members-category-title">
+                  <EditableText textKey="ad-students-title" defaultText="Estudiantes" />
+                </h3>
+              </div>
               <div className="members-chips-wrap">
                 {Array.from({ length: studentsCount }).map((_, idx) => {
                   const i = idx + 1;
@@ -995,36 +1014,32 @@ export default function AcercaDe() {
                         <EditableText textKey={`ad-student${i}`} defaultText={defaultName} />
                       </span>
                       {canEdit && studentsCount > 1 && (
-                        <button
-                          type="button"
-                          className="chip-delete-btn"
-                          title="Eliminar este estudiante"
-                          onClick={() => handleRemoveMember("ad-students-count", studentsCount, i, "ad-student")}
-                        >
-                          ✕
-                        </button>
+                        <button type="button" className="chip-delete-btn" title="Eliminar este estudiante"
+                          onClick={() => handleRemoveMember("ad-students-count", studentsCount, i, "ad-student")}>✕</button>
                       )}
                     </span>
                   );
                 })}
               </div>
               {canEdit && (
-                <button
-                  type="button"
-                  className="add-member-btn"
-                  title="Añadir estudiante"
-                  onClick={() => handleAddMember("ad-students-count", studentsCount, "Nuevo estudiante", "ad-student")}
-                >
-                  +
-                </button>
+                <button type="button" className="add-member-btn" title="Añadir estudiante"
+                  onClick={() => handleAddMember("ad-students-count", studentsCount, "Nuevo estudiante", "ad-student")}>+</button>
               )}
             </div>
 
             {/* Estudiantes de prácticas profesionales */}
-            <div className="members-category-box">
-              <h3 className="members-category-title">
-                <EditableText textKey="ad-interns-title" defaultText="Estudiantes de prácticas profesionales" />
-              </h3>
+            <div className="members-category-box interns-box">
+              <div className="members-category-header">
+                <span className="members-category-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
+                    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.71.79-1.81.2-2.55L4.5 16.5z"/>
+                    <path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-3.05 11a22.35 22.35 0 0 1-3.95 2z"/>
+                  </svg>
+                </span>
+                <h3 className="members-category-title">
+                  <EditableText textKey="ad-interns-title" defaultText="Estudiantes de prácticas profesionales" />
+                </h3>
+              </div>
               <div className="members-chips-wrap">
                 {Array.from({ length: internsCount }).map((_, idx) => {
                   const i = idx + 1;
@@ -1035,28 +1050,16 @@ export default function AcercaDe() {
                         <EditableText textKey={`ad-intern${i}`} defaultText={defaultName} />
                       </span>
                       {canEdit && internsCount > 1 && (
-                        <button
-                          type="button"
-                          className="chip-delete-btn"
-                          title="Eliminar este practicante"
-                          onClick={() => handleRemoveMember("ad-interns-count", internsCount, i, "ad-intern")}
-                        >
-                          ✕
-                        </button>
+                        <button type="button" className="chip-delete-btn" title="Eliminar este practicante"
+                          onClick={() => handleRemoveMember("ad-interns-count", internsCount, i, "ad-intern")}>✕</button>
                       )}
                     </span>
                   );
                 })}
               </div>
               {canEdit && (
-                <button
-                  type="button"
-                  className="add-member-btn"
-                  title="Añadir practicante"
-                  onClick={() => handleAddMember("ad-interns-count", internsCount, "Nuevo practicante", "ad-intern")}
-                >
-                  +
-                </button>
+                <button type="button" className="add-member-btn" title="Añadir practicante"
+                  onClick={() => handleAddMember("ad-interns-count", internsCount, "Nuevo practicante", "ad-intern")}>+</button>
               )}
             </div>
 
@@ -1066,12 +1069,30 @@ export default function AcercaDe() {
 
         {/* ── ¿QUIERES SABER MÁS? ── */}
         <section className="about-cta-section">
-          <h4 className="about-cta-title">
-            <EditableText textKey="ad-cta-title" defaultText="¿Quieres saber más?" />
-          </h4>
+          <div className="about-cta-badge">
+            <span className="about-cta-badge-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                <polyline points="22,6 12,13 2,6"/>
+              </svg>
+            </span>
+            <span>¿Tienes preguntas o te interesa colaborar?</span>
+          </div>
+          <h3 className="about-cta-title">
+            <EditableText textKey="ad-cta-title" defaultText="¿Quieres saber más sobre IoT ULEAM?" />
+          </h3>
+          <p className="about-cta-subtext">
+            Ponte en contacto con nuestro equipo de investigación y desarrollo para conocer más sobre los nodos de monitoreo, alianzas científicas o proyectos de titulación.
+          </p>
           <div className="about-cta-btn-wrap">
             <Link to="/contacto" className="about-cta-btn">
               <EditableText textKey="ad-cta-btn" defaultText="Contáctanos" />
+              <span className="cta-arrow-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
+                  <line x1="5" y1="12" x2="19" y2="12"/>
+                  <polyline points="12 5 19 12 12 19"/>
+                </svg>
+              </span>
             </Link>
           </div>
         </section>
@@ -1080,3 +1101,4 @@ export default function AcercaDe() {
     </div>
   );
 }
+

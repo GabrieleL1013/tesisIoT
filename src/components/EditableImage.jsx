@@ -346,6 +346,18 @@ export default function EditableImage({
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      Swal.fire({
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 3000,
+        icon: "error",
+        title: "Por favor selecciona un archivo de imagen válido",
+      });
+      e.target.value = "";
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (ev) => setCropperSrc(ev.target.result);
     reader.readAsDataURL(file);
@@ -390,7 +402,18 @@ export default function EditableImage({
   };
 
   const handleDelete = async () => {
-    if (!window.confirm("¿Eliminar la imagen personalizada y volver a la imagen predeterminada?")) return;
+    const res = await Swal.fire({
+      title: "¿Eliminar imagen personalizada?",
+      text: "Se eliminará la foto cargada y se restaurará la imagen predeterminada.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#ef4444",
+      cancelButtonColor: "#64748b",
+    });
+    if (!res.isConfirmed) return;
+
     setSaving(true);
     try {
       await deleteImage(imageKey);

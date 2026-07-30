@@ -589,19 +589,19 @@ export default function HistoricoAgregado() {
             <span className="node-label">Nodo seleccionado</span>
             <div className="node-select-wrapper" onClick={toggleDropdown}>
               <div className="node-select-custom">
-                {nodoActivo ? nodoActivo.serial_number : 'Seleccionar Nodo'}
+                {nodoActivo ? (nodoActivo.nombre ? `${nodoActivo.nombre} (${nodoActivo.serial_number})` : nodoActivo.serial_number) : 'Seleccionar Nodo'}
               </div>
               <svg className="node-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
             </div>
             
             {isDropdownOpen && (
               <div style={{ position: 'absolute', top: '60px', left: 0, zIndex: 50, display: 'flex' }}>
-                <div className="custom-dropdown-menu" style={{ position: 'relative', top: 0, minWidth: '260px' }}>
+                <div className="custom-dropdown-menu" style={{ position: 'relative', top: 0, minWidth: '320px' }}>
                   <div className="dropdown-search-wrapper" onClick={e => e.stopPropagation()}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                     <input 
                       type="text" 
-                      placeholder="Buscar nodo..." 
+                      placeholder="Buscar nodo por nombre o serial..." 
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       autoFocus
@@ -622,7 +622,10 @@ export default function HistoricoAgregado() {
                               setExpandedCategories({});
                             }}
                           >
-                            {n.serial_number} <span style={{fontSize: '0.75rem', color: '#64748b'}}>({n.categoria || 'Sin categoría'})</span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span style={{ fontWeight: 600, color: '#0f2c59' }}>{n.nombre || n.serial_number}</span>
+                              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{n.categoria || 'Sin categoría'} • {n.serial_number}</span>
+                            </div>
                           </div>
                         ))
                       ) : (
@@ -655,7 +658,7 @@ export default function HistoricoAgregado() {
 
                 {/* Sub Menu / Flyout */}
                 {searchQuery.trim() === '' && Object.keys(expandedCategories).some(k => expandedCategories[k]) && (
-                  <div className="custom-dropdown-menu" style={{ position: 'relative', top: 0, marginLeft: '4px', minWidth: '220px' }}>
+                  <div className="custom-dropdown-menu" style={{ position: 'relative', top: 0, marginLeft: '4px', minWidth: '240px' }}>
                     <div className="dropdown-category-header" style={{ cursor: 'default', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                       <span className="dropdown-category-title" style={{ color: '#0f2c59' }}>
                         {Object.keys(expandedCategories).find(k => expandedCategories[k])}
@@ -672,7 +675,10 @@ export default function HistoricoAgregado() {
                             setExpandedCategories({});
                           }}
                         >
-                          {n.serial_number}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <span style={{ fontWeight: 600, color: '#0f2c59' }}>{n.nombre || n.serial_number}</span>
+                            {n.nombre && <span style={{ fontSize: '0.72rem', color: '#64748b' }}>{n.serial_number}</span>}
+                          </div>
                         </div>
                       ))}
                     </div>

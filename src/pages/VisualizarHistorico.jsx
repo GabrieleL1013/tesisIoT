@@ -207,7 +207,7 @@ const PublicCustomSelectOption = ({ options, value, onChange, label, style = {} 
 export default function VisualizarHistorico() {
   const [searchParams] = useSearchParams();
   const [nodos, setNodos] = useState([]);
-  
+
   // Filtros de Consulta
   const [nodoSeleccionadoId, setNodoSeleccionadoId] = useState('');
   const [periodo, setPeriodo] = useState('30d'); // '24h', '7d', '30d'
@@ -244,12 +244,12 @@ export default function VisualizarHistorico() {
             : nodeList;
 
           let selectedId = filtered.length > 0 ? filtered[0].id.toString() : '';
-          
+
           if (nodeQueryParam) {
             const found = nodeList.find(n => n.id.toString() === nodeQueryParam.toString());
             if (found) selectedId = found.id.toString();
           }
-          
+
           if (selectedId) setNodoSeleccionadoId(selectedId);
         }
       })
@@ -258,6 +258,13 @@ export default function VisualizarHistorico() {
         setNodos([]);
       });
   }, [nodeQueryParam, catQueryParam]);
+
+  // Limpiar y resetear el scroll al inicio (0,0) al cambiar de nodo o parámetros en la vista histórica
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+  }, [nodoSeleccionadoId, catQueryParam]);
 
   const nodoActual = nodos.find(n => n.id.toString() === nodoSeleccionadoId.toString());
 
@@ -284,7 +291,7 @@ export default function VisualizarHistorico() {
       .then(data => {
         setSeriesData(data.series || {});
         setStatsData(data.stats || {});
-        
+
         // Fusionar timeline para el gráfico Recharts
         const mergedMap = new Map();
         const activeLecturas = (nodoActual?.lecturas || []);
@@ -371,7 +378,7 @@ export default function VisualizarHistorico() {
 
   return (
     <div className="hist-container">
-      
+
       {/* ── BREADCRUMBS EN HISTÓRICO ── */}
       {catQueryParam && (
         <div className="breadcrumb-nav" style={{ marginBottom: '1.25rem' }}>
@@ -423,8 +430,8 @@ export default function VisualizarHistorico() {
         <div className="hist-chart-filters-toolbar">
           {/* Alternador Línea / Barras */}
           <div className="hist-chart-type-toggle">
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => setTipoGrafico('line')}
               className={`toggle-icon-btn ${tipoGrafico === 'line' ? 'active' : ''}`}
               title="Gráfico de línea"
@@ -434,8 +441,8 @@ export default function VisualizarHistorico() {
                 <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" />
               </svg>
             </button>
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => setTipoGrafico('bar')}
               className={`toggle-icon-btn ${tipoGrafico === 'bar' ? 'active' : ''}`}
               title="Gráfico de paso/barras"
@@ -469,9 +476,9 @@ export default function VisualizarHistorico() {
           />
 
           {/* Botón Exportar CSV */}
-          <button 
-            type="button" 
-            onClick={handleOpenDescargaModal} 
+          <button
+            type="button"
+            onClick={handleOpenDescargaModal}
             className="hist-btn-download-trigger"
             title="Exportar CSV"
           >
@@ -498,8 +505,8 @@ export default function VisualizarHistorico() {
             };
 
             return (
-              <div 
-                key={l.data_type} 
+              <div
+                key={l.data_type}
                 className="public-kpi-card"
                 style={{
                   position: 'relative',
@@ -513,7 +520,7 @@ export default function VisualizarHistorico() {
                 }}
               >
                 {/* Ícono de Fondo en Marca de Agua */}
-                <div 
+                <div
                   style={{
                     position: 'absolute',
                     right: '-10px',
@@ -533,16 +540,16 @@ export default function VisualizarHistorico() {
                 {/* Cabecera de la Tarjeta */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span 
-                      style={{ 
-                        display: 'inline-flex', 
-                        alignItems: 'center', 
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
                         justifyContent: 'center',
-                        width: '28px', 
-                        height: '28px', 
-                        borderRadius: '8px', 
-                        background: `${theme.hex}18`, 
-                        color: theme.hex 
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '8px',
+                        background: `${theme.hex}18`,
+                        color: theme.hex
                       }}
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
@@ -639,7 +646,7 @@ export default function VisualizarHistorico() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} tickMargin={10} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
-                
+
                 {activeLecturas[0] && (
                   <YAxis yAxisId="left" tick={{ fontSize: 10, fill: getTheme(activeLecturas[0].data_type, activeLecturas[0].icono).hex }} axisLine={false} tickLine={false} dx={-10} />
                 )}
@@ -703,16 +710,16 @@ export default function VisualizarHistorico() {
                     transition: 'all 0.2s ease'
                   }}
                 >
-                  <span 
-                    className="checkbox-custom-box" 
-                    style={{ 
+                  <span
+                    className="checkbox-custom-box"
+                    style={{
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      width: '15px', 
-                      height: '15px', 
+                      width: '15px',
+                      height: '15px',
                       borderRadius: '4px',
-                      background: isChecked ? theme.hex : '#ffffff', 
+                      background: isChecked ? theme.hex : '#ffffff',
                       border: `1.5px solid ${isChecked ? theme.hex : '#cbd5e1'}`,
                       transition: 'all 0.15s ease'
                     }}

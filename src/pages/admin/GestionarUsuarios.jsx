@@ -99,11 +99,9 @@ const CustomUserRoleFilterSelect = ({ value, onChange, roles }) => {
 
   const filterOptions = [
     { value: 'todos', label: 'Todos los Roles', color: '#64748b' },
-    { value: 'super', label: 'Solo Superusuarios', color: '#10b981' },
-    { value: 'no-super', label: 'Usuarios Estándar', color: '#3b82f6' },
     ...roles.map(r => ({
       value: String(r.id),
-      label: r.name,
+      label: r.name || r.nombre,
       color: r.color || '#3b82f6',
       level_permission: r.level_permission
     }))
@@ -136,7 +134,7 @@ const CustomUserRoleFilterSelect = ({ value, onChange, roles }) => {
             <svg viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" width="13" height="13" style={{ flexShrink: 0 }}>
               <polygon points="12 2 2 7 12 12 22 7 12 2" />
               <polyline points="2 17 12 22 22 17" />
-              <polyline points="2 12 12 17 22 12" />
+              <polyline points="2 12 17 22 12" />
             </svg>
           )}
           <span className="role-select-name" style={{ fontSize: '0.85rem' }}>{selectedOpt.label}</span>
@@ -175,7 +173,7 @@ const CustomUserRoleFilterSelect = ({ value, onChange, roles }) => {
                     <svg viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" width="12" height="12" style={{ flexShrink: 0 }}>
                       <polygon points="12 2 2 7 12 12 22 7 12 2" />
                       <polyline points="2 17 12 22 22 17" />
-                      <polyline points="2 12 12 17 22 12" />
+                      <polyline points="2 12 17 22 12" />
                     </svg>
                   )}
                   <span className="option-name">{opt.label}</span>
@@ -428,6 +426,24 @@ export default function GestionarUsuarios() {
             return data;
           })
           .then(() => {
+            // Si el usuario eliminado es el usuario actualmente autenticado
+            if (currentUser && String(id) === String(currentUser.id)) {
+              localStorage.removeItem('iot_sesion_activa');
+              localStorage.removeItem('iot_token_seguro');
+              localStorage.removeItem('app_user');
+              Swal.fire({
+                title: 'Sesión Finalizada',
+                text: 'Tu usuario ha sido eliminado del sistema. Serás redirigido al inicio de sesión.',
+                icon: 'warning',
+                background: '#0b0f19',
+                color: '#ffffff',
+                confirmButtonColor: '#ef4444'
+              }).then(() => {
+                window.location.href = '/login';
+              });
+              return;
+            }
+
             Swal.fire({
               toast: true,
               position: 'top-end',
@@ -454,19 +470,23 @@ export default function GestionarUsuarios() {
 
   // Filtrado de usuarios por búsqueda y por rol
   const usuariosFiltrados = usuarios.filter(userItem => {
-    const matchesSearch = userItem.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          userItem.email.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (userItem.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (userItem.email || '').toLowerCase().includes(searchQuery.toLowerCase());
     
-    if (filterRole === 'super') {
-      return matchesSearch && (userItem.role?.name === 'Superusuario' || userItem.role_id === 1);
+    if (filterRole === 'todos') {
+      return matchesSearch;
     }
-    if (filterRole === 'no-super') {
-      return matchesSearch && (userItem.role?.name !== 'Superusuario' && userItem.role_id !== 1);
-    }
-    if (filterRole !== 'todos' && filterRole !== 'super' && filterRole !== 'no-super') {
-      return matchesSearch && (userItem.role_id === parseInt(filterRole, 10) || userItem.role?.name === filterRole);
-    }
-    return matchesSearch;
+
+    const selectedRole = roles.find(r => String(r.id) === String(filterRole));
+    const roleName = selectedRole?.name || selectedRole?.nombre || filterRole;
+
+    const userRoleId = userItem.role_id || userItem.role?.id;
+    const userRoleName = userItem.role?.name || userItem.rol;
+
+    return matchesSearch && (
+      String(userRoleId) === String(filterRole) ||
+      (userRoleName && userRoleName.toLowerCase() === roleName.toLowerCase())
+    );
   });
 
   const isEditingAnotherSuperuser = editandoId && 

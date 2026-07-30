@@ -395,3 +395,8 @@
   justify-content: flex-end;
   gap: 10px;
 }
+
+/* Ensure SweetAlert2 overlays on top of EditableImage modals (z-index > 9500) */
+.swal2-container {
+  z-index: 999999 !important;
+}

@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import { useInterfaceText } from "../context/InterfaceTextContext";
-import { Link, useNavigate } from "react-router-dom"; // ── USAMOS LINK PARA CONECTAR LAS VISTAS ──
+import { Link, useNavigate, useLocation } from "react-router-dom"; // ── USAMOS LINK PARA CONECTAR LAS VISTAS ──
 import LogoImg from "../assets/LOGO.png";
 import IotLogoImg from "../assets/IOT-LOGO.png";
 import "../styles/components/Navbar.css"; 
@@ -54,11 +54,11 @@ export default function Navbar() {
   const { user, login, logout, isLoggedIn } = useAuth();
   const { editMode, toggleEditMode } = useInterfaceText();
   const navigate = useNavigate();
+  const location = useLocation();
   
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
-  const [activeItem, setActiveItem] = useState("Inicio");
   const [showLangDropdown, setShowLangDropdown] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [sessionUser, setSessionUser] = useState(null);
@@ -211,12 +211,50 @@ export default function Navbar() {
     window.location.reload();
   };
 
+  const isItemActive = (item) => {
+    const currentPath = location.pathname;
+
+    if (item.path === "/") {
+      return currentPath === "/";
+    }
+
+    if (item.children && item.children.length > 0) {
+      const isChildMatch = item.children.some((child) => {
+        const [childBase, childQuery] = child.path.split("?");
+        if (childQuery) {
+          return currentPath === childBase && location.search === `?${childQuery}`;
+        }
+        return currentPath === childBase || (childBase !== "/" && currentPath.startsWith(childBase));
+      });
+      if (isChildMatch) return true;
+    }
+
+    if (item.path) {
+      const [basePath, query] = item.path.split("?");
+      if (basePath === "/") return currentPath === "/";
+      if (query) {
+        return currentPath === basePath && location.search === `?${query}`;
+      }
+      return currentPath === basePath || (basePath !== "/" && currentPath.startsWith(basePath));
+    }
+
+    return false;
+  };
+
+  const isChildActive = (childPath) => {
+    const [basePath, queryString] = childPath.split("?");
+    if (queryString) {
+      return location.pathname === basePath && location.search === `?${queryString}`;
+    }
+    return location.pathname === basePath || (basePath !== "/" && location.pathname.startsWith(basePath));
+  };
+
   return (
     <>
       <nav className={`nav-main ${scrolled ? "nav-scrolled" : ""}`}>
         <div className="nav-container">
           {/* Brand/Logo */}
-          <Link to="/" className="nav-logo" onClick={() => setActiveItem("Inicio")}>
+          <Link to="/" className="nav-logo">
             <img src={LogoImg} alt="Universidad Logo" className="nav-logo-img" />
             <img src={IotLogoImg} alt="IOT Logo" className="nav-logo-img-secondary" />
           </Link>
@@ -233,11 +271,8 @@ export default function Navbar() {
                 {item.children ? (
                   <Link
                     to={item.path || "#"}
-                    onClick={() => {
-                      setActiveItem(item.label);
-                      setOpenDropdown(null);
-                    }}
-                    className={`nav-link ${openDropdown === item.label ? "active" : ""}`}
+                    onClick={() => setOpenDropdown(null)}
+                    className={`nav-link ${isItemActive(item) ? "active" : ""}`}
                     style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
                   >
                     {item.label} <ChevronDownIcon />
@@ -245,8 +280,7 @@ export default function Navbar() {
                 ) : (
                   <Link
                     to={item.path}
-                    onClick={() => setActiveItem(item.label)}
-                    className={`nav-link ${activeItem === item.label ? "active" : ""}`}
+                    className={`nav-link ${isItemActive(item) ? "active" : ""}`}
                   >
                     {item.label}
                   </Link>
@@ -258,11 +292,8 @@ export default function Navbar() {
                       <Link 
                         key={child.label} 
                         to={child.path} 
-                        onClick={() => {
-                          setActiveItem(item.label);
-                          setOpenDropdown(null);
-                        }}
-                        className="nav-dropdown-link"
+                        onClick={() => setOpenDropdown(null)}
+                        className={`nav-dropdown-link ${isChildActive(child.path) ? "active" : ""}`}
                       >
                         {child.label}
                       </Link>
@@ -427,7 +458,7 @@ export default function Navbar() {
                   <>
                     <button
                       onClick={() => setOpenDropdown(openDropdown === item.label ? null : item.label)}
-                      className={`nav-mobile-btn ${activeItem === item.label ? "active" : ""}`}
+                      className={`nav-mobile-btn ${isItemActive(item) ? "active" : ""}`}
                     >
                       {item.label} <ChevronDownIcon />
                     </button>
@@ -437,11 +468,10 @@ export default function Navbar() {
                           <Link 
                             to={item.path} 
                             onClick={() => {
-                              setActiveItem(item.label);
                               setMobileOpen(false);
                               setOpenDropdown(null);
                             }}
-                            className="nav-mobile-dropdown-link"
+                            className={`nav-mobile-dropdown-link ${isChildActive(item.path) ? "active" : ""}`}
                             style={{ fontWeight: '800', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px', marginBottom: '4px' }}
                           >
                             Ver Todo ({item.label})
@@ -452,11 +482,10 @@ export default function Navbar() {
                             key={child.label} 
                             to={child.path} 
                             onClick={() => {
-                              setActiveItem(item.label);
                               setMobileOpen(false);
                               setOpenDropdown(null);
                             }}
-                            className="nav-mobile-dropdown-link"
+                            className={`nav-mobile-dropdown-link ${isChildActive(child.path) ? "active" : ""}`}
                           >
                             {child.label}
                           </Link>
@@ -467,11 +496,8 @@ export default function Navbar() {
                 ) : (
                   <Link
                     to={item.path}
-                    onClick={() => {
-                      setActiveItem(item.label);
-                      setMobileOpen(false);
-                    }}
-                    className={`nav-mobile-btn ${activeItem === item.label ? "active" : ""}`}
+                    onClick={() => setMobileOpen(false)}
+                    className={`nav-mobile-btn ${isItemActive(item) ? "active" : ""}`}
                   >
                     {item.label}
                   </Link>

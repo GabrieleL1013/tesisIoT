@@ -37,13 +37,15 @@ import Error403 from "./pages/admin/Error403";
 // ── IMPORTACIÓN DEL LAYOUT DE ADMINISTRACIÓN ──
 import AdminLayout from "./components/admin/AdminLayout";
 
-// ── COMPONENTE PARA RESTAURAR EL SCROLL AL CAMBIAR DE RUTA ──
+// ── COMPONENTE PARA RESTAURAR EL SCROLL AL CAMBIAR DE RUTA O PARÁMETROS ──
 function ScrollToTop() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
 
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [pathname]);
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+  }, [pathname, search]);
 
   return null;
 }

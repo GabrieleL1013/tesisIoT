@@ -709,6 +709,23 @@
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 0.5rem;
+  max-height: 125px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.node-card-metrics::-webkit-scrollbar {
+  width: 4px;
+}
+
+.node-card-metrics::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.node-card-metrics::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
 }
 
 .metric-tag {
@@ -1028,6 +1045,23 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  max-height: 165px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.node-fullscreen-readings-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.node-fullscreen-readings-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.node-fullscreen-readings-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
 }
 
 .node-fullscreen-reading-item {

@@ -115,8 +115,67 @@ export default function RegistrarNodo() {
   const getVariableIndexStatus = (variable, valueRaw) => {
     if (!variable) return null;
     const val = parseFloat(valueRaw);
-    const key = variable.data_type.toLowerCase();
-    const nombre = variable.tipo.toLowerCase();
+    if (isNaN(val)) return null;
+
+    // Extraer mínimo y máximo configurados en la métrica (si existen)
+    const minExp = (variable.minExpected !== undefined && variable.minExpected !== null && variable.minExpected !== '')
+      ? parseFloat(variable.minExpected)
+      : (variable.min_expected !== undefined && variable.min_expected !== null && variable.min_expected !== '')
+        ? parseFloat(variable.min_expected)
+        : null;
+
+    const maxExp = (variable.maxExpected !== undefined && variable.maxExpected !== null && variable.maxExpected !== '')
+      ? parseFloat(variable.maxExpected)
+      : (variable.max_expected !== undefined && variable.max_expected !== null && variable.max_expected !== '')
+        ? parseFloat(variable.max_expected)
+        : null;
+
+    // Si la métrica tiene configurados Mínimo o Máximo esperados válidos
+    if (minExp !== null || maxExp !== null) {
+      let label = 'Medio';
+      let color = '#10b981'; // Verde para dentro del rango (Medio / Óptimo)
+      let percent = 50;
+      let isOutOfRange = false;
+      let outWarningMsg = null;
+
+      if (minExp !== null && val < minExp) {
+        label = 'Bajo';
+        color = '#3b82f6'; // Azul para nivel bajo por debajo del mínimo
+        percent = 2; // Filo izquierdo de la barra indicadora
+        isOutOfRange = true;
+        outWarningMsg = `El valor registrado (${val} ${variable.unidad || ''}) está por debajo del mínimo esperado (${minExp} ${variable.unidad || ''})`;
+      } else if (maxExp !== null && val > maxExp) {
+        label = 'Alto';
+        color = '#ef4444'; // Rojo para nivel alto por encima del máximo
+        percent = 98; // Filo derecho de la barra indicadora
+        isOutOfRange = true;
+        outWarningMsg = `El valor registrado (${val} ${variable.unidad || ''}) sobrepasa el máximo esperado (${maxExp} ${variable.unidad || ''})`;
+      } else {
+        label = 'Medio';
+        color = '#10b981'; // Verde para el rango medio / normal
+        if (minExp !== null && maxExp !== null && maxExp > minExp) {
+          const ratio = (val - minExp) / (maxExp - minExp);
+          percent = 15 + ratio * 70; // Centrado dentro del rango óptimo
+        } else {
+          percent = 50;
+        }
+      }
+
+      return {
+        title: variable.tipo || variable.nombre || 'Variable',
+        value: `${val} ${variable.unidad || ''}`.trim(),
+        label,
+        color,
+        percent: Math.min(Math.max(percent, 2), 98),
+        type: 'custom_range',
+        range: ['Bajo', 'Medio', 'Alto'],
+        isOutOfRange,
+        outWarningMsg
+      };
+    }
+
+    const key = (variable.data_type || variable.claveMqtt || '').toLowerCase();
+    const nombre = (variable.tipo || variable.nombre || '').toLowerCase();
 
     // 1. CALIDAD DEL AIRE / AQI
     if (key.includes('aqi')) {
@@ -262,10 +321,10 @@ export default function RegistrarNodo() {
 
     // Default fallback
     return {
-      title: variable.tipo,
-      value: val.toString(),
-      label: 'Registrado',
-      color: '#38bdf8',
+      title: variable.tipo || variable.nombre || 'Variable',
+      value: `${val} ${variable.unidad || ''}`.trim(),
+      label: 'Medio',
+      color: '#10b981',
       percent: 50,
       type: 'default',
       range: ['Bajo', 'Medio', 'Alto']
@@ -1985,8 +2044,23 @@ export default function RegistrarNodo() {
                     <span className="node-fullscreen-index-value" style={{ color: status.color }}>
                       {status.value}
                     </span>
-                    <span className="node-fullscreen-index-badge" style={{ backgroundColor: status.color }}>
+                    <span 
+                      className="node-fullscreen-index-badge" 
+                      style={{ 
+                        backgroundColor: status.color,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        cursor: status.outWarningMsg ? 'help' : 'default'
+                      }}
+                      title={status.outWarningMsg || ''}
+                    >
                       {status.label}
+                      {status.isOutOfRange && (
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">
+                          <path d="M12 2L1 21h22L12 2zm0 3.99L20.53 19H3.47L12 5.99zM11 10h2v4h-2zm0 5h2v2h-2z" />
+                        </svg>
+                      )}
                     </span>
                   </div>
 
@@ -1997,7 +2071,9 @@ export default function RegistrarNodo() {
                         ? 'linear-gradient(to right, #10b981, #eab308, #f97316, #ef4444, #a855f7, #7f1d1d)'
                         : status.type === 'soil'
                           ? 'linear-gradient(to right, #f97316, #eab308, #10b981, #2563eb)'
-                          : 'linear-gradient(to right, #3b82f6, #60a5fa, #10b981, #f59e0b, #ef4444)'
+                          : status.type === 'custom_range'
+                            ? 'linear-gradient(to right, #3b82f6, #10b981, #ef4444)'
+                            : 'linear-gradient(to right, #3b82f6, #60a5fa, #10b981, #f59e0b, #ef4444)'
                     }}></div>
                     <div className="node-fullscreen-gauge-indicator" style={{ left: `${status.percent}%` }}></div>
                   </div>
@@ -2028,6 +2104,35 @@ export default function RegistrarNodo() {
                     const isHum = l.data_type.toLowerCase().includes('hum') || l.data_type.toLowerCase().includes('soil');
                     const isAqi = l.data_type.toLowerCase().includes('aqi') || l.data_type.toLowerCase().includes('co2') || l.data_type.toLowerCase().includes('pm');
                     const isSelected = selectedVariable?.data_type === l.data_type;
+
+                    const minExp = (l.minExpected !== undefined && l.minExpected !== null && l.minExpected !== '')
+                      ? parseFloat(l.minExpected)
+                      : (l.min_expected !== undefined && l.min_expected !== null && l.min_expected !== '')
+                        ? parseFloat(l.min_expected)
+                        : null;
+
+                    const maxExp = (l.maxExpected !== undefined && l.maxExpected !== null && l.maxExpected !== '')
+                      ? parseFloat(l.maxExpected)
+                      : (l.max_expected !== undefined && l.max_expected !== null && l.max_expected !== '')
+                        ? parseFloat(l.max_expected)
+                        : null;
+
+                    const numVal = parseFloat(simVal);
+                    let outWarning = null;
+
+                    if (!isNaN(numVal)) {
+                      if (minExp !== null && !isNaN(minExp) && numVal < minExp) {
+                        outWarning = {
+                          type: 'min',
+                          msg: `El valor registrado (${numVal} ${l.unidad || ''}) está por debajo del mínimo esperado (${minExp} ${l.unidad || ''})`
+                        };
+                      } else if (maxExp !== null && !isNaN(maxExp) && numVal > maxExp) {
+                        outWarning = {
+                          type: 'max',
+                          msg: `El valor registrado (${numVal} ${l.unidad || ''}) sobrepasa el máximo esperado (${maxExp} ${l.unidad || ''})`
+                        };
+                      }
+                    }
 
                     return (
                       <div
@@ -2061,8 +2166,25 @@ export default function RegistrarNodo() {
                           </span>
                           <span className="node-fullscreen-reading-name">{l.tipo}</span>
                         </div>
-                        <span className="node-fullscreen-reading-value font-mono">
+                        <span className="node-fullscreen-reading-value font-mono" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                           {simVal} <span className="node-fullscreen-reading-unit">{l.unidad}</span>
+                          {outWarning && (
+                            <span
+                              title={outWarning.msg}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: outWarning.type === 'min' ? '#3b82f6' : '#ef4444',
+                                cursor: 'help',
+                                marginLeft: '4px'
+                              }}
+                            >
+                              <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15">
+                                <path d="M12 2L1 21h22L12 2zm0 3.99L20.53 19H3.47L12 5.99zM11 10h2v4h-2zm0 5h2v2h-2z" />
+                              </svg>
+                            </span>
+                          )}
                         </span>
                       </div>
                     );

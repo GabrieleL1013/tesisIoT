@@ -4,11 +4,20 @@ import { createContext, useState, useContext, useEffect } from "react";
 const InterfaceTextContext = createContext();
 
 export function InterfaceTextProvider({ children }) {
-  const [texts, setTexts] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [texts, setTexts] = useState(() => {
+    try {
+      const saved = localStorage.getItem("cached_interface_texts");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    return Object.keys(texts || {}).length === 0;
+  });
   const [editMode, setEditMode] = useState(false);
 
-  // Cargar todos los textos al iniciar
+  // Cargar todos los textos al iniciar y actualizar la caché local
   useEffect(() => {
     fetch(`${API_BASE_URL}/interface-texts`)
       .then((res) => {
@@ -16,9 +25,13 @@ export function InterfaceTextProvider({ children }) {
         return res.json();
       })
       .then((data) => {
-        // Si el backend está vacío, puede responder [] en lugar de {}
         const sanitized = Array.isArray(data) ? {} : data;
         setTexts(sanitized);
+        try {
+          localStorage.setItem("cached_interface_texts", JSON.stringify(sanitized));
+        } catch (e) {
+          console.warn("No se pudo guardar en localStorage", e);
+        }
         setLoading(false);
       })
       .catch((err) => {
@@ -43,11 +56,16 @@ export function InterfaceTextProvider({ children }) {
         throw new Error("No se pudo actualizar el texto en la base de datos.");
       }
 
-      // Actualizar el estado local
-      setTexts((prev) => ({
-        ...prev,
-        [key]: textValue,
-      }));
+      // Actualizar el estado local y la caché
+      setTexts((prev) => {
+        const next = { ...prev, [key]: textValue };
+        try {
+          localStorage.setItem("cached_interface_texts", JSON.stringify(next));
+        } catch (e) {
+          console.warn("No se pudo actualizar localStorage", e);
+        }
+        return next;
+      });
       return true;
     } catch (error) {
       console.error("Error actualizando texto de interfaz:", error);

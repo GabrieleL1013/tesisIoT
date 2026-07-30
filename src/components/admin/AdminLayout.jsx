@@ -188,6 +188,23 @@ const AdminLayout = () => {
         if (parsed && parsed.id) {
           fetch(`${API_BASE_URL}/users/${parsed.id}`)
             .then(res => {
+              if (res.status === 404 || res.status === 401) {
+                // El usuario activo ha sido eliminado de la Base de Datos
+                localStorage.removeItem('iot_sesion_activa');
+                localStorage.removeItem('iot_token_seguro');
+                localStorage.removeItem('app_user');
+                Swal.fire({
+                  title: 'Sesión Finalizada',
+                  text: 'Tu cuenta de usuario ha sido eliminada de la base de datos.',
+                  icon: 'warning',
+                  background: '#0b0f19',
+                  color: '#ffffff',
+                  confirmButtonColor: '#ef4444'
+                }).then(() => {
+                  window.location.href = '/login';
+                });
+                throw new Error("Usuario eliminado de la base de datos");
+              }
               if (!res.ok) throw new Error("Could not load user profile");
               return res.json();
             })

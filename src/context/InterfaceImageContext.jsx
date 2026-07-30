@@ -4,8 +4,17 @@ import { createContext, useState, useContext, useEffect } from "react";
 const InterfaceImageContext = createContext();
 
 export function InterfaceImageProvider({ children }) {
-  const [images, setImages] = useState({});
-  const [imagesLoading, setImagesLoading] = useState(true);
+  const [images, setImages] = useState(() => {
+    try {
+      const saved = localStorage.getItem("cached_interface_images");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [imagesLoading, setImagesLoading] = useState(() => {
+    return Object.keys(images || {}).length === 0;
+  });
 
   // Load all interface images on mount
   useEffect(() => {
@@ -17,6 +26,11 @@ export function InterfaceImageProvider({ children }) {
       .then((data) => {
         const sanitized = Array.isArray(data) ? {} : data;
         setImages(sanitized);
+        try {
+          localStorage.setItem("cached_interface_images", JSON.stringify(sanitized));
+        } catch (e) {
+          console.warn("No se pudo guardar imágenes en localStorage", e);
+        }
         setImagesLoading(false);
       })
       .catch((err) => {
@@ -40,10 +54,15 @@ export function InterfaceImageProvider({ children }) {
       throw new Error("No se pudo guardar la imagen en la base de datos.");
     }
 
-    setImages((prev) => ({
-      ...prev,
-      [key]: { image_data: imageData, mime_type: mimeType },
-    }));
+    setImages((prev) => {
+      const next = { ...prev, [key]: { image_data: imageData, mime_type: mimeType } };
+      try {
+        localStorage.setItem("cached_interface_images", JSON.stringify(next));
+      } catch (e) {
+        console.warn("No se pudo actualizar localStorage para imágenes", e);
+      }
+      return next;
+    });
     return true;
   };
 
@@ -61,6 +80,11 @@ export function InterfaceImageProvider({ children }) {
     setImages((prev) => {
       const next = { ...prev };
       delete next[key];
+      try {
+        localStorage.setItem("cached_interface_images", JSON.stringify(next));
+      } catch (e) {
+        console.warn("No se pudo actualizar localStorage para imágenes", e);
+      }
       return next;
     });
     return true;

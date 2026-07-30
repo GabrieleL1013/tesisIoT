@@ -88,3 +88,8 @@ body, html {
   border-radius: inherit;
   z-index: 5;
 }
+
+/* SweetAlert2: asegurar que siempre aparezca por encima de modales, croppers y overlays */
+.swal2-container {
+  z-index: 999999 !important;
+}
