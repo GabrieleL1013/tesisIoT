@@ -63,35 +63,36 @@
 .historico-node-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 20px 24px;
+  border-radius: 14px;
+  padding: 14px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   flex-wrap: wrap;
-  gap: 24px;
+  gap: 16px;
 }
 
 .node-card-left {
   display: flex;
   align-items: center;
-  gap: 16px;
-  flex: 1;
+  gap: 14px;
+  flex: 1.2;
   min-width: 0;
 }
 
 .node-icon-circle {
-  width: 56px;
-  height: 56px;
+  width: 44px;
+  height: 44px;
   background: #f0fdf4;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  border: 4px solid #f8fafc;
+  border: 2px solid #e2e8f0;
+  flex-shrink: 0;
 }
 .node-icon-circle.theme-blue { background: #eff6ff; }
 .node-icon-circle.theme-orange { background: #fff7ed; }
@@ -102,7 +103,7 @@
 }
 
 .node-label {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
   color: #64748b;
   font-weight: 600;
@@ -116,20 +117,20 @@
   align-items: center;
   background: transparent;
   border: 1px solid transparent;
-  padding: 4px 8px;
+  padding: 2px 6px;
   border-radius: 8px;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
-  margin-left: -8px;
-  margin-bottom: 4px;
+  margin-left: -6px;
+  margin-bottom: 2px;
 }
 .node-select-wrapper:hover {
   background: #f1f5f9;
   border-color: #e2e8f0;
 }
 .node-select-custom {
-  font-size: 1.25rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: #0f172a;
 }
@@ -277,25 +278,25 @@
   flex: 1.5;
   border-left: 1px solid #e2e8f0;
   border-right: 1px solid #e2e8f0;
-  padding: 0 24px;
+  padding: 0 16px;
   min-width: 0;
 }
 
 .variables-list {
   display: flex;
-  gap: 12px;
+  gap: 6px 8px;
   flex-wrap: wrap;
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .variable-tag {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 500;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 0.78rem;
+  font-weight: 600;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   color: #334155;
@@ -752,17 +753,18 @@ input[type="date"].control-input::-webkit-calendar-picker-indicator:hover {
   border-collapse: collapse;
   text-align: left;
   font-size: 0.875rem;
+  border: 1px solid #cbd5e1;
 }
 
 .data-table th {
   background: #f1f5f9;
-  padding: 12px 16px;
+  padding: 10px 14px;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #475569;
+  color: #334155;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
   white-space: nowrap;
   position: sticky;
   top: 0;
@@ -770,9 +772,9 @@ input[type="date"].control-input::-webkit-calendar-picker-indicator:hover {
 }
 
 .data-table td {
-  padding: 12px 16px;
+  padding: 10px 14px;
   color: #0f172a;
-  border-bottom: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
   white-space: nowrap;
 }
 
@@ -785,7 +787,7 @@ input[type="date"].control-input::-webkit-calendar-picker-indicator:hover {
   left: 0;
   background: #ffffff;
   z-index: 11;
-  border-right: 1px solid #e2e8f0;
+  border-right: 2px solid #cbd5e1;
 }
 .data-table th.sticky-col {
   background: #f1f5f9;
@@ -943,4 +945,37 @@ input[type="date"].control-input::-webkit-calendar-picker-indicator:hover {
     justify-content: center;
   }
 }
+
+/* Infinite Marquee for Table Date/Time */
+.date-time-marquee-container {
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 145px;
+  display: inline-block;
+  vertical-align: middle;
+  position: relative;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.date-time-marquee-content {
+  display: inline-block;
+  white-space: nowrap;
+  animation: marquee-scroll 10s linear infinite;
+}
+
+.date-time-marquee-container:hover .date-time-marquee-content {
+  animation-play-state: paused;
+}
+
+@keyframes marquee-scroll {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
 

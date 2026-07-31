@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import '../../styles/components/admin/CustomDatePicker.css';
 
-export default function CustomDatePicker({ value, onChange, label, shortcutHint }) {
+export default function CustomDatePicker({ value, onChange, label, shortcutHint, minDate, maxDate }) {
   const [isOpen, setIsOpen] = useState(false);
   
   // Parse value 'YYYY-MM-DD'
@@ -58,13 +58,18 @@ export default function CustomDatePicker({ value, onChange, label, shortcutHint 
       const dStr = `${currentViewDate.getFullYear()}-${String(currentViewDate.getMonth() + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
       const isSelected = value === dStr;
       const isToday = todayStr === dStr;
+      const isDisabled = (minDate && dStr < minDate) || (maxDate && dStr > maxDate);
 
       days.push(
         <button 
           key={i} 
-          className={`date-btn ${isSelected ? 'selected' : ''} ${isToday && !isSelected ? 'today' : ''}`}
+          disabled={isDisabled}
+          title={isDisabled ? (minDate && dStr < minDate ? 'No se puede seleccionar una fecha anterior a la fecha de inicio' : 'Fecha no disponible') : ''}
+          className={`date-btn ${isSelected ? 'selected' : ''} ${isToday && !isSelected ? 'today' : ''} ${isDisabled ? 'disabled' : ''}`}
+          style={isDisabled ? { cursor: 'not-allowed', opacity: 0.35, pointerEvents: 'auto', backgroundColor: '#f8fafc', color: '#cbd5e1' } : {}}
           onClick={(e) => {
             e.stopPropagation();
+            if (isDisabled) return;
             onChange(dStr);
             setIsOpen(false);
           }}

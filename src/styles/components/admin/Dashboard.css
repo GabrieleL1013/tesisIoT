@@ -308,7 +308,29 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  margin-bottom: 1.5rem;
+  max-height: 230px;
+  overflow-y: auto;
+  padding-right: 6px;
+  margin-bottom: 0.5rem;
+}
+
+/* Custom Scrollbar for radial-list */
+.radial-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.radial-list::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+.radial-list::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+.radial-list::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .radial-list-item {
@@ -789,4 +811,222 @@
 .btn-apply-filters:hover {
   background: #1e40af;
   transform: translateY(-1px);
+}
+
+/* ── Map Style Selector buttons ── */
+.dash-map-style-selector {
+  display: flex;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.dash-btn-style {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+  font-family: 'Outfit', 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 0.78rem;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.dash-btn-style.active {
+  background: #ffffff;
+  color: #0f2c59;
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(15, 44, 89, 0.12);
+}
+
+.dash-btn-style:hover:not(.active) {
+  background: rgba(15, 44, 89, 0.06);
+  color: #0f2c59;
+}
+
+/* ── Floating Navigation Controls Overlay inside the Map ── */
+.dash-map-nav-overlay {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 44, 89, 0.92);
+  backdrop-filter: blur(8px);
+  padding: 6px 10px;
+  border-radius: 30px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  max-width: 92%;
+}
+
+.dash-map-nav-btn {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.dash-map-nav-btn:hover {
+  background: #ff9f1c;
+  color: white;
+  transform: scale(1.08);
+}
+
+.dash-map-nav-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px;
+  color: white;
+  font-size: 0.8rem;
+  font-family: 'Outfit', sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.dash-map-nav-badge {
+  background: #ff9f1c;
+  color: white;
+  font-weight: 800;
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 12px;
+  letter-spacing: 0.02em;
+}
+
+.dash-map-nav-name {
+  font-weight: 700;
+  color: #ffffff;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-map-nav-status.online {
+  color: #34d399;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.dash-map-nav-status.offline {
+  color: #f87171;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* Custom numbered marker reset */
+.custom-numbered-leaflet-marker {
+  background: none !important;
+  border: none !important;
+}
+
+/* ── Ubicación actual / Centrar nodo button ── */
+.dash-btn-center-node {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #10b981;
+  background: #ecfdf5;
+  color: #059669;
+  border-radius: 8px;
+  padding: 0.4rem 0.75rem;
+  font-family: 'Outfit', 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.dash-btn-center-node:hover {
+  background: #10b981;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+}
+
+/* ── Leaflet custom center-on-node button (below zoom control) ── */
+.leaflet-center-control-btn {
+  width: 30px !important;
+  height: 30px !important;
+  line-height: 30px !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  background-color: #ffffff !important;
+  color: #0f2c59 !important;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none !important;
+  border-bottom: none !important;
+}
+
+.leaflet-center-control-btn:hover {
+  background-color: #eff6ff !important;
+  color: #2563eb !important;
+}
+
+/* ── Pulsating Radar / Blinking Animation for Selected Map Node ── */
+.marker-pulse-ring {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.45);
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.85);
+  animation: markerPulseAnimation 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.marker-pulse-ring.ring-delay {
+  animation-delay: 0.6s;
+}
+
+@keyframes markerPulseAnimation {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.95;
+  }
+  50% {
+    transform: scale(1.8);
+    opacity: 0.45;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
+/* Subtle blinking highlight on the selected pin marker */
+.marker-selected-node {
+  animation: pinBlinkGlow 1.8s ease-in-out infinite alternate;
+  z-index: 1000 !important;
+}
+
+@keyframes pinBlinkGlow {
+  0% {
+    filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.7));
+  }
+  100% {
+    filter: drop-shadow(0 0 12px rgba(16, 185, 129, 0.95));
+  }
 }

@@ -2004,15 +2004,15 @@ export default function RegistrarNodo() {
               </div>
 
               <h3 className="node-fullscreen-node-name">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" width="20" height="20" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '6px' }}>
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                  <circle cx="12" cy="10" r="3" />
-                </svg>
                 {previewNode.nombre}
               </h3>
 
-              <p className="node-fullscreen-address">
-                {activeUbi.nombre}
+              <p className="node-fullscreen-address" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" width="16" height="16" style={{ flexShrink: 0 }}>
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+                <span>{activeUbi.nombre}</span>
               </p>
 
               {activeUbi.descripcion && (

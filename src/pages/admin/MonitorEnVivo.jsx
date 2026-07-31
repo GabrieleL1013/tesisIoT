@@ -17,6 +17,45 @@ const formatTimeSeconds = () => {
   }).toLowerCase().replace(/\s/g, '').replace('am', 'a.m.').replace('pm', 'p.m.');
 };
 
+const formatDateTimeFull = (val) => {
+  let d;
+  if (!val) d = new Date();
+  else if (typeof val === 'number') d = new Date(val > 1e11 ? val : val * 1000);
+  else if (typeof val === 'string') {
+    const parsed = new Date(val);
+    d = isNaN(parsed.getTime()) ? new Date() : parsed;
+  } else if (val instanceof Date) {
+    d = val;
+  } else {
+    d = new Date();
+  }
+
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  
+  const timeStr = d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  }).toLowerCase().replace(/\s/g, '').replace('am', 'a.m.').replace('pm', 'p.m.');
+
+  return `${day}/${month}/${year} ${timeStr}`;
+};
+
+const getTimeAndDate = (item) => {
+  if (!item) return { time: '--:--', date: '' };
+  let full = item.fullDateTime || '';
+  if (full.includes(' ')) {
+    const parts = full.split(' ');
+    const datePart = parts[0];
+    const timePart = parts.slice(1).join(' ');
+    return { time: timePart, date: datePart };
+  }
+  return { time: item.shortTime || '--:--', date: formatDateTimeFull().split(' ')[0] };
+};
+
 export default function MonitorEnVivo() {
   const [nodos, setNodos] = useState([]);
   const [nodoActivo, setNodoActivo] = useState(null);
@@ -140,15 +179,24 @@ export default function MonitorEnVivo() {
         const res = await fetch(`${API_BASE_URL}/lecturas/recientes?serial_number=${nodoActivo.serial_number}`);
         const data = await res.json();
         if (data && data.length > 0) {
-            setHistory(data);
-            const last = data[data.length - 1];
-            const prev = data.length > 1 ? data[data.length - 2] : {};
-            setSensorData({ ...last, dateTime: last.dateTime || new Date().toLocaleString() });
+            const parsedData = data.map(item => {
+              const tsMs = getItemTimestampMs(item);
+              const fullDt = tsMs ? formatDateTimeFull(tsMs) : formatDateTimeFull(item.created_at || item.dateTime);
+              return {
+                ...item,
+                fullDateTime: fullDt,
+                shortTime: item.shortTime || formatTimeSeconds()
+              };
+            });
+            setHistory(parsedData);
+            const last = parsedData[parsedData.length - 1];
+            const prev = parsedData.length > 1 ? parsedData[parsedData.length - 2] : {};
+            setSensorData(last);
             setPreviousData(prev);
             addLog(`Historial reciente cargado (${data.length} registros).`, 'info');
         } else {
             setHistory([]);
-            setSensorData({ dateTime: new Date().toLocaleString() });
+            setSensorData({ fullDateTime: formatDateTimeFull(), shortTime: formatTimeSeconds() });
             setPreviousData({});
         }
       } catch (err) {
@@ -176,9 +224,11 @@ export default function MonitorEnVivo() {
       const newData = e.data || e;
       if (!newData) return;
       
+      const fullDt = formatDateTimeFull();
       const parsedData = {
         ...newData,
-        dateTime: new Date().toLocaleString(),
+        dateTime: fullDt,
+        fullDateTime: fullDt,
         shortTime: formatTimeSeconds()
       };
       
@@ -205,7 +255,7 @@ export default function MonitorEnVivo() {
     };
   }, [nodoActivo]);
 
-  // Statistics calculation
+  // Statistics calculation aligned with threshold ranges (Baja, Normal, Alta)
   const stats = useMemo(() => {
     if (!history.length || !nodoActivo?.lecturas) return null;
     let computed = {};
@@ -215,15 +265,36 @@ export default function MonitorEnVivo() {
         const avg = values.reduce((a,b)=>a+b,0) / values.length;
         const max = Math.max(...values);
         const min = Math.min(...values);
+
+        const minExp = (l?.minExpected !== undefined && l?.minExpected !== null && l?.minExpected !== '')
+          ? parseFloat(l.minExpected)
+          : (l?.min_expected !== undefined && l?.min_expected !== null && l?.min_expected !== '')
+            ? parseFloat(l.min_expected)
+            : (l?.min_alerta !== undefined && l?.min_alerta !== null && l?.min_alerta !== '')
+              ? parseFloat(l.min_alerta)
+              : (l?.valor_minimo !== undefined && l?.valor_minimo !== null && l?.valor_minimo !== '')
+                ? parseFloat(l.valor_minimo)
+                : (l?.min !== undefined && l?.min !== null && l?.min !== '')
+                  ? parseFloat(l.min)
+                  : null;
+
+        const maxExp = (l?.maxExpected !== undefined && l?.maxExpected !== null && l?.maxExpected !== '')
+          ? parseFloat(l.maxExpected)
+          : (l?.max_expected !== undefined && l?.max_expected !== null && l?.max_expected !== '')
+            ? parseFloat(l.max_expected)
+            : (l?.max_alerta !== undefined && l?.max_alerta !== null && l?.max_alerta !== '')
+              ? parseFloat(l.max_alerta)
+              : (l?.valor_maximo !== undefined && l?.valor_maximo !== null && l?.valor_maximo !== '')
+                ? parseFloat(l.valor_maximo)
+                : (l?.max !== undefined && l?.max !== null && l?.max !== '')
+                  ? parseFloat(l.max)
+                  : null;
         
-        let estabilidad = 'Alta';
-        if (l.minExpected !== undefined && l.minExpected !== null && l.maxExpected !== undefined && l.maxExpected !== null) {
-          const outOfBounds = values.some(v => v < l.minExpected || v > l.maxExpected);
-          if (outOfBounds) estabilidad = 'Baja';
-        } else {
-          const variance = values.reduce((sq, n) => sq + Math.pow(n - avg, 2), 0) / values.length;
-          const stdDev = Math.sqrt(variance);
-          if (stdDev > (avg * 0.1)) estabilidad = 'Baja';
+        let estabilidad = 'Normal';
+        if (minExp !== null && !isNaN(minExp) && avg < minExp) {
+          estabilidad = 'Baja';
+        } else if (maxExp !== null && !isNaN(maxExp) && avg > maxExp) {
+          estabilidad = 'Alta';
         }
 
         computed[l.data_type] = {
@@ -331,10 +402,27 @@ export default function MonitorEnVivo() {
             ) : (
             <div className="node-select-wrapper" onClick={toggleDropdown}>
               <div className="node-select-custom">
-                {nodoActivo ? (nodoActivo.nombre ? `${nodoActivo.nombre} (${nodoActivo.serial_number})` : nodoActivo.serial_number) : 'Seleccionar Nodo'}
+                {nodoActivo ? nodoActivo.nombre || nodoActivo.serial_number : 'Seleccionar Nodo'}
               </div>
               <svg className="node-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
             </div>
+            )}
+
+            {/* Ruta Informativa: / Categoría / Ubicación / Nombre del Nodo */}
+            {nodoActivo && (
+              <div 
+                onClick={() => setIsDropdownOpen(false)}
+                style={{ fontSize: '0.78rem', fontWeight: 600, color: '#64748b', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap', cursor: 'pointer' }}
+              >
+                <span style={{ color: '#cbd5e1', fontWeight: 800 }}>/</span>
+                <span style={{ color: '#2563eb', fontWeight: 700 }}>{nodoActivo.categoria || 'IoT'}</span>
+                <span style={{ color: '#cbd5e1', fontWeight: 800 }}>/</span>
+                <span style={{ color: '#475569' }}>
+                  {nodoActivo.ubicacion_nombre || 'Campus ULEAM'}
+                </span>
+                <span style={{ color: '#cbd5e1', fontWeight: 800 }}>/</span>
+                <strong style={{ color: '#0f2c59' }}>{nodoActivo.nombre}</strong>
+              </div>
             )}
             
             {isDropdownOpen && (
@@ -359,10 +447,12 @@ export default function MonitorEnVivo() {
                             key={n.id} 
                             className={`custom-dropdown-item ${nodoActivo?.id === n.id ? 'active' : ''}`}
                             onClick={() => {
-                              setNodoActivo(n);
-                              setHistory([]);
-                              setSensorData({});
-                              setPreviousData({});
+                              if (nodoActivo?.id !== n.id) {
+                                setNodoActivo(n);
+                                setHistory([]);
+                                setSensorData({});
+                                setPreviousData({});
+                              }
                               setIsDropdownOpen(false);
                               setExpandedCategories({});
                             }}
@@ -414,10 +504,12 @@ export default function MonitorEnVivo() {
                           key={n.id} 
                           className={`custom-dropdown-item ${nodoActivo?.id === n.id ? 'active' : ''}`}
                           onClick={() => {
-                            setNodoActivo(n);
-                            setHistory([]);
-                            setSensorData({});
-                            setPreviousData({});
+                            if (nodoActivo?.id !== n.id) {
+                              setNodoActivo(n);
+                              setHistory([]);
+                              setSensorData({});
+                              setPreviousData({});
+                            }
                             setIsDropdownOpen(false);
                             setExpandedCategories({});
                           }}
@@ -490,7 +582,24 @@ export default function MonitorEnVivo() {
             {isLoadingNodos || isLoadingHistory ? (
               <div className="skeleton skeleton-text" style={{width: '120px', marginTop: '4px'}}></div>
             ) : (
-              <span className="node-info-value">{sensorData.shortTime ? `Reciente (${sensorData.shortTime})` : 'Aguardando...'}</span>
+              (() => {
+                if (!sensorData || (!sensorData.fullDateTime && !sensorData.shortTime)) {
+                  return <span className="node-info-value">Aguardando...</span>;
+                }
+                const { time, date } = getTimeAndDate(sensorData);
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', marginTop: '2px' }}>
+                    <span style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0f2c59', lineHeight: 1.2 }}>
+                      {time}
+                    </span>
+                    {date && (
+                      <span style={{ fontSize: '0.76rem', fontWeight: 600, color: '#64748b', lineHeight: 1.2 }}>
+                        {date}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()
             )}
           </div>
         </div>
@@ -528,6 +637,45 @@ export default function MonitorEnVivo() {
             const theme = getTheme(l.data_type, l.icono);
             const currentVal = sensorData[l.data_type];
             const prevVal = previousData[l.data_type];
+
+            // Evaluar umbrales esperados idéntico a VisualizarMapa
+            const minExp = (l?.minExpected !== undefined && l?.minExpected !== null && l?.minExpected !== '')
+              ? parseFloat(l.minExpected)
+              : (l?.min_expected !== undefined && l?.min_expected !== null && l?.min_expected !== '')
+                ? parseFloat(l.min_expected)
+                : (l?.min_alerta !== undefined && l?.min_alerta !== null && l?.min_alerta !== '')
+                  ? parseFloat(l.min_alerta)
+                  : (l?.valor_minimo !== undefined && l?.valor_minimo !== null && l?.valor_minimo !== '')
+                    ? parseFloat(l.valor_minimo)
+                    : (l?.min !== undefined && l?.min !== null && l?.min !== '')
+                      ? parseFloat(l.min)
+                      : null;
+
+            const maxExp = (l?.maxExpected !== undefined && l?.maxExpected !== null && l?.maxExpected !== '')
+              ? parseFloat(l.maxExpected)
+              : (l?.max_expected !== undefined && l?.max_expected !== null && l?.max_expected !== '')
+                ? parseFloat(l.max_expected)
+                : (l?.max_alerta !== undefined && l?.max_alerta !== null && l?.max_alerta !== '')
+                  ? parseFloat(l.max_alerta)
+                  : (l?.valor_maximo !== undefined && l?.valor_maximo !== null && l?.valor_maximo !== '')
+                    ? parseFloat(l.valor_maximo)
+                    : (l?.max !== undefined && l?.max !== null && l?.max !== '')
+                      ? parseFloat(l.max)
+                      : null;
+
+            const numVal = Number(currentVal);
+            let isLow = false;
+            let isHigh = false;
+            if (currentVal !== undefined && currentVal !== null && currentVal !== '--') {
+              if (minExp !== null && !isNaN(minExp) && numVal < minExp) isLow = true;
+              else if (maxExp !== null && !isNaN(maxExp) && numVal > maxExp) isHigh = true;
+            }
+
+            const alertMsg = isLow
+              ? `Nivel Bajo: El valor registrado (${numVal} ${l.unidad || ''}) está por debajo del mínimo esperado (${minExp} ${l.unidad || ''})`
+              : isHigh
+              ? `Nivel Alto: El valor registrado (${numVal} ${l.unidad || ''}) sobrepasó el máximo esperado (${maxExp} ${l.unidad || ''})`
+              : `Estado Normal: El valor (${numVal !== undefined && !isNaN(numVal) ? numVal : '--'} ${l.unidad || ''}) se encuentra dentro del rango seguro.`;
             
             let diff = 0;
             let trendClass = 'trend-flat';
@@ -573,9 +721,23 @@ export default function MonitorEnVivo() {
                   ) : (
                     <>
                       <h2>{currentVal !== undefined ? currentVal : '--'} <span className="kpi-unit">{l.unidad}</span></h2>
-                      <span className={`kpi-status-badge ${stats?.[l.data_type]?.estabilidad === 'Baja' ? 'status-baja' : 'status-alta'}`}>
-                        {stats?.[l.data_type]?.estabilidad ? `Estabilidad: ${stats[l.data_type].estabilidad}` : 'Calculando...'}
-                      </span>
+                      
+                      {/* Texto de Estabilidad: Normal (Verde), Baja (Azul), Alta (Rojo) */}
+                      <div style={{ marginTop: '8px' }}>
+                        {isLow ? (
+                          <span title={alertMsg} className="kpi-status-badge" style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #93c5fd', padding: '4px 12px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 700, cursor: 'help', display: 'inline-block' }}>
+                            Estabilidad: Baja
+                          </span>
+                        ) : isHigh ? (
+                          <span title={alertMsg} className="kpi-status-badge" style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', padding: '4px 12px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 700, cursor: 'help', display: 'inline-block' }}>
+                            Estabilidad: Alta
+                          </span>
+                        ) : (
+                          <span title={alertMsg} className="kpi-status-badge" style={{ background: '#ecfdf5', color: '#059669', border: '1px solid #6ee7b7', padding: '4px 12px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 700, cursor: 'help', display: 'inline-block' }}>
+                            Estabilidad: Normal
+                          </span>
+                        )}
+                      </div>
                     </>
                   )}
                 </div>
@@ -585,9 +747,9 @@ export default function MonitorEnVivo() {
                   {isLoadingHistory ? (
                     <div className="skeleton skeleton-text" style={{ width: '60px' }}></div>
                   ) : (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#0f172a', fontWeight: 600 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#0f172a', fontWeight: 600, fontSize: '0.78rem' }}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                      {sensorData.shortTime || '--:--'}
+                      {sensorData.fullDateTime || sensorData.shortTime || '--:--'}
                     </span>
                   )}
                 </div>
@@ -824,7 +986,35 @@ export default function MonitorEnVivo() {
                         <td style={{ color: theme.hex }}>{st?.max || '--'}</td>
                         <td style={{ color: theme.hex }}>{st?.min || '--'}</td>
                         <td>
-                          <span className={`badge-${st?.estabilidad?.toLowerCase() || 'alta'}`}>{st?.estabilidad || '--'}</span>
+                          {(() => {
+                            const est = st?.estabilidad || 'Normal';
+                            let badgeBg = '#ecfdf5';
+                            let badgeColor = '#059669';
+                            let badgeBorder = '#6ee7b7';
+                            if (est === 'Baja') {
+                              badgeBg = '#eff6ff';
+                              badgeColor = '#2563eb';
+                              badgeBorder = '#93c5fd';
+                            } else if (est === 'Alta') {
+                              badgeBg = '#fef2f2';
+                              badgeColor = '#dc2626';
+                              badgeBorder = '#fca5a5';
+                            }
+                            return (
+                              <span style={{
+                                padding: '4px 12px',
+                                borderRadius: '12px',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                background: badgeBg,
+                                color: badgeColor,
+                                border: `1px solid ${badgeBorder}`,
+                                display: 'inline-block'
+                              }}>
+                                {est}
+                              </span>
+                            );
+                          })()}
                         </td>
                       </tr>
                     );
@@ -845,7 +1035,7 @@ export default function MonitorEnVivo() {
             <table className="styled-table">
               <thead>
                 <tr>
-                  <th>Hora</th>
+                  <th>Fecha y Hora</th>
                   {isLoadingNodos ? (
                     <>
                        <th><div className="skeleton skeleton-text" style={{ width: '80px', margin: '0 auto' }}></div></th>
@@ -868,7 +1058,7 @@ export default function MonitorEnVivo() {
                 ) : (
                   [...history].reverse().slice(0, visibleRows).map((row, r_idx) => (
                     <tr key={r_idx}>
-                      <td style={{ color: '#64748b' }}>{row.shortTime || row.time}</td>
+                      <td style={{ color: '#64748b', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>{row.fullDateTime || row.shortTime || row.time}</td>
                       {nodoActivo?.lecturas?.map((l, c_idx) => {
                         const theme = getTheme(l.data_type);
                         return (

@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 import '../../styles/components/admin/HistoricoAgregado.css';
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+  AreaChart, Area, LineChart, Line, BarChart, Bar, Brush, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import CustomDatePicker from '../../components/admin/CustomDatePicker';
 
@@ -35,7 +35,7 @@ export default function HistoricoAgregado() {
   const location = useLocation();
   const [nodos, setNodos] = useState([]);
   const [nodoActivo, setNodoActivo] = useState(null);
-  
+
   const chartRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -70,23 +70,24 @@ export default function HistoricoAgregado() {
 
   const savedFiltersStr = localStorage.getItem('historico_filters');
   const savedFilters = savedFiltersStr ? JSON.parse(savedFiltersStr) : {};
-  
+
   const inspectState = location.state?.inspectInstability ? location.state : null;
 
-  const [filterMode, setFilterMode] = useState(inspectState ? 'hour' : (savedFilters.filterMode || 'day')); 
+  const [filterMode, setFilterMode] = useState(inspectState ? 'hour' : (savedFilters.filterMode || 'day'));
   const [startDate, setStartDate] = useState(inspectState ? inspectState.date : (savedFilters.startDate || today));
   const [endDate, setEndDate] = useState(inspectState ? inspectState.date : (savedFilters.endDate || today));
   const [selectedHour, setSelectedHour] = useState(
-    inspectState 
-      ? inspectState.hour 
-      : (savedFilters.selectedHour !== undefined 
-          ? savedFilters.selectedHour 
-          : parseInt(new Date().toLocaleString('en-US', { timeZone: 'America/Guayaquil', hour: '2-digit', hour12: false })))
+    inspectState
+      ? inspectState.hour
+      : (savedFilters.selectedHour !== undefined
+        ? savedFilters.selectedHour
+        : parseInt(new Date().toLocaleString('en-US', { timeZone: 'America/Guayaquil', hour: '2-digit', hour12: false })))
   );
-  
+
   const [groupingIntervalDay, setGroupingIntervalDay] = useState(savedFilters.groupingIntervalDay || '60');
   const [groupingIntervalRange, setGroupingIntervalRange] = useState(savedFilters.groupingIntervalRange || '1440');
   const [groupingIntervalHour, setGroupingIntervalHour] = useState(inspectState ? '1' : (savedFilters.groupingIntervalHour || '5'));
+  const [chartViewType, setChartViewType] = useState('area'); // 'area' | 'line' | 'bar'
 
   useEffect(() => {
     localStorage.setItem('historico_filters', JSON.stringify({
@@ -99,6 +100,123 @@ export default function HistoricoAgregado() {
       groupingIntervalHour
     }));
   }, [filterMode, startDate, endDate, selectedHour, groupingIntervalDay, groupingIntervalRange, groupingIntervalHour]);
+
+  const getNextDayStr = (dateStr) => {
+    if (!dateStr) return dateStr;
+    const d = new Date(dateStr + 'T12:00:00');
+    d.setDate(d.getDate() + 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  useEffect(() => {
+    if (filterMode === 'range' && startDate && endDate) {
+      const minEnd = getNextDayStr(startDate);
+      if (endDate < minEnd) {
+        setEndDate(minEnd);
+      }
+    }
+  }, [startDate, endDate, filterMode]);
+
+  const handleStartDateChange = (newStart) => {
+    setStartDate(newStart);
+    if (filterMode === 'range' && endDate) {
+      const minEnd = getNextDayStr(newStart);
+      if (endDate < minEnd) {
+        setEndDate(minEnd);
+      }
+    }
+  };
+
+  const handleEndDateChange = (newEnd) => {
+    if (startDate) {
+      const minEnd = getNextDayStr(startDate);
+      if (newEnd < minEnd) return;
+    }
+    setEndDate(newEnd);
+  };
+
+  const formatFullDateTime = (row, intervalMinutesStr) => {
+    if (!row) return '';
+    const intervalMins = parseInt(intervalMinutesStr || currentAgrupacionValue || '15', 10) || 15;
+    const rawStr = String(row.fecha || row.label || '');
+
+    let startDateObj = null;
+
+    if (rawStr.includes('-')) {
+      const parts = rawStr.split(/[\sT]+/);
+      const dateParts = parts[0].split('-');
+      if (dateParts.length === 3) {
+        const yyyy = parseInt(dateParts[0], 10);
+        const mm = parseInt(dateParts[1], 10) - 1;
+        const dd = parseInt(dateParts[2], 10);
+
+        let timePart = parts[1] ? parts[1].split('.')[0] : '';
+        if (!timePart && row.label && String(row.label).includes(':')) {
+          const labelTime = String(row.label).split(/\s+/).pop();
+          if (labelTime && labelTime.includes(':')) timePart = labelTime;
+        }
+        if (!timePart) timePart = '00:00:00';
+        const tSplit = timePart.split(':');
+        const hh = parseInt(tSplit[0] || '0', 10);
+        const min = parseInt(tSplit[1] || '0', 10);
+        const sec = parseInt(tSplit[2] || '0', 10);
+
+        startDateObj = new Date(yyyy, mm, dd, hh, min, sec);
+      }
+    }
+
+    if (!startDateObj && row.label && typeof row.label === 'string') {
+      const spaceParts = row.label.trim().split(/\s+/);
+      if (spaceParts[0].includes('/')) {
+        const dateSubParts = spaceParts[0].split('/');
+        const dd = parseInt(dateSubParts[0], 10);
+        const mm = parseInt(dateSubParts[1], 10) - 1;
+        const yyyy = parseInt(dateSubParts[2] || (startDate ? startDate.split('-')[0] : new Date().getFullYear()), 10);
+
+        let tStr = spaceParts[1] || '00:00:00';
+        const tSplit = tStr.split(':');
+        const hh = parseInt(tSplit[0] || '0', 10);
+        const min = parseInt(tSplit[1] || '0', 10);
+        const sec = parseInt(tSplit[2] || '0', 10);
+
+        startDateObj = new Date(yyyy, mm, dd, hh, min, sec);
+      }
+    }
+
+    if (!startDateObj || isNaN(startDateObj.getTime())) {
+      return row.label || row.fecha || '';
+    }
+
+    const endDateObj = new Date(startDateObj.getTime() + intervalMins * 60 * 1000 - 1000);
+
+    const pad = (n) => String(n).padStart(2, '0');
+
+    const dStart = `${pad(startDateObj.getDate())}/${pad(startDateObj.getMonth() + 1)}/${startDateObj.getFullYear()}`;
+    const tStart = `${pad(startDateObj.getHours())}:${pad(startDateObj.getMinutes())}:${pad(startDateObj.getSeconds())}`;
+
+    const dEnd = `${pad(endDateObj.getDate())}/${pad(endDateObj.getMonth() + 1)}/${endDateObj.getFullYear()}`;
+    const tEnd = `${pad(endDateObj.getHours())}:${pad(endDateObj.getMinutes())}:${pad(endDateObj.getSeconds())}`;
+
+    if (dStart === dEnd) {
+      return `${dStart} ${tStart} a ${tEnd}`;
+    } else {
+      return `${dStart} ${tStart} a ${dEnd} ${tEnd}`;
+    }
+  };
+
+  const formatAtTime = (atVal) => {
+    if (!atVal || typeof atVal !== 'string' || !atVal.trim()) return null;
+    let clean = atVal.trim();
+    if (clean.includes(' ')) {
+      clean = clean.split(/\s+/).pop();
+    }
+    if (clean.includes(':')) {
+      const parts = clean.split(':');
+      if (parts.length === 2) return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}:00`;
+      if (parts.length === 3) return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}:${parts[2].padStart(2, '0')}`;
+    }
+    return clean;
+  };
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isHourDropdownOpen, setIsHourDropdownOpen] = useState(false);
@@ -155,15 +273,15 @@ export default function HistoricoAgregado() {
           });
           return;
         }
-        
+
         // Arriba / Abajo -> Agrupación
         if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
           e.preventDefault();
           const options = filterMode === 'day' ? agrupacionOptionsDay :
-                          filterMode === 'range' ? agrupacionOptionsRange :
-                          agrupacionOptionsHour;
+            filterMode === 'range' ? agrupacionOptionsRange :
+              agrupacionOptionsHour;
           const values = options.map(o => o.value);
-          
+
           const changeInterval = (prev) => {
             const idx = values.indexOf(prev);
             let nextIdx = e.key === 'ArrowUp' ? idx - 1 : idx + 1;
@@ -175,7 +293,7 @@ export default function HistoricoAgregado() {
           if (filterMode === 'day') setGroupingIntervalDay(changeInterval);
           else if (filterMode === 'range') setGroupingIntervalRange(changeInterval);
           else if (filterMode === 'hour') setGroupingIntervalHour(changeInterval);
-          
+
           return;
         }
       }
@@ -210,7 +328,7 @@ export default function HistoricoAgregado() {
     }
     setIsDropdownOpen(!isDropdownOpen);
   };
-  
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (!event.target.closest('.node-info-text')) {
@@ -226,7 +344,7 @@ export default function HistoricoAgregado() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-  
+
   const [historicalData, setHistoricalData] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
@@ -238,7 +356,7 @@ export default function HistoricoAgregado() {
           setNodos(data);
           let foundNode = null;
           if (location.state && location.state.inspectInstability) {
-             foundNode = data.find(n => String(n.id) === String(location.state.node_id));
+            foundNode = data.find(n => String(n.id) === String(location.state.node_id));
           }
           if (!foundNode) {
             const sharedNodeId = localStorage.getItem('shared_node_id');
@@ -252,11 +370,102 @@ export default function HistoricoAgregado() {
       .catch(err => console.error("Error fetching nodos:", err));
   }, []);
 
+  const [latestNodeReadingDate, setLatestNodeReadingDate] = useState(null);
+
   useEffect(() => {
-    if (nodoActivo) {
-       localStorage.setItem('shared_node_id', nodoActivo.id);
+    if (!nodoActivo?.serial_number) {
+      setLatestNodeReadingDate(null);
+      return;
     }
+
+    fetch(`${API_BASE_URL}/lecturas/recientes?serial_number=${nodoActivo.serial_number}&limit=1`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          const last = data[0];
+          const rawDate = last.fecha || last.created_at || last.timestamp || last.time;
+          if (rawDate) {
+            setLatestNodeReadingDate(rawDate);
+          }
+        } else {
+          setLatestNodeReadingDate(null);
+        }
+      })
+      .catch(() => setLatestNodeReadingDate(null));
   }, [nodoActivo]);
+
+  // Helper para parsear marcas de tiempo exactamente en la zona horaria local sin desfasar horas
+  const parseTimestampToMs = (val) => {
+    if (!val) return 0;
+    if (typeof val === 'number') return val > 1e11 ? val : val * 1000;
+    if (typeof val === 'string') {
+      let s = val.trim();
+      if (/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/.test(s)) {
+        const parts = s.split(' ');
+        const dateParts = parts[0].split('-').map(Number);
+        const timeParts = parts[1].split(':').map(Number);
+        return new Date(dateParts[0], dateParts[1] - 1, dateParts[2], timeParts[0], timeParts[1], timeParts[2]).getTime();
+      }
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(s)) {
+        const cleanIso = s.split('.')[0].split('Z')[0];
+        const parts = cleanIso.split('T');
+        const dateParts = parts[0].split('-').map(Number);
+        const timeParts = parts[1].split(':').map(Number);
+        return new Date(dateParts[0], dateParts[1] - 1, dateParts[2], timeParts[0], timeParts[1], timeParts[2]).getTime();
+      }
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) return d.getTime();
+    }
+    return 0;
+  };
+
+  // Cálculo de Estado Activo/Inactivo (1 min máximo desde la última lectura)
+  const lastReadingTimestampMs = useMemo(() => {
+    if (!nodoActivo) return 0;
+    let maxMs = 0;
+
+    if (latestNodeReadingDate) {
+      const parsedReciente = parseTimestampToMs(latestNodeReadingDate);
+      if (parsedReciente > maxMs) maxMs = parsedReciente;
+    }
+
+    if (historicalData && historicalData.length > 0) {
+      const lastItem = historicalData[historicalData.length - 1];
+      if (lastItem && lastItem.fecha) {
+        const parsed = parseTimestampToMs(lastItem.fecha);
+        if (parsed > maxMs) maxMs = parsed;
+      }
+    }
+    const nodeTime = nodoActivo.last_read || nodoActivo.last_seen || nodoActivo.updated_at || nodoActivo.created_at;
+    if (nodeTime) {
+      const parsedNode = parseTimestampToMs(nodeTime);
+      if (parsedNode > maxMs) maxMs = parsedNode;
+    }
+    return maxMs;
+  }, [nodoActivo, historicalData, latestNodeReadingDate]);
+
+  const isNodeActive = useMemo(() => {
+    if (!lastReadingTimestampMs) return false;
+    const nowMs = Date.now();
+    const diffMs = nowMs - lastReadingTimestampMs;
+    return diffMs <= 60000; // Máximo 1 minuto (60,000 ms) para considerarse Activo
+  }, [lastReadingTimestampMs]);
+
+  const lastReadingTimeFormatted = useMemo(() => {
+    if (!lastReadingTimestampMs) return 'Sin lecturas recientes';
+    const d = new Date(lastReadingTimestampMs);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const timeStr = d.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    }).toLowerCase().replace(/\s/g, '').replace('am', 'a.m.').replace('pm', 'p.m.');
+
+    return `${day}/${month}/${year}, ${timeStr}`;
+  }, [lastReadingTimestampMs]);
 
   const groupedNodos = useMemo(() => {
     const groups = {};
@@ -287,7 +496,7 @@ export default function HistoricoAgregado() {
       if (filterMode === 'hour') params.append('hour', selectedHour);
 
       const mergedMap = new Map();
-      
+
       for (const lectura of nodoActivo.lecturas) {
         const res = await fetch(`${API_BASE_URL}/lecturas?${params.toString()}&clave_mqtt=${lectura.data_type}`);
         const data = await res.json();
@@ -298,12 +507,15 @@ export default function HistoricoAgregado() {
             }
             mergedMap.get(item.fecha)[lectura.data_type] = item.valor;
             mergedMap.get(item.fecha)[`${lectura.data_type}_min`] = item.min;
+            mergedMap.get(item.fecha)[`${lectura.data_type}_min_at`] = item.min_at;
             mergedMap.get(item.fecha)[`${lectura.data_type}_max`] = item.max;
+            mergedMap.get(item.fecha)[`${lectura.data_type}_max_at`] = item.max_at;
+            mergedMap.get(item.fecha)[`${lectura.data_type}_at`] = item.at || item.created_at || item.min_at || item.max_at;
           });
         }
       }
-      
-      const mergedArray = Array.from(mergedMap.values()).sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
+
+      const mergedArray = Array.from(mergedMap.values()).sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
       setHistoricalData(mergedArray);
     } catch (err) {
       console.error("Error fetching history", err);
@@ -329,27 +541,37 @@ export default function HistoricoAgregado() {
     general: <><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></>
   };
 
-  const themeColors = {
-    temp: { hex: '#f97316', label: 'Temperatura', theme: 'theme-orange', bg: '#fff7ed', stroke: '#ea580c', icon: DYNAMIC_ICONS.termometro },
-    hum: { hex: '#2563eb', label: 'Humedad', theme: 'theme-blue', bg: '#eff6ff', stroke: '#3b82f6', icon: DYNAMIC_ICONS.humedad },
-    press: { hex: '#10b981', label: 'Presión', theme: 'theme-green', bg: '#ecfdf5', stroke: '#059669', icon: DYNAMIC_ICONS.presion },
-    wind: { hex: '#06b6d4', label: 'Viento', theme: 'theme-cyan', bg: '#ecfeff', stroke: '#0891b2', icon: DYNAMIC_ICONS.viento },
-    rain: { hex: '#8b5cf6', label: 'Lluvia', theme: 'theme-purple', bg: '#f5f3ff', stroke: '#7c3aed', icon: DYNAMIC_ICONS.lluvia },
-    aqi: { hex: '#16a34a', label: 'Calidad de Aire', theme: 'theme-green', bg: '#f0fdf4', stroke: '#10b981', icon: DYNAMIC_ICONS.viento },
-    co2: { hex: '#4f46e5', label: 'CO2', theme: 'theme-indigo', bg: '#eef2ff', stroke: '#4f46e5', icon: <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z" /> },
-    default: { hex: '#64748b', label: 'Variable', theme: 'theme-green', bg: '#f0fdf4', stroke: '#10b981', icon: DYNAMIC_ICONS.general }
-  };
+  const DISTINCT_COLORS = [
+    { hex: '#10b981', theme: 'theme-green', bg: '#ecfdf5', stroke: '#059669' },  // Emerald (pH)
+    { hex: '#0284c7', theme: 'theme-blue', bg: '#f0f9ff', stroke: '#0369a1' },   // Cyan (Oxígeno)
+    { hex: '#d97706', theme: 'theme-orange', bg: '#fffbeb', stroke: '#b45309' }, // Amber (Turbidez)
+    { hex: '#ea580c', theme: 'theme-red', bg: '#fff7ed', stroke: '#c2410c' },    // Coral (Temperatura)
+    { hex: '#8b5cf6', theme: 'theme-purple', bg: '#f5f3ff', stroke: '#7c3aed' }, // Purple (Salinidad)
+    { hex: '#4f46e5', theme: 'theme-indigo', bg: '#eef2ff', stroke: '#4338ca' }, // Indigo (Presión)
+    { hex: '#ec4899', theme: 'theme-pink', bg: '#fdf2f8', stroke: '#db2777' },   // Pink
+    { hex: '#06b6d4', theme: 'theme-cyan', bg: '#ecfeff', stroke: '#0891b2' },   // Cyan
+  ];
 
-  const getTheme = (clave, icono) => {
-    let baseTheme = themeColors.default;
+  const getTheme = (clave, icono, idx = 0) => {
     const lower = (clave || '').toLowerCase();
-    if (lower.includes('temp')) baseTheme = themeColors.temp;
-    else if (lower.includes('hum')) baseTheme = themeColors.hum;
-    else if (lower.includes('press') || lower.includes('presion')) baseTheme = themeColors.press;
-    else if (lower.includes('wind') || lower.includes('viento')) baseTheme = themeColors.wind;
-    else if (lower.includes('rain') || lower.includes('lluvia')) baseTheme = themeColors.rain;
-    else if (lower.includes('aqi') || lower.includes('aire')) baseTheme = themeColors.aqi;
-    else if (lower.includes('co2') || lower.includes('carbono')) baseTheme = themeColors.co2;
+
+    let baseTheme = null;
+    if (lower.includes('ph')) {
+      baseTheme = { hex: '#10b981', label: 'pH', theme: 'theme-green', bg: '#ecfdf5', stroke: '#059669', icon: DYNAMIC_ICONS.ph };
+    } else if (lower.includes('oxygen') || lower.includes('oxigeno') || lower.includes('o2') || lower.includes('dissolved')) {
+      baseTheme = { hex: '#0284c7', label: 'Oxígeno Disuelto', theme: 'theme-blue', bg: '#f0f9ff', stroke: '#0369a1', icon: DYNAMIC_ICONS.lluvia };
+    } else if (lower.includes('turbid') || lower.includes('turbidez') || lower.includes('mv') || lower.includes('voltage')) {
+      baseTheme = { hex: '#d97706', label: 'Turbidez', theme: 'theme-orange', bg: '#fffbeb', stroke: '#b45309', icon: DYNAMIC_ICONS.energia };
+    } else if (lower.includes('temp')) {
+      baseTheme = { hex: '#ea580c', label: 'Temperatura', theme: 'theme-red', bg: '#fff7ed', stroke: '#c2410c', icon: DYNAMIC_ICONS.termometro };
+    } else if (lower.includes('hum')) {
+      baseTheme = { hex: '#2563eb', label: 'Humedad', theme: 'theme-blue', bg: '#eff6ff', stroke: '#1d4ed8', icon: DYNAMIC_ICONS.humedad };
+    } else if (lower.includes('salin') || lower.includes('conductiv')) {
+      baseTheme = { hex: '#8b5cf6', label: 'Conductividad', theme: 'theme-purple', bg: '#f5f3ff', stroke: '#7c3aed', icon: DYNAMIC_ICONS.general };
+    } else {
+      const fallbackColor = DISTINCT_COLORS[idx % DISTINCT_COLORS.length];
+      baseTheme = { ...fallbackColor, label: 'Variable', icon: DYNAMIC_ICONS.general };
+    }
 
     if (icono && DYNAMIC_ICONS[icono]) {
       return { ...baseTheme, icon: DYNAMIC_ICONS[icono] };
@@ -359,32 +581,40 @@ export default function HistoricoAgregado() {
 
   const kpis = useMemo(() => {
     if (!historicalData.length || !nodoActivo?.lecturas) return null;
-    
+
     let stats = { count: historicalData.length, variables: {} };
 
-    nodoActivo.lecturas.forEach(l => {
-      let values = historicalData.map(d => d[l.data_type]).filter(v => v !== undefined && v !== null);
-      if (values.length > 0) {
-        const sum = values.reduce((a, b) => a + b, 0);
-        const avg = sum / values.length;
-        const max = Math.max(...values);
-        const min = Math.min(...values);
+    nodoActivo.lecturas.forEach((l, index) => {
+      let avgValues = historicalData.map(d => d[l.data_type]).filter(v => v !== undefined && v !== null);
+      let maxValues = historicalData.map(d => d[`${l.data_type}_max`]).filter(v => v !== undefined && v !== null);
+      let minValues = historicalData.map(d => d[`${l.data_type}_min`]).filter(v => v !== undefined && v !== null);
 
-        // Buscar a qué hora ocurrió el max y min
-        const maxItem = historicalData.find(d => d[l.data_type] === max);
-        const minItem = historicalData.find(d => d[l.data_type] === min);
+      if (maxValues.length === 0) maxValues = avgValues;
+      if (minValues.length === 0) minValues = avgValues;
+
+      if (avgValues.length > 0) {
+        const sum = avgValues.reduce((a, b) => a + b, 0);
+        const avg = sum / avgValues.length;
+
+        const max = Math.max(...maxValues);
+        const min = Math.min(...minValues);
+
+        const maxItem = historicalData.find(d => d[`${l.data_type}_max`] === max) || historicalData.find(d => d[l.data_type] === max);
+        const minItem = historicalData.find(d => d[`${l.data_type}_min`] === min) || historicalData.find(d => d[l.data_type] === min);
 
         stats.variables[l.data_type] = {
           promedio: avg.toFixed(1),
           max: max.toFixed(1),
           min: min.toFixed(1),
-          maxTime: maxItem ? maxItem.label : '',
-          minTime: minItem ? minItem.label : '',
+          maxRange: maxItem ? maxItem.label : '',
+          maxExact: maxItem ? (maxItem[`${l.data_type}_max_at`] || maxItem[`${l.data_type}_min_at`]) : '',
+          minRange: minItem ? minItem.label : '',
+          minExact: minItem ? (minItem[`${l.data_type}_min_at`] || minItem[`${l.data_type}_max_at`]) : '',
           info: {
             tipo: l.label || l.tipo || 'Variable',
             unidad: l.unit || l.unidad || ''
           },
-          theme: getTheme(l.data_type, l.icono)
+          theme: getTheme(l.data_type, l.icono, index)
         };
       }
     });
@@ -394,16 +624,16 @@ export default function HistoricoAgregado() {
   const chartAxisConfig = useMemo(() => {
     if (!kpis || !kpis.variables) return { split: false, rightKeys: [] };
     const maxVals = Object.entries(kpis.variables).map(([k, v]) => ({ key: k, max: parseFloat(v.max) }));
-    
+
     // Casos exagerados (valores < 100 mezclados con > 1000)
     const hasSmall = maxVals.some(v => v.max < 100);
     const hasLarge = maxVals.some(v => v.max > 1000);
-    
+
     if (hasSmall && hasLarge) {
-       return {
-         split: true,
-         rightKeys: maxVals.filter(v => v.max >= 1000).map(v => v.key)
-       };
+      return {
+        split: true,
+        rightKeys: maxVals.filter(v => v.max >= 1000).map(v => v.key)
+      };
     }
     return { split: false, rightKeys: [] };
   }, [kpis]);
@@ -412,15 +642,58 @@ export default function HistoricoAgregado() {
   const currentAgrupacionValue = filterMode === 'day' ? groupingIntervalDay : filterMode === 'range' ? groupingIntervalRange : groupingIntervalHour;
   const currentAgrupacionLabel = currentAgrupacionOptions.find(o => o.value == currentAgrupacionValue)?.label || '';
 
+  const exportChartRef = useRef(null);
+
   const handleExportImage = async () => {
-    if (!chartRef.current) return;
+    const targetEl = exportChartRef.current || chartRef.current;
+    if (!targetEl) return;
     try {
-      const canvas = await html2canvas(chartRef.current, { backgroundColor: '#ffffff' });
+      const prevOverflow = targetEl.style.overflow;
+      const prevOverflowX = targetEl.style.overflowX;
+      const prevWidth = targetEl.style.width;
+      const prevHeight = targetEl.style.height;
+
+      // Expand element to full scrollable size for capture
+      targetEl.style.overflow = 'visible';
+      targetEl.style.overflowX = 'visible';
+      targetEl.style.width = targetEl.scrollWidth + 'px';
+      // Ensure right side has extra padding to avoid clipping
+      targetEl.style.paddingRight = '24px';
+
+
+      const canvas = await html2canvas(targetEl, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        useCORS: true,
+        scrollX: 0,
+        scrollY: 0,
+        width: targetEl.scrollWidth,
+        height: targetEl.scrollHeight,
+        onclone: (clonedDoc) => {
+          const clonedTarget = clonedDoc.querySelector('.chart-container-wrapper');
+          if (clonedTarget) {
+            clonedTarget.style.overflow = 'visible';
+            clonedTarget.style.overflowX = 'visible';
+            clonedTarget.style.paddingRight = '24px';
+          }
+          const svgs = clonedDoc.querySelectorAll('svg');
+          svgs.forEach(svg => {
+            svg.style.overflow = 'visible';
+          });
+        }
+      });
+
+      // Restore original styles
+      targetEl.style.overflow = prevOverflow;
+      targetEl.style.overflowX = prevOverflowX;
+      targetEl.style.width = prevWidth;
+      targetEl.style.height = prevHeight;
+
       const image = canvas.toDataURL("image/png");
       const a = document.createElement("a");
       a.href = image;
       const safeLabel = currentAgrupacionLabel.replace(/\s+/g, '');
-      const fileName = `historico_${filterMode}_${startDate}_${safeLabel}.png`;
+      const fileName = `historico_${nodoActivo?.serial_number || 'nodo'}_${filterMode}_${startDate}_${safeLabel}.png`;
       a.download = fileName;
       a.click();
     } catch (error) {
@@ -431,39 +704,46 @@ export default function HistoricoAgregado() {
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
-        <div className="custom-tooltip" style={{ backgroundColor: 'white', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
-          <div className="custom-tooltip-label" style={{ fontWeight: 'bold', marginBottom: '8px', color: '#0f172a', borderBottom: '1px solid #f1f5f9', paddingBottom: '4px' }}>{label}</div>
+        <div className="custom-tooltip" style={{ backgroundColor: '#ffffff', padding: '14px 16px', border: '1px solid #cbd5e1', borderRadius: '10px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)' }}>
+          <div className="custom-tooltip-label" style={{ fontWeight: '700', fontSize: '0.875rem', marginBottom: '10px', color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
+            📅 {label}
+          </div>
           {payload.map((entry, index) => {
             const minVal = entry.payload[`${entry.dataKey}_min`];
             const maxVal = entry.payload[`${entry.dataKey}_max`];
-            
-            const lecturaConfig = nodoActivo?.lecturas?.find(l => l.data_type === entry.dataKey);
-            let outOfBounds = false;
-            let hasLimits = false;
-            
-            if (lecturaConfig && lecturaConfig.minExpected !== undefined && lecturaConfig.maxExpected !== undefined && lecturaConfig.minExpected !== null && lecturaConfig.maxExpected !== null) {
-                hasLimits = true;
-                // Verificamos si el promedio, mínimo o máximo del período rompieron los límites
-                outOfBounds = entry.value < lecturaConfig.minExpected || entry.value > lecturaConfig.maxExpected 
-                              || minVal < lecturaConfig.minExpected || maxVal > lecturaConfig.maxExpected;
-            }
+            const minAt = entry.payload[`${entry.dataKey}_min_at`];
+            const maxAt = entry.payload[`${entry.dataKey}_max_at`];
+            const { isLow, isHigh, minExp, maxExp } = getThresholdStatus(entry.dataKey, entry.payload);
+            const isOutOfRange = isLow || isHigh;
 
             return (
-              <div key={index} className="custom-tooltip-item" style={{ marginBottom: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span className="tooltip-dot" style={{ backgroundColor: entry.color, width: '10px', height: '10px', borderRadius: '50%', display: 'inline-block' }}></span>
-                  <span style={{ color: entry.color, fontWeight: 600 }}>{entry.name}:</span>
-                  <span style={{ fontWeight: 800, color: '#0f172a' }}>{entry.value}</span>
+              <div key={index} className="custom-tooltip-item" style={{ marginBottom: index < payload.length - 1 ? '10px' : '0', paddingBottom: index < payload.length - 1 ? '8px' : '0', borderBottom: index < payload.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span className="tooltip-dot" style={{ backgroundColor: entry.color, width: '10px', height: '10px', borderRadius: '50%', display: 'inline-block', flexShrink: 0 }}></span>
+                  <span style={{ color: entry.color, fontWeight: 700, fontSize: '0.85rem' }}>{entry.name}:</span>
+                  <span style={{ fontWeight: 800, fontSize: '0.92rem', color: isLow ? '#2563eb' : isHigh ? '#dc2626' : '#0f172a' }}>
+                    {entry.value}
+                  </span>
+                  {isLow && (
+                    <span style={{ color: '#2563eb', fontWeight: 700, fontSize: '0.72rem', backgroundColor: 'rgba(37, 99, 235, 0.1)', padding: '2px 8px', borderRadius: '4px' }}>
+                      ⚠️ Nivel Bajo (&lt; {minExp}) • Estabilidad Baja
+                    </span>
+                  )}
+                  {isHigh && (
+                    <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '0.72rem', backgroundColor: 'rgba(220, 38, 38, 0.1)', padding: '2px 8px', borderRadius: '4px' }}>
+                      ⚠️ Nivel Alto (&gt; {maxExp}) • Estabilidad Baja
+                    </span>
+                  )}
+                  {!isOutOfRange && (minExp !== null || maxExp !== null) && (
+                    <span style={{ color: '#059669', fontWeight: 700, fontSize: '0.72rem', backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: '2px 8px', borderRadius: '4px' }}>
+                      ✓ Normal • Estabilidad Alta
+                    </span>
+                  )}
                 </div>
                 {(minVal !== undefined && maxVal !== undefined) && (
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginLeft: '16px', marginTop: '2px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    <span title={`Mínimo del período seleccionado`}>↓ Min: {minVal}</span>
-                    <span title={`Máximo del período seleccionado`}>↑ Max: {maxVal}</span>
-                    {hasLimits && (
-                      <span title={`Estabilidad evaluada contra los límites`} style={{ color: outOfBounds ? '#dc2626' : '#10b981', fontWeight: 600 }}>
-                        • Estabilidad: {outOfBounds ? 'Baja' : 'Alta'}
-                      </span>
-                    )}
+                  <div style={{ fontSize: '0.76rem', color: '#64748b', marginLeft: '18px', marginTop: '4px', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+                    <span>↓ Min: <strong style={{ color: '#334155' }}>{minVal}</strong> {minAt ? <small style={{ color: '#94a3b8' }}>({minAt} h)</small> : ''}</span>
+                    <span>↑ Max: <strong style={{ color: '#334155' }}>{maxVal}</strong> {maxAt ? <small style={{ color: '#94a3b8' }}>({maxAt} h)</small> : ''}</span>
                   </div>
                 )}
               </div>
@@ -475,39 +755,76 @@ export default function HistoricoAgregado() {
     return null;
   };
 
-  const isValueOutOfRange = (dataKey, payload) => {
-    if (!payload) return false;
-    const lecturaInfo = nodoActivo?.lecturas?.find(l => l.data_type === dataKey);
-    if (!lecturaInfo) return false;
+  const getThresholdStatus = (dataKey, payload) => {
+    if (!payload || !dataKey) return { isLow: false, isHigh: false, minExp: null, maxExp: null };
+
+    const keyStr = String(dataKey).toLowerCase().trim();
+
+    const lecturaInfo = nodoActivo?.lecturas?.find(l => {
+      const dt = String(l.data_type || '').toLowerCase().trim();
+      const cm = String(l.clave_mqtt || '').toLowerCase().trim();
+      const tp = String(l.tipo || '').toLowerCase().trim();
+      const nm = String(l.nombre || '').toLowerCase().trim();
+      return dt === keyStr || cm === keyStr || tp === keyStr || nm === keyStr;
+    });
+
+    if (!lecturaInfo) return { isLow: false, isHigh: false, minExp: null, maxExp: null };
 
     const val = payload[dataKey];
-    const minVal = payload[`${dataKey}_min`];
-    const maxVal = payload[`${dataKey}_max`];
 
-    const minExp = (lecturaInfo.minExpected !== null && lecturaInfo.minExpected !== undefined) ? parseFloat(lecturaInfo.minExpected) : null;
-    const maxExp = (lecturaInfo.maxExpected !== null && lecturaInfo.maxExpected !== undefined) ? parseFloat(lecturaInfo.maxExpected) : null;
+    const findVal = (keys) => {
+      // 1. Buscar en objeto raíz
+      for (const k of keys) {
+        if (lecturaInfo[k] !== undefined && lecturaInfo[k] !== null && lecturaInfo[k] !== '') {
+          const parsed = parseFloat(lecturaInfo[k]);
+          if (!isNaN(parsed)) return parsed;
+        }
+      }
+      // 2. Buscar en subobjetos anidados (subvariable, metrica, template, config)
+      for (const subKey of ['metrica', 'subvariable', 'template', 'subvariable_template', 'config']) {
+        if (lecturaInfo[subKey] && typeof lecturaInfo[subKey] === 'object') {
+          for (const k of keys) {
+            if (lecturaInfo[subKey][k] !== undefined && lecturaInfo[subKey][k] !== null && lecturaInfo[subKey][k] !== '') {
+              const parsed = parseFloat(lecturaInfo[subKey][k]);
+              if (!isNaN(parsed)) return parsed;
+            }
+          }
+        }
+      }
+      return null;
+    };
 
-    if (minExp === null || maxExp === null || isNaN(minExp) || isNaN(maxExp)) return false;
+    const minExp = findVal(['minExpected', 'min_expected', 'min_esperado', 'min_alerta', 'valor_minimo', 'min_val']);
+    const maxExp = findVal(['maxExpected', 'max_expected', 'max_esperado', 'max_alerta', 'valor_maximo', 'max_val']);
+
+    if (minExp === null && maxExp === null) {
+      return { isLow: false, isHigh: false, minExp, maxExp };
+    }
+
+    let isLow = false;
+    let isHigh = false;
 
     if (val !== undefined && val !== null && !isNaN(parseFloat(val))) {
       const v = parseFloat(val);
-      if (v < minExp || v > maxExp) return true;
+      if (minExp !== null && v < minExp) isLow = true;
+      else if (maxExp !== null && v > maxExp) isHigh = true;
     }
-    if (minVal !== undefined && minVal !== null && !isNaN(parseFloat(minVal))) {
-      if (parseFloat(minVal) < minExp) return true;
-    }
-    if (maxVal !== undefined && maxVal !== null && !isNaN(parseFloat(maxVal))) {
-      if (parseFloat(maxVal) > maxExp) return true;
-    }
-    return false;
+
+    return { isLow, isHigh, minExp, maxExp };
+  };
+
+  const isValueOutOfRange = (dataKey, payload) => {
+    const { isLow, isHigh } = getThresholdStatus(dataKey, payload);
+    return isLow || isHigh;
   };
 
   const CustomDot = (props) => {
     const { cx, cy, stroke, payload, dataKey } = props;
     if (cx === undefined || cy === undefined || !payload) return null;
 
-    const outOfRange = isValueOutOfRange(dataKey, payload);
-    const fillColor = outOfRange ? '#ef4444' : '#ffffff';
+    const { isLow, isHigh } = getThresholdStatus(dataKey, payload);
+    const outOfRange = isLow || isHigh;
+    const fillColor = isLow ? '#2563eb' : isHigh ? '#dc2626' : '#ffffff';
     const radius = outOfRange ? 5.5 : 4;
     const strokeW = outOfRange ? 2.5 : 2;
 
@@ -517,7 +834,7 @@ export default function HistoricoAgregado() {
         cy={cy}
         r={radius}
         fill={fillColor}
-        stroke={stroke}
+        stroke={isLow ? '#2563eb' : isHigh ? '#dc2626' : stroke}
         strokeWidth={strokeW}
         style={{ transition: 'all 0.15s ease' }}
       />
@@ -528,9 +845,9 @@ export default function HistoricoAgregado() {
     const { cx, cy, stroke, payload, dataKey } = props;
     if (cx === undefined || cy === undefined || !payload) return null;
 
-    const outOfRange = isValueOutOfRange(dataKey, payload);
-    // Si da baja estabilidad (fuera de rango), el relleno se MANTIENE ROJO (#ef4444) al pasar el mouse
-    const fillColor = outOfRange ? '#ef4444' : stroke;
+    const { isLow, isHigh } = getThresholdStatus(dataKey, payload);
+    const outOfRange = isLow || isHigh;
+    const fillColor = isLow ? '#2563eb' : isHigh ? '#dc2626' : stroke;
     const radius = outOfRange ? 7.5 : 6;
     const strokeW = outOfRange ? 3 : 0;
 
@@ -540,7 +857,7 @@ export default function HistoricoAgregado() {
         cy={cy}
         r={radius}
         fill={fillColor}
-        stroke={outOfRange ? stroke : '#ffffff'}
+        stroke={outOfRange ? (isLow ? '#2563eb' : '#dc2626') : '#ffffff'}
         strokeWidth={strokeW}
         style={{ transition: 'all 0.15s ease' }}
       />
@@ -562,7 +879,7 @@ export default function HistoricoAgregado() {
           </div>
         </div>
         <div className="historico-header-right">
-          <span>Última actualización: {new Date().toLocaleString()}</span>
+          <span>Última actualización: {lastReadingTimeFormatted}</span>
           <button onClick={fetchHistory} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
               <path d="M21 2v6h-6"></path>
@@ -575,46 +892,117 @@ export default function HistoricoAgregado() {
       </div>
 
       {/* 2. NODE INFO CARD */}
-      <div className="historico-node-card">
-        <div className="node-card-left">
-          <div className="node-icon-circle theme-blue">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" width="28" height="28">
-              <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
-              <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
-              <line x1="6" y1="6" x2="6.01" y2="6"></line>
-              <line x1="6" y1="18" x2="6.01" y2="18"></line>
-            </svg>
-          </div>
-          <div className="node-info-text" style={{ position: 'relative' }}>
-            <span className="node-label">Nodo seleccionado</span>
-            <div className="node-select-wrapper" onClick={toggleDropdown}>
-              <div className="node-select-custom">
-                {nodoActivo ? (nodoActivo.nombre ? `${nodoActivo.nombre} (${nodoActivo.serial_number})` : nodoActivo.serial_number) : 'Seleccionar Nodo'}
-              </div>
-              <svg className="node-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      <div className="historico-node-card" style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '16px 20px' }}>
+
+        {/* FILA SUPERIOR: Selector + Ruta (Izquierda) | Estado + Última Lectura (Derecha - Misma Línea) */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', width: '100%' }}>
+
+          {/* Izquierda: Icono, Selector y Ruta */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: '1 1 320px' }}>
+            <div className="node-icon-circle theme-blue" style={{ width: '42px', height: '42px', flexShrink: 0 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" width="22" height="22">
+                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                <line x1="6" y1="18" x2="6.01" y2="18"></line>
+              </svg>
             </div>
-            
-            {isDropdownOpen && (
-              <div style={{ position: 'absolute', top: '60px', left: 0, zIndex: 50, display: 'flex' }}>
-                <div className="custom-dropdown-menu" style={{ position: 'relative', top: 0, minWidth: '320px' }}>
-                  <div className="dropdown-search-wrapper" onClick={e => e.stopPropagation()}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                    <input 
-                      type="text" 
-                      placeholder="Buscar nodo por nombre o serial..." 
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      autoFocus
-                    />
+
+            <div className="node-info-text" style={{ position: 'relative' }}>
+              <span className="node-label">Nodo seleccionado</span>
+              <div className="node-select-wrapper" onClick={toggleDropdown}>
+                <div className="node-select-custom">
+                  {nodoActivo ? nodoActivo.nombre || nodoActivo.serial_number : 'Seleccionar Nodo'}
+                </div>
+                <svg className="node-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </div>
+
+              {/* Ruta Informativa: / Categoría / Ubicación / Nombre del Nodo */}
+              {nodoActivo && (
+                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#64748b', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                  <span style={{ color: '#cbd5e1', fontWeight: 800 }}>/</span>
+                  <span style={{ color: '#2563eb', fontWeight: 700 }}>{nodoActivo.categoria || 'IoT'}</span>
+                  <span style={{ color: '#cbd5e1', fontWeight: 800 }}>/</span>
+                  <span style={{ color: '#475569' }}>{nodoActivo.ubicacion_nombre || 'Campus ULEAM'}</span>
+                  <span style={{ color: '#cbd5e1', fontWeight: 800 }}>/</span>
+                  <strong style={{ color: '#0f2c59' }}>{nodoActivo.nombre}</strong>
+                </div>
+              )}
+
+              {isDropdownOpen && (
+                <div style={{ position: 'absolute', top: '60px', left: 0, zIndex: 50, display: 'flex' }}>
+                  <div className="custom-dropdown-menu" style={{ position: 'relative', top: 0, minWidth: '320px' }}>
+                    <div className="dropdown-search-wrapper" onClick={e => e.stopPropagation()}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                      <input
+                        type="text"
+                        placeholder="Buscar nodo por nombre o serial..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+
+                    <div className="dropdown-list-wrapper">
+                      {searchQuery.trim() !== '' ? (
+                        // Resultados de búsqueda plana
+                        nodos.filter(n => n.serial_number.toLowerCase().includes(searchQuery.toLowerCase()) || (n.nombre && n.nombre.toLowerCase().includes(searchQuery.toLowerCase()))).length > 0 ? (
+                          nodos.filter(n => n.serial_number.toLowerCase().includes(searchQuery.toLowerCase()) || (n.nombre && n.nombre.toLowerCase().includes(searchQuery.toLowerCase()))).map(n => (
+                            <div
+                              key={n.id}
+                              className={`custom-dropdown-item ${nodoActivo?.id === n.id ? 'active' : ''}`}
+                              onClick={() => {
+                                setNodoActivo(n);
+                                setIsDropdownOpen(false);
+                                setExpandedCategories({});
+                              }}
+                            >
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <span style={{ fontWeight: 600, color: '#0f2c59' }}>{n.nombre || n.serial_number}</span>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{n.categoria || 'Sin categoría'} • {n.serial_number}</span>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="dropdown-no-results">No se encontraron nodos</div>
+                        )
+                      ) : (
+                        // Vista agrupada por categorías
+                        Object.entries(groupedNodos).map(([cat, catNodos]) => (
+                          <div key={cat} className="dropdown-category-group">
+                            <div
+                              className="dropdown-category-header"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedCategories(prev => {
+                                  if (prev[cat]) return {}; // Collapse if already expanded
+                                  return { [cat]: true };   // Expand only this one
+                                });
+                              }}
+                              style={{ background: expandedCategories[cat] ? '#f1f5f9' : '' }}
+                            >
+                              <span className="dropdown-category-title">{cat}</span>
+                              <span className="dropdown-category-count">{catNodos.length}</span>
+                              <svg className="dropdown-category-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ transform: 'rotate(-90deg)', transition: 'none' }}><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
                   </div>
-                  
-                  <div className="dropdown-list-wrapper">
-                    {searchQuery.trim() !== '' ? (
-                      // Resultados de búsqueda plana
-                      nodos.filter(n => n.serial_number.toLowerCase().includes(searchQuery.toLowerCase()) || (n.nombre && n.nombre.toLowerCase().includes(searchQuery.toLowerCase()))).length > 0 ? (
-                        nodos.filter(n => n.serial_number.toLowerCase().includes(searchQuery.toLowerCase()) || (n.nombre && n.nombre.toLowerCase().includes(searchQuery.toLowerCase()))).map(n => (
-                          <div 
-                            key={n.id} 
+
+                  {/* Sub Menu / Flyout */}
+                  {searchQuery.trim() === '' && Object.keys(expandedCategories).some(k => expandedCategories[k]) && (
+                    <div className="custom-dropdown-menu" style={{ position: 'relative', top: 0, marginLeft: '4px', minWidth: '240px' }}>
+                      <div className="dropdown-category-header" style={{ cursor: 'default', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                        <span className="dropdown-category-title" style={{ color: '#0f2c59' }}>
+                          {Object.keys(expandedCategories).find(k => expandedCategories[k])}
+                        </span>
+                      </div>
+                      <div className="dropdown-list-wrapper">
+                        {groupedNodos[Object.keys(expandedCategories).find(k => expandedCategories[k])].map(n => (
+                          <div
+                            key={n.id}
                             className={`custom-dropdown-item ${nodoActivo?.id === n.id ? 'active' : ''}`}
                             onClick={() => {
                               setNodoActivo(n);
@@ -624,75 +1012,44 @@ export default function HistoricoAgregado() {
                           >
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                               <span style={{ fontWeight: 600, color: '#0f2c59' }}>{n.nombre || n.serial_number}</span>
-                              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{n.categoria || 'Sin categoría'} • {n.serial_number}</span>
+                              {n.nombre && <span style={{ fontSize: '0.72rem', color: '#64748b' }}>{n.serial_number}</span>}
                             </div>
                           </div>
-                        ))
-                      ) : (
-                        <div className="dropdown-no-results">No se encontraron nodos</div>
-                      )
-                    ) : (
-                      // Vista agrupada por categorías
-                      Object.entries(groupedNodos).map(([cat, catNodos]) => (
-                        <div key={cat} className="dropdown-category-group">
-                          <div 
-                            className="dropdown-category-header"
-                            onClick={(e) => {
-                               e.stopPropagation();
-                               setExpandedCategories(prev => {
-                                 if (prev[cat]) return {}; // Collapse if already expanded
-                                 return { [cat]: true };   // Expand only this one
-                               });
-                            }}
-                            style={{ background: expandedCategories[cat] ? '#f1f5f9' : '' }}
-                          >
-                            <span className="dropdown-category-title">{cat}</span>
-                            <span className="dropdown-category-count">{catNodos.length}</span>
-                            <svg className="dropdown-category-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ transform: 'rotate(-90deg)', transition: 'none' }}><polyline points="6 9 12 15 18 9"></polyline></svg>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-
-                {/* Sub Menu / Flyout */}
-                {searchQuery.trim() === '' && Object.keys(expandedCategories).some(k => expandedCategories[k]) && (
-                  <div className="custom-dropdown-menu" style={{ position: 'relative', top: 0, marginLeft: '4px', minWidth: '240px' }}>
-                    <div className="dropdown-category-header" style={{ cursor: 'default', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                      <span className="dropdown-category-title" style={{ color: '#0f2c59' }}>
-                        {Object.keys(expandedCategories).find(k => expandedCategories[k])}
-                      </span>
-                    </div>
-                    <div className="dropdown-list-wrapper">
-                      {groupedNodos[Object.keys(expandedCategories).find(k => expandedCategories[k])].map(n => (
-                        <div 
-                          key={n.id} 
-                          className={`custom-dropdown-item ${nodoActivo?.id === n.id ? 'active' : ''}`}
-                          onClick={() => {
-                            setNodoActivo(n);
-                            setIsDropdownOpen(false);
-                            setExpandedCategories({});
-                          }}
-                        >
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            <span style={{ fontWeight: 600, color: '#0f2c59' }}>{n.nombre || n.serial_number}</span>
-                            {n.nombre && <span style={{ fontSize: '0.72rem', color: '#64748b' }}>{n.serial_number}</span>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-            <span className="node-subtitle">{nodoActivo?.categoria || 'Estación meteorológica'}</span>
+              )}
+            </div>
           </div>
+
+          {/* Derecha (En la MISMA línea superior): Estado del Nodo + Última Lectura */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span className="node-label" style={{ fontSize: '0.7rem', marginBottom: '4px' }}>Estado del nodo</span>
+              <div className={`status-badge ${isNodeActive ? '' : 'inactive'}`}>
+                <span className="dot"></span>
+                {isNodeActive ? 'Activo' : 'Inactivo'}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', borderLeft: '1px solid #e2e8f0', paddingLeft: '20px' }}>
+              <span className="node-label" style={{ fontSize: '0.7rem', marginBottom: '4px' }}>Última lectura</span>
+              <span className="last-read-time" style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>
+                {lastReadingTimeFormatted}
+              </span>
+            </div>
+          </div>
+
         </div>
 
-        <div className="node-card-middle">
-          <span className="node-label" style={{ fontSize: '0.7rem' }}>Variables disponibles</span>
-          <div className="variables-list">
+        {/* FILA INFERIOR: Variables Disponibles (Abajo de la línea superior) */}
+        <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '10px', marginTop: '2px', width: '100%' }}>
+          <span className="node-label" style={{ fontSize: '0.72rem', display: 'block', marginBottom: '6px' }}>
+            Variables disponibles ({nodoActivo?.lecturas?.length || 0})
+          </span>
+          <div className="variables-list" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 10px', alignItems: 'center' }}>
             {nodoActivo?.lecturas?.map((l, idx) => {
               const theme = getTheme(l.data_type, l.icono);
               return (
@@ -707,17 +1064,6 @@ export default function HistoricoAgregado() {
           </div>
         </div>
 
-        <div className="node-card-right">
-          <div className="node-info-text">
-            <span className="node-label" style={{ fontSize: '0.7rem' }}>Estado del nodo</span>
-            <div className={`status-badge ${nodoActivo?.estado ? '' : 'inactive'}`}>
-              <span className="dot"></span>
-              {nodoActivo?.estado ? 'Activo' : 'Inactivo'}
-            </div>
-            <span className="node-label" style={{ fontSize: '0.7rem' }}>Última lectura</span>
-            <span className="last-read-time">{new Date().toLocaleString()}</span>
-          </div>
-        </div>
       </div>
 
       {/* 3. FILTER ROW */}
@@ -760,18 +1106,18 @@ export default function HistoricoAgregado() {
             {(filterMode === 'day' || filterMode === 'hour') && (
               <CustomDatePicker label="Fecha" value={startDate} onChange={setStartDate} shortcutHint="<strong>← / →</strong> para cambiar día" />
             )}
-            
+
             {filterMode === 'range' && (
               <>
-                <CustomDatePicker label="Fecha Inicio" value={startDate} onChange={setStartDate} shortcutHint="<strong>← / →</strong> para cambiar día" />
-                <CustomDatePicker label="Fecha Fin" value={endDate} onChange={setEndDate} shortcutHint="<strong>Ctrl + Alt + ← / →</strong> para cambiar día" />
+                <CustomDatePicker label="Fecha Inicio" value={startDate} onChange={handleStartDateChange} maxDate={endDate} shortcutHint="<strong>← / →</strong> para cambiar día" />
+                <CustomDatePicker label="Fecha Fin" value={endDate} onChange={handleEndDateChange} minDate={getNextDayStr(startDate)} shortcutHint="<strong>Ctrl + Alt + ← / →</strong> para cambiar día" />
               </>
             )}
 
             {filterMode === 'hour' && (
               <div className="control-item hour-dropdown-container" style={{ position: 'relative' }}>
-                <div 
-                  className={`control-input ${isHourDropdownOpen ? 'active' : ''}`} 
+                <div
+                  className={`control-input ${isHourDropdownOpen ? 'active' : ''}`}
                   style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', userSelect: 'none' }}
                   onClick={() => setIsHourDropdownOpen(!isHourDropdownOpen)}
                 >
@@ -787,8 +1133,8 @@ export default function HistoricoAgregado() {
                   <div className="custom-hour-dropdown">
                     <div className="hour-grid">
                       {[...Array(24)].map((_, i) => (
-                        <button 
-                          key={i} 
+                        <button
+                          key={i}
                           className={`hour-btn ${selectedHour == i ? 'selected' : ''}`}
                           onClick={() => { setSelectedHour(i); setIsHourDropdownOpen(false); }}
                         >
@@ -805,7 +1151,7 @@ export default function HistoricoAgregado() {
             )}
 
             <div className="control-item agrupacion-dropdown-container" style={{ position: 'relative' }}>
-              <div 
+              <div
                 className={`control-input ${isAgrupacionDropdownOpen ? 'active' : ''}`}
                 style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', userSelect: 'none' }}
                 onClick={() => setIsAgrupacionDropdownOpen(!isAgrupacionDropdownOpen)}
@@ -818,24 +1164,24 @@ export default function HistoricoAgregado() {
                   <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
               </div>
-              
+
               {isAgrupacionDropdownOpen && (
                 <div className="custom-hour-dropdown" style={{ minWidth: '320px' }}>
                   <div className="hour-grid">
-                     {currentAgrupacionOptions.map(opt => (
-                       <button 
-                         key={opt.value} 
-                         className={`hour-btn ${currentAgrupacionValue == opt.value ? 'selected' : ''}`}
-                         onClick={() => {
-                           if (filterMode === 'day') setGroupingIntervalDay(opt.value);
-                           if (filterMode === 'range') setGroupingIntervalRange(opt.value);
-                           if (filterMode === 'hour') setGroupingIntervalHour(opt.value);
-                           setIsAgrupacionDropdownOpen(false);
-                         }}
-                       >
-                         {opt.label}
-                       </button>
-                     ))}
+                    {currentAgrupacionOptions.map(opt => (
+                      <button
+                        key={opt.value}
+                        className={`hour-btn ${currentAgrupacionValue == opt.value ? 'selected' : ''}`}
+                        onClick={() => {
+                          if (filterMode === 'day') setGroupingIntervalDay(opt.value);
+                          if (filterMode === 'range') setGroupingIntervalRange(opt.value);
+                          if (filterMode === 'hour') setGroupingIntervalHour(opt.value);
+                          setIsAgrupacionDropdownOpen(false);
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
                   </div>
                   <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e8f0', fontSize: '0.75rem', color: '#64748b', textAlign: 'center' }}>
                     Atajo: <strong>Ctrl + ↑ / ↓</strong> para navegar
@@ -871,53 +1217,65 @@ export default function HistoricoAgregado() {
           ) : (
             <>
               {Object.entries(kpis.variables).map(([key, stat]) => (
-            <div key={key} className="kpi-card-unified">
-              <div className="kpi-unified-header">
-                <div className={`kpi-icon-box ${stat.theme.theme}`}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24">
-                    {stat.theme.icon}
-                  </svg>
+                <div key={key} className="kpi-card-unified">
+                  <div className="kpi-unified-header">
+                    <div className={`kpi-icon-box ${stat.theme.theme}`}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24">
+                        {stat.theme.icon}
+                      </svg>
+                    </div>
+                    <div className="kpi-content">
+                      <span className="kpi-label">Promedio {stat.info.tipo}</span>
+                      <div className="kpi-value">{stat.promedio} <span className="kpi-unit">{stat.info.unidad}</span></div>
+                    </div>
+                  </div>
+                  <div className="kpi-unified-footer">
+                    <div className="kpi-sub-stat" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}>
+                      <span className="kpi-sub-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5" width="12" height="12"><polyline points="17 8 20 5 23 8" /><line x1="20" y1="5" x2="20" y2="12" /></svg>
+                        Máxima
+                      </span>
+                      <span className="kpi-sub-value" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1px' }}>
+                        <span style={{ fontWeight: 800 }}>{stat.max} {stat.info.unidad}</span>
+                        {stat.maxRange && <small style={{ color: '#64748b', fontSize: '0.72rem', fontWeight: 500 }}>Rango: {stat.maxRange}</small>}
+                        {stat.maxExact && (
+                          <small style={{ color: '#64748b', fontSize: '0.72rem', fontWeight: 500 }}>a las {stat.maxExact} h</small>
+                        )}
+                      </span>
+                    </div>
+                    <div className="kpi-sub-stat" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}>
+                      <span className="kpi-sub-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#4f46e5" strokeWidth="2.5" width="12" height="12"><polyline points="17 12 20 15 23 12" /><line x1="20" y1="15" x2="20" y2="8" /></svg>
+                        Mínima
+                      </span>
+                      <span className="kpi-sub-value" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1px' }}>
+                        <span style={{ fontWeight: 800 }}>{stat.min} {stat.info.unidad}</span>
+                        {stat.minRange && <small style={{ color: '#64748b', fontSize: '0.72rem', fontWeight: 500 }}>Rango: {stat.minRange}</small>}
+                        {stat.minExact && (
+                          <small style={{ color: '#64748b', fontSize: '0.72rem', fontWeight: 500 }}>a las {stat.minExact} h</small>
+                        )}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="kpi-content">
-                  <span className="kpi-label">Promedio {stat.info.tipo}</span>
-                  <div className="kpi-value">{stat.promedio} <span className="kpi-unit">{stat.info.unidad}</span></div>
-                </div>
-              </div>
-              <div className="kpi-unified-footer">
-                <div className="kpi-sub-stat">
-                  <span className="kpi-sub-label">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5" width="12" height="12"><polyline points="17 8 20 5 23 8" /><line x1="20" y1="5" x2="20" y2="12" /></svg>
-                    Máxima
-                  </span>
-                  <span className="kpi-sub-value">{stat.max} {stat.info.unidad} <small>({stat.maxTime})</small></span>
-                </div>
-                <div className="kpi-sub-stat">
-                  <span className="kpi-sub-label">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="#4f46e5" strokeWidth="2.5" width="12" height="12"><polyline points="17 12 20 15 23 12" /><line x1="20" y1="15" x2="20" y2="8" /></svg>
-                    Mínima
-                  </span>
-                  <span className="kpi-sub-value">{stat.min} {stat.info.unidad} <small>({stat.minTime})</small></span>
-                </div>
-              </div>
-            </div>
-          ))}
+              ))}
 
-          <div className="kpi-card-unified" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <div className="kpi-unified-header" style={{ borderBottom: 'none', height: '100%' }}>
-              <div className="kpi-icon-box theme-green">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24">
-                  <line x1="18" y1="20" x2="18" y2="10"></line>
-                  <line x1="12" y1="20" x2="12" y2="4"></line>
-                  <line x1="6" y1="20" x2="6" y2="14"></line>
-                </svg>
+              <div className="kpi-card-unified" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <div className="kpi-unified-header" style={{ borderBottom: 'none', height: '100%' }}>
+                  <div className="kpi-icon-box theme-green">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24">
+                      <line x1="18" y1="20" x2="18" y2="10"></line>
+                      <line x1="12" y1="20" x2="12" y2="4"></line>
+                      <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                  </div>
+                  <div className="kpi-content">
+                    <span className="kpi-label">Cantidad de lecturas</span>
+                    <div className="kpi-value">{kpis.count}</div>
+                    <span className="kpi-subtext">Registros procesados</span>
+                  </div>
+                </div>
               </div>
-              <div className="kpi-content">
-                <span className="kpi-label">Cantidad de lecturas</span>
-                <div className="kpi-value">{kpis.count}</div>
-                <span className="kpi-subtext">Registros procesados</span>
-              </div>
-              </div>
-            </div>
             </>
           )}
         </div>
@@ -926,12 +1284,40 @@ export default function HistoricoAgregado() {
       {/* 5. CHART AREA */}
       <div className={`historico-chart-card ${isFullscreen ? 'fullscreen-mode' : ''}`} ref={chartRef} style={{ background: '#ffffff', padding: '24px' }}>
         <div className="chart-header">
-          <h2 className="chart-title">
-            {filterMode === 'day' && `Promedio horario - ${startDate}`}
-            {filterMode === 'range' && `Histórico diario - ${startDate} al ${endDate}`}
-            {filterMode === 'hour' && `Detalle ${groupingIntervalHour} min - ${startDate} ${selectedHour}:00`}
-          </h2>
-          <div className="chart-actions">
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
+                  {filterMode === 'day' && `Promedio horario - ${startDate}`}
+                  {filterMode === 'range' && `Histórico diario - ${startDate} al ${endDate}`}
+                  {filterMode === 'hour' && `Detalle ${groupingIntervalHour} min - ${startDate} ${selectedHour}:00`}
+                </h3>
+          <div className="chart-actions" style={{ marginLeft: 'auto' }}>
+            {/* Selector de Tipo de Vista del Gráfico (Solo Íconos) */}
+            <div className="chart-view-selector" style={{ display: 'flex', alignItems: 'center', backgroundColor: '#f1f5f9', padding: '3px', borderRadius: '8px', border: '1px solid #cbd5e1', marginRight: '6px' }}>
+              <button
+                className={`chart-view-btn ${chartViewType === 'area' ? 'active' : ''}`}
+                onClick={() => setChartViewType('area')}
+                title="Vista Área con degradado"
+                style={{ border: 'none', background: chartViewType === 'area' ? '#ffffff' : 'transparent', color: chartViewType === 'area' ? '#2563eb' : '#64748b', padding: '6px 9px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: chartViewType === 'area' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.15s ease' }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><polygon points="3 17 9 11 13 15 21 7 21 21 3 21 3 17"></polygon></svg>
+              </button>
+              <button
+                className={`chart-view-btn ${chartViewType === 'line' ? 'active' : ''}`}
+                onClick={() => setChartViewType('line')}
+                title="Vista Líneas continuas"
+                style={{ border: 'none', background: chartViewType === 'line' ? '#ffffff' : 'transparent', color: chartViewType === 'line' ? '#2563eb' : '#64748b', padding: '6px 9px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: chartViewType === 'line' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.15s ease' }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+              </button>
+              <button
+                className={`chart-view-btn ${chartViewType === 'bar' ? 'active' : ''}`}
+                onClick={() => setChartViewType('bar')}
+                title="Vista Barras de columnas"
+                style={{ border: 'none', background: chartViewType === 'bar' ? '#ffffff' : 'transparent', color: chartViewType === 'bar' ? '#2563eb' : '#64748b', padding: '6px 9px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: chartViewType === 'bar' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.15s ease' }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+              </button>
+            </div>
+
             <button className="chart-action-btn" onClick={toggleFullscreen}>
               {isFullscreen ? (
                 <>
@@ -945,26 +1331,31 @@ export default function HistoricoAgregado() {
                 </>
               )}
             </button>
-            <button className="chart-action-btn" onClick={handleExportImage}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-              Exportar imagen
-            </button>
-            <button className="chart-action-btn" onClick={() => {
-              if(!historicalData.length) return;
-              const csv = ["Fecha," + nodoActivo.lecturas.map(l=>l.tipo).join(",")];
-              historicalData.forEach(d => {
-                csv.push(`${d.label},` + nodoActivo.lecturas.map(l=>d[l.data_type] || '').join(","));
-              });
-              const blob = new Blob([csv.join("\n")], { type: 'text/csv' });
-              const url = window.URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `historico_${nodoActivo.serial_number}.csv`;
-              a.click();
-            }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-              Exportar CSV
-            </button>
+
+            {!isFullscreen && (
+              <>
+                <button className="chart-action-btn" onClick={handleExportImage}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                  Exportar imagen
+                </button>
+                <button className="chart-action-btn" onClick={() => {
+                  if (!historicalData.length) return;
+                  const csv = ["Fecha," + nodoActivo.lecturas.map(l => l.tipo).join(",")];
+                  historicalData.forEach(d => {
+                    csv.push(`${d.label},` + nodoActivo.lecturas.map(l => d[l.data_type] || '').join(","));
+                  });
+                  const blob = new Blob([csv.join("\n")], { type: 'text/csv' });
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `historico_${nodoActivo.serial_number}.csv`;
+                  a.click();
+                }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                  Exportar CSV
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -978,47 +1369,152 @@ export default function HistoricoAgregado() {
             No hay registros almacenados para los parámetros seleccionados.
           </div>
         ) : (
-          <div className="chart-container-wrapper">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={historicalData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  {nodoActivo?.lecturas?.map((l, idx) => {
-                    const theme = getTheme(l.data_type);
-                    return (
-                      <linearGradient key={idx} id={`color${l.data_type}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={theme.hex} stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor={theme.hex} stopOpacity={0}/>
-                      </linearGradient>
-                    );
-                  })}
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="label" tick={{fontSize: 12, fill: '#94a3b8'}} tickMargin={12} axisLine={{stroke: '#e2e8f0'}} tickLine={false} />
-                <YAxis yAxisId="left" tick={{fontSize: 12, fill: '#94a3b8'}} axisLine={false} tickLine={false} dx={-10} />
-                {chartAxisConfig.split && (
-                  <YAxis yAxisId="right" orientation="right" tick={{fontSize: 12, fill: '#94a3b8'}} axisLine={false} tickLine={false} dx={10} />
+          <div className="chart-container-wrapper" ref={exportChartRef} style={{ overflowX: 'auto', overflowY: 'hidden', width: '100%', WebkitOverflowScrolling: 'touch', backgroundColor: '#ffffff', padding: '16px', borderRadius: '12px' }}>
+            {/* Encabezado visible dentro del área imprimible de la imagen */}
+            <div className="export-chart-header" style={{ marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#2563eb', background: 'rgba(37, 99, 235, 0.08)', padding: '2px 8px', borderRadius: '4px' }}>
+                  📡 {nodoActivo?.nombre || nodoActivo?.serial_number || 'Nodo Sensor'}
+                </span>
+                {nodoActivo?.serial_number && nodoActivo?.nombre && (
+                  <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 500 }}>
+                    ({nodoActivo.serial_number})
+                  </span>
                 )}
-                <Tooltip content={<CustomTooltip />} isAnimationActive={false} />
-                {nodoActivo?.lecturas?.map((l, idx) => {
-                   const theme = getTheme(l.data_type);
-                   return (
-                     <Area 
-                       key={idx} 
-                       type="monotone" 
-                       yAxisId={chartAxisConfig.rightKeys.includes(l.data_type) ? 'right' : 'left'}
-                       dataKey={l.data_type} 
-                       name={`${l.tipo} (${l.unidad})`} 
-                       stroke={theme.hex} 
-                       strokeWidth={3} 
-                       fillOpacity={1} 
-                       fill={`url(#color${l.data_type})`} 
-                       dot={<CustomDot dataKey={l.data_type} />} 
-                       activeDot={<CustomActiveDot dataKey={l.data_type} />} 
-                     />
-                   );
-                })}
-              </AreaChart>
-            </ResponsiveContainer>
+                {(nodoActivo?.ubicacion || nodoActivo?.ubicacion_nombre || nodoActivo?.categoria || nodoActivo?.area) && (
+                  <span style={{ fontSize: '0.78rem', color: '#475569', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                    📍 {nodoActivo?.ubicacion || nodoActivo?.ubicacion_nombre || nodoActivo?.categoria || nodoActivo?.area}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div style={{ width: historicalData.length > 15 ? `${Math.max(100, historicalData.length * 60)}px` : '100%', height: '350px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                {chartViewType === 'area' && (
+                  <AreaChart data={historicalData} margin={{ top: 10, right: 35, left: -10, bottom: 10 }}>
+                    <defs>
+                      {nodoActivo?.lecturas?.map((l, idx) => {
+                        const theme = getTheme(l.data_type, l.icono, idx);
+                        return (
+                          <linearGradient key={idx} id={`color${l.data_type}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={theme.hex} stopOpacity={0.3} />
+                            <stop offset="95%" stopColor={theme.hex} stopOpacity={0} />
+                          </linearGradient>
+                        );
+                      })}
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#94a3b8' }} tickMargin={12} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
+                    <YAxis yAxisId="left" tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} dx={-10} />
+                    {chartAxisConfig.split && (
+                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} dx={10} />
+                    )}
+                    <Tooltip content={<CustomTooltip />} isAnimationActive={false} />
+                    <Legend
+                      verticalAlign="bottom"
+                      align="center"
+                      iconType="circle"
+                      iconSize={10}
+                      wrapperStyle={{ paddingTop: '16px', fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}
+                    />
+                    {historicalData.length > 15 && (
+                      <Brush dataKey="label" height={24} stroke="#2563eb" fill="#f8fafc" />
+                    )}
+                    {nodoActivo?.lecturas?.map((l, idx) => {
+                      const theme = getTheme(l.data_type, l.icono, idx);
+                      return (
+                        <Area
+                          key={idx}
+                          type="monotone"
+                          yAxisId={chartAxisConfig.rightKeys.includes(l.data_type) ? 'right' : 'left'}
+                          dataKey={l.data_type}
+                          name={`${l.tipo || l.nombre || l.data_type} (${l.unidad || ''})`}
+                          stroke={theme.hex}
+                          strokeWidth={3}
+                          fillOpacity={1}
+                          fill={`url(#color${l.data_type})`}
+                          dot={<CustomDot dataKey={l.data_type} />}
+                          activeDot={<CustomActiveDot dataKey={l.data_type} />}
+                        />
+                      );
+                    })}
+                  </AreaChart>
+                )}
+
+                {chartViewType === 'line' && (
+                  <LineChart data={historicalData} margin={{ top: 10, right: 35, left: -10, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#94a3b8' }} tickMargin={12} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
+                    <YAxis yAxisId="left" tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} dx={-10} />
+                    {chartAxisConfig.split && (
+                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} dx={10} />
+                    )}
+                    <Tooltip content={<CustomTooltip />} isAnimationActive={false} />
+                    <Legend
+                      verticalAlign="bottom"
+                      align="center"
+                      iconType="circle"
+                      iconSize={10}
+                      wrapperStyle={{ paddingTop: '16px', fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}
+                    />
+                    {historicalData.length > 15 && (
+                      <Brush dataKey="label" height={24} stroke="#2563eb" fill="#f8fafc" />
+                    )}
+                    {nodoActivo?.lecturas?.map((l, idx) => {
+                      const theme = getTheme(l.data_type, l.icono, idx);
+                      return (
+                        <Line
+                          key={idx}
+                          type="monotone"
+                          yAxisId={chartAxisConfig.rightKeys.includes(l.data_type) ? 'right' : 'left'}
+                          dataKey={l.data_type}
+                          name={`${l.tipo || l.nombre || l.data_type} (${l.unidad || ''})`}
+                          stroke={theme.hex}
+                          strokeWidth={3}
+                          dot={<CustomDot dataKey={l.data_type} />}
+                          activeDot={<CustomActiveDot dataKey={l.data_type} />}
+                        />
+                      );
+                    })}
+                  </LineChart>
+                )}
+
+                {chartViewType === 'bar' && (
+                  <BarChart data={historicalData} margin={{ top: 10, right: 35, left: -10, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#94a3b8' }} tickMargin={12} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
+                    <YAxis yAxisId="left" tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} dx={-10} />
+                    {chartAxisConfig.split && (
+                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12, fill: '#94a3b8' }} axisLine={false} tickLine={false} dx={10} />
+                    )}
+                    <Tooltip content={<CustomTooltip />} isAnimationActive={false} />
+                    <Legend
+                      verticalAlign="bottom"
+                      align="center"
+                      iconType="circle"
+                      iconSize={10}
+                      wrapperStyle={{ paddingTop: '16px', fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}
+                    />
+                    {historicalData.length > 15 && (
+                      <Brush dataKey="label" height={24} stroke="#2563eb" fill="#f8fafc" />
+                    )}
+                    {nodoActivo?.lecturas?.map((l, idx) => {
+                      const theme = getTheme(l.data_type, l.icono, idx);
+                      return (
+                        <Bar
+                          key={idx}
+                          yAxisId={chartAxisConfig.rightKeys.includes(l.data_type) ? 'right' : 'left'}
+                          dataKey={l.data_type}
+                          name={`${l.tipo || l.nombre || l.data_type} (${l.unidad || ''})`}
+                          fill={theme.hex}
+                          radius={[4, 4, 0, 0]}
+                        />
+                      );
+                    })}
+                  </BarChart>
+                )}
+              </ResponsiveContainer>
+            </div>
           </div>
         )}
       </div>
@@ -1035,7 +1531,9 @@ export default function HistoricoAgregado() {
               <tr>
                 <th rowSpan="2" className="sticky-col">Fecha / Hora</th>
                 {nodoActivo?.lecturas?.map(l => (
-                  <th key={l.data_type} colSpan="3" style={{ textAlign: 'center', borderLeft: '1px solid #e2e8f0' }}>{l.nombre || l.data_type}</th>
+                  <th key={l.data_type} colSpan="3" style={{ textAlign: 'center', borderLeft: '1px solid #e2e8f0' }}>
+                    {l.tipo || l.nombre || l.label || l.data_type} ({l.unidad || l.unit || ''})
+                  </th>
                 ))}
               </tr>
               <tr>
@@ -1052,20 +1550,76 @@ export default function HistoricoAgregado() {
               {historicalData.length > 0 ? (
                 historicalData.map((row, i) => (
                   <tr key={i}>
-                    <td className="sticky-col"><strong>{row.label}</strong></td>
+                    <td className="sticky-col" style={{ verticalAlign: 'middle' }}>
+                      {filterMode === 'range' ? (
+                        (() => {
+                          const fullTxt = formatFullDateTime(row, currentAgrupacionValue);
+                          return (
+                            <div className="date-time-marquee-container" title={fullTxt}>
+                              <div className="date-time-marquee-content">
+                                <span>{fullTxt}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{fullTxt}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                              </div>
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <strong>{row.label}</strong>
+                      )}
+                    </td>
                     {nodoActivo?.lecturas?.map(l => {
-                      const outOfRange = isValueOutOfRange(l.data_type, row);
+                      const { isLow, isHigh, minExp, maxExp } = getThresholdStatus(l.data_type, row);
+                      const isOutOfRange = isLow || isHigh;
+                      const valColor = isLow ? '#2563eb' : isHigh ? '#dc2626' : '#3b82f6';
+                      const subColor = isLow ? '#2563eb' : isHigh ? '#dc2626' : '#64748b';
+                      const bgColor = isLow ? 'rgba(37, 99, 235, 0.08)' : isHigh ? 'rgba(220, 38, 38, 0.08)' : 'transparent';
+                      const alertTitle = isLow
+                        ? `Nivel Bajo: El valor (${row[l.data_type] !== undefined ? row[l.data_type].toFixed(2) : ''}) está por debajo del mínimo esperado (${minExp})`
+                        : isHigh
+                          ? `Nivel Alto: El valor (${row[l.data_type] !== undefined ? row[l.data_type].toFixed(2) : ''}) sobrepasó el máximo esperado (${maxExp})`
+                          : '';
+
+                      const minValDisp = row[`${l.data_type}_min`] !== undefined ? row[`${l.data_type}_min`].toFixed(2) : (row[l.data_type] !== undefined ? row[l.data_type].toFixed(2) : '-');
+                      const maxValDisp = row[`${l.data_type}_max`] !== undefined ? row[`${l.data_type}_max`].toFixed(2) : (row[l.data_type] !== undefined ? row[l.data_type].toFixed(2) : '-');
+                      
+                      const minTime = formatAtTime(row[`${l.data_type}_min_at`]);
+                      const maxTime = formatAtTime(row[`${l.data_type}_max_at`]);
+
                       return (
                         <React.Fragment key={l.data_type + '-' + i}>
-                          <td style={{ textAlign: 'center', borderLeft: '1px solid #f1f5f9', color: outOfRange ? '#ef4444' : '#64748b', fontWeight: outOfRange ? 700 : 400 }}>
-                            {row[`${l.data_type}_min`] !== undefined ? row[`${l.data_type}_min`].toFixed(2) : '-'}
+                          <td
+                            style={{ textAlign: 'center', borderLeft: '1px solid #cbd5e1', color: '#475569', fontWeight: 400, padding: '8px 10px' }}
+                            title={minTime ? `Valor Mínimo: ${minValDisp} (Registrado a las ${minTime} h)` : `Valor Mínimo: ${minValDisp}`}
+                          >
+                            <div>{minValDisp}</div>
+                            {minTime && <div style={{ fontSize: '0.68rem', color: '#64748b', marginTop: '1px', fontWeight: 500 }}>a las {minTime} h</div>}
                           </td>
-                          <td style={{ textAlign: 'center', fontWeight: outOfRange ? 800 : 600, color: outOfRange ? '#ef4444' : '#3b82f6', backgroundColor: outOfRange ? 'rgba(239, 68, 68, 0.08)' : 'transparent' }}>
-                            {row[l.data_type] !== undefined ? row[l.data_type].toFixed(2) : '-'}
-                            {outOfRange && <span style={{ marginLeft: '4px', fontSize: '0.7rem', color: '#ef4444' }} title="Baja estabilidad / Fuera de rango esperado">⚠️</span>}
+                          <td
+                            style={{ textAlign: 'center', fontWeight: isOutOfRange ? 800 : 600, color: valColor, backgroundColor: bgColor, padding: '8px 10px' }}
+                            title={`Valor Promedio: ${row[l.data_type] !== undefined ? row[l.data_type].toFixed(2) : '-'}`}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
+                                {row[l.data_type] !== undefined ? row[l.data_type].toFixed(2) : '-'}
+                                {isLow && (
+                                  <svg title={alertTitle} viewBox="0 0 24 24" fill="#2563eb" stroke="#2563eb" strokeWidth="2" width="13" height="13" style={{ cursor: 'help', flexShrink: 0 }}>
+                                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" fill="#2563eb" />
+                                    <line x1="12" y1="9" x2="12" y2="13" stroke="#ffffff" strokeWidth="2.5" />
+                                    <circle cx="12" cy="17" r="1.2" fill="#ffffff" stroke="none" />
+                                  </svg>
+                                )}
+                                {isHigh && (
+                                  <svg title={alertTitle} viewBox="0 0 24 24" fill="#dc2626" stroke="#dc2626" strokeWidth="2" width="13" height="13" style={{ cursor: 'help', flexShrink: 0 }}>
+                                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" fill="#dc2626" />
+                                    <line x1="12" y1="9" x2="12" y2="13" stroke="#ffffff" strokeWidth="2.5" />
+                                    <circle cx="12" cy="17" r="1.2" fill="#ffffff" stroke="none" />
+                                  </svg>
+                                )}
+                              </span>
                           </td>
-                          <td style={{ textAlign: 'center', color: outOfRange ? '#ef4444' : '#64748b', fontWeight: outOfRange ? 700 : 400 }}>
-                            {row[`${l.data_type}_max`] !== undefined ? row[`${l.data_type}_max`].toFixed(2) : '-'}
+                          <td
+                            style={{ textAlign: 'center', color: '#475569', fontWeight: 400, padding: '8px 10px' }}
+                            title={maxTime ? `Valor Máximo: ${maxValDisp} (Registrado a las ${maxTime} h)` : `Valor Máximo: ${maxValDisp}`}
+                          >
+                            <div>{maxValDisp}</div>
+                            {maxTime && <div style={{ fontSize: '0.68rem', color: '#64748b', marginTop: '1px', fontWeight: 500 }}>a las {maxTime} h</div>}
                           </td>
                         </React.Fragment>
                       );

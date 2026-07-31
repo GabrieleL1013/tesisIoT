@@ -97,3 +97,15 @@
 .date-btn.selected:hover {
   background: #1d4ed8;
 }
+
+.date-btn.disabled,
+.date-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed !important;
+  background: #f8fafc !important;
+  color: #94a3b8 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  pointer-events: auto !important;
+}
+

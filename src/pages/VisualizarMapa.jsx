@@ -78,19 +78,43 @@ const DYNAMIC_ICONS_PUBLIC = {
   general: { class: 'theme-green', hex: '#10b981', bg: '#ecfdf5', icon: <><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></> }
 };
 
-const getTheme = (clave, icono) => {
-  let baseTheme = DYNAMIC_ICONS_PUBLIC.general;
+const VAR_PALETTE = [
+  { class: 'theme-red', hex: '#b91c1c', bg: '#fef2f2', border: '#fca5a5' },    // Solid Dark Red
+  { class: 'theme-blue', hex: '#2563eb', bg: '#eff6ff', border: '#93c5fd' },   // Vibrant Blue
+  { class: 'theme-green', hex: '#10b981', bg: '#ecfdf5', border: '#6ee7b7' },  // Emerald Green
+  { class: 'theme-amber', hex: '#d97706', bg: '#fffbeb', border: '#fcd34d' },  // Amber Orange
+  { class: 'theme-purple', hex: '#8b5cf6', bg: '#f5f3ff', border: '#c4b5fd' }, // Violet / Purple
+  { class: 'theme-pink', hex: '#ec4899', bg: '#fdf2f8', border: '#fbcfe8' },   // Magenta / Pink
+  { class: 'theme-cyan', hex: '#06b6d4', bg: '#ecfeff', border: '#67e8f9' }    // Cyan
+];
+
+const getTheme = (clave, icono, idx = null) => {
+  let baseTheme = null;
   const t = (clave || '').toLowerCase();
   if (t.includes('temp')) baseTheme = DYNAMIC_ICONS_PUBLIC.termometro;
   else if (t.includes('hum') || t.includes('soil')) baseTheme = DYNAMIC_ICONS_PUBLIC.humedad;
   else if (t.includes('press') || t.includes('presion')) baseTheme = DYNAMIC_ICONS_PUBLIC.presion;
   else if (t.includes('wind') || t.includes('viento')) baseTheme = DYNAMIC_ICONS_PUBLIC.viento;
   else if (t.includes('rain') || t.includes('lluvia')) baseTheme = DYNAMIC_ICONS_PUBLIC.lluvia;
+  else if (t.includes('ph')) baseTheme = DYNAMIC_ICONS_PUBLIC.ph;
+  else if (t.includes('oxigen') || t.includes('oxy')) baseTheme = DYNAMIC_ICONS_PUBLIC.oxigeno;
 
-  if (icono && DYNAMIC_ICONS_PUBLIC[icono]) {
-    return DYNAMIC_ICONS_PUBLIC[icono];
+  if (!baseTheme && icono && DYNAMIC_ICONS_PUBLIC[icono]) {
+    baseTheme = DYNAMIC_ICONS_PUBLIC[icono];
   }
-  return baseTheme;
+
+  if (idx !== null && idx !== undefined) {
+    const paletteItem = VAR_PALETTE[Math.abs(idx) % VAR_PALETTE.length];
+    return {
+      class: paletteItem.class,
+      hex: paletteItem.hex,
+      bg: paletteItem.bg,
+      border: paletteItem.border,
+      icon: baseTheme ? baseTheme.icon : DYNAMIC_ICONS_PUBLIC.general.icon
+    };
+  }
+
+  return baseTheme || DYNAMIC_ICONS_PUBLIC.general;
 };
 
 // Componente Custom Select para la Selección de Nodo / Dispositivo en la Interfaz Pública
@@ -155,7 +179,7 @@ const PublicCustomSelectNode = ({ nodos, selectedNodeId, onSelect, placeholder =
               <span>{placeholder}</span>
             </div>
             {!selectedNodeId && (
-              <svg viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3" width="14" height="14">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#b91c1c" strokeWidth="3" width="14" height="14">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             )}
@@ -176,7 +200,7 @@ const PublicCustomSelectNode = ({ nodos, selectedNodeId, onSelect, placeholder =
                   <span style={{ fontWeight: isSelected ? 800 : 600 }}>{n.nombre}</span>
                 </div>
                 {isSelected && (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3" width="14" height="14">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#b91c1c" strokeWidth="3" width="14" height="14">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 )}
@@ -189,28 +213,275 @@ const PublicCustomSelectNode = ({ nodos, selectedNodeId, onSelect, placeholder =
   );
 };
 
+// Botón Marcar Todas parcial con estado neutro inicial y hover verde
+const MarcarTodasBtnPartial = ({ onClick }) => {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        padding: '6px 14px',
+        borderRadius: '10px',
+        border: `1.5px solid ${hovered ? '#10b981' : '#cbd5e1'}`,
+        backgroundColor: hovered ? '#ecfdf5' : '#ffffff',
+        color: hovered ? '#047857' : '#334155',
+        fontWeight: 700,
+        fontSize: '0.81rem',
+        cursor: 'pointer',
+        boxShadow: '0 2px 5px rgba(0,0,0,0.04)',
+        transition: 'all 0.2s ease',
+        whiteSpace: 'nowrap'
+      }}
+      title="Marcar todas las variables"
+    >
+      <span style={{
+        width: '15px',
+        height: '15px',
+        borderRadius: '4px',
+        border: `1.5px solid ${hovered ? '#10b981' : '#94a3b8'}`,
+        backgroundColor: hovered ? '#10b981' : '#ffffff',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: hovered ? '#ffffff' : 'transparent',
+        fontSize: '10px',
+        fontWeight: 900,
+        transition: 'all 0.2s ease'
+      }}>✓</span>
+      <span>Marcar Todas</span>
+    </button>
+  );
+};
+
+// Botón Desmarcar Todas con hover de borde rojo y X resaltada
+const DesmarcarTodasBtn = ({ onClick }) => {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        padding: '6px 14px',
+        borderRadius: '10px',
+        border: `1.5px solid ${hovered ? '#ef4444' : '#cbd5e1'}`,
+        backgroundColor: hovered ? '#fef2f2' : '#ffffff',
+        color: hovered ? '#dc2626' : '#475569',
+        fontWeight: 700,
+        fontSize: '0.81rem',
+        cursor: 'pointer',
+        boxShadow: hovered ? '0 3px 10px rgba(239, 68, 68, 0.2)' : '0 2px 5px rgba(0,0,0,0.04)',
+        transition: 'all 0.2s ease',
+        whiteSpace: 'nowrap'
+      }}
+      title="Desmarcar todas las variables y volver a vista individual"
+    >
+      <span style={{
+        width: '15px',
+        height: '15px',
+        borderRadius: '4px',
+        border: `1.5px solid ${hovered ? '#ef4444' : '#94a3b8'}`,
+        backgroundColor: hovered ? '#ef4444' : '#f1f5f9',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: hovered ? '#ffffff' : '#64748b',
+        fontSize: '10px',
+        fontWeight: 900,
+        transition: 'all 0.2s ease'
+      }}>✕</span>
+      <span>Desmarcar Todas</span>
+    </button>
+  );
+};
+
+// Tooltip interactivo personalizado para diferenciar ejes y colores por variable
+const CustomPublicChartTooltip = ({ active, payload, label, showAxisBadges = false, axisMapping = {}, activeLecturas = [] }) => {
+  if (!active || !payload || !payload.length) return null;
+
+  return (
+    <div style={{
+      backgroundColor: 'rgba(15, 23, 42, 0.94)',
+      backdropFilter: 'blur(12px)',
+      border: '1px solid rgba(255, 255, 255, 0.15)',
+      borderRadius: '12px',
+      padding: '10px 14px',
+      color: '#ffffff',
+      boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+      fontSize: '0.82rem',
+      minWidth: '180px'
+    }}>
+      <div style={{ fontWeight: 800, color: '#38bdf8', marginBottom: '6px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>
+        🕒 {label}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {payload.map((item, idx) => {
+          const color = item.color || item.fill || '#10b981';
+          const matchLectura = activeLecturas.find(l => (item.dataKey && item.dataKey === l.data_type) || (item.name && item.name.includes(l.tipo)));
+          const dataKey = matchLectura ? matchLectura.data_type : item.dataKey;
+          const axisSide = (axisMapping && dataKey && axisMapping[dataKey]) || (axisMapping && item.dataKey && axisMapping[item.dataKey]) || item.yAxisId || item.axisId;
+          const isLeft = axisSide ? axisSide === 'left' : idx % 2 === 0;
+          return (
+            <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '9px', height: '9px', borderRadius: '50%', backgroundColor: color, display: 'inline-block' }} />
+                <span style={{ fontWeight: 600, color: '#cbd5e1' }}>{item.name}:</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontWeight: 800, color: color }}>{item.value}</span>
+                {showAxisBadges && (
+                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: color, backgroundColor: `${color}22`, padding: '1px 5px', borderRadius: '4px' }}>
+                    {isLeft ? '◄ Izq.' : 'Der. ►'}
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// Garante ticks de 2 líneas (Hora arriba, Fecha con año abajo) para la XAxis
+const CustomXAxisTick = ({ x, y, payload }) => {
+  if (!payload || !payload.value) return null;
+  const rawStr = String(payload.value).trim();
+  const parts = rawStr.split(' ');
+  let dateText = '';
+  let timeText = '';
+
+  if (parts.length >= 2) {
+    dateText = parts[0];
+    timeText = parts.slice(1).join(' ');
+  } else if (rawStr.includes('/')) {
+    dateText = rawStr;
+  } else {
+    timeText = rawStr;
+  }
+
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text textAnchor="middle" fill="#0f172a">
+        {timeText && <tspan x="0" dy="11" fill="#0f2c59" fontSize="10" fontWeight="800">{timeText}</tspan>}
+        {dateText && <tspan x="0" dy={timeText ? "13" : "11"} fill="#64748b" fontSize="8.5" fontWeight="600">{dateText}</tspan>}
+      </text>
+    </g>
+  );
+};
+
 // Componente para dibujar la gráfica Recharts interactiva en tiempo real
 const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables = {}, tipoGrafico, onDescargarClick, onAmpliarClick, isAmpliado = false }) => {
   const lecturas = nodoSeleccionado?.lecturas || [];
-  const activeLecturas = lecturas.filter(l => activeVariables[l.data_type] !== false);
+  const activeLecturas = lecturas.filter(l => Boolean(activeVariables && activeVariables[l.data_type]));
+  const [hoveredVar, setHoveredVar] = useState(null);
 
   const chartData = useMemo(() => {
     if (!history || history.length === 0) return [];
-    return history;
+    return history.slice(-10);
   }, [history]);
+
+  // Mapeo inteligente de ejes por orden de magnitud (valores grandes ej. 6000 van a 'left', pequeños ej. 8 y 9 van a 'right')
+  const axisMapping = useMemo(() => {
+    if (!activeLecturas || activeLecturas.length <= 1) {
+      return { [activeLecturas[0]?.data_type]: 'left' };
+    }
+
+    const maxes = activeLecturas.map(l => {
+      let max = 0;
+      chartData.forEach(d => {
+        const val = Math.abs(parseFloat(d[l.data_type]) || 0);
+        if (val > max) max = val;
+      });
+      return { data_type: l.data_type, max };
+    });
+
+    const sorted = [...maxes].sort((a, b) => b.max - a.max);
+    const topMax = sorted[0].max;
+
+    const mapping = {};
+    maxes.forEach(item => {
+      if (topMax > 50 && item.max >= topMax * 0.15) {
+        mapping[item.data_type] = 'left';
+      } else {
+        mapping[item.data_type] = 'right';
+      }
+    });
+
+    const leftCount = Object.values(mapping).filter(v => v === 'left').length;
+    if (leftCount === 0 || leftCount === activeLecturas.length) {
+      const result = {};
+      activeLecturas.forEach((l, i) => {
+        result[l.data_type] = i === 0 ? 'left' : 'right';
+      });
+      return result;
+    }
+
+    return mapping;
+  }, [activeLecturas, chartData]);
+
+  const showAxisBadges = activeLecturas.length > 1;
+
+  const leftVariable = activeLecturas.find(l => axisMapping[l.data_type] === 'left');
+  const rightVariable = activeLecturas.find(l => axisMapping[l.data_type] === 'right');
+
+  const leftTheme = leftVariable ? getTheme(leftVariable.data_type, leftVariable.icono, activeLecturas.indexOf(leftVariable)) : null;
+  const rightTheme = (rightVariable && showAxisBadges) ? getTheme(rightVariable.data_type, rightVariable.icono, activeLecturas.indexOf(rightVariable)) : null;
+
+  const hoveredAxis = hoveredVar ? axisMapping[hoveredVar] : null;
 
   return (
     <div className="dashboard-chart-svg-container" style={{ padding: isAmpliado ? '1rem' : '0.5rem 0' }}>
-      {/* Leyenda Dinámica de Variables Activas */}
-      <div className="dashboard-chart-legend" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '1rem', alignItems: 'center' }}>
-        {activeLecturas.map((l) => {
-          const theme = getTheme(l.data_type, l.icono);
+      {/* Leyenda Dinámica de Variables Activas con Indicador de Eje y Efecto Hover */}
+      <div className="dashboard-chart-legend" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '0.85rem', alignItems: 'center' }}>
+        {activeLecturas.map((l, idx) => {
+          const theme = getTheme(l.data_type, l.icono, showAxisBadges ? idx : null);
+          const axisSide = axisMapping[l.data_type] || 'left';
+          const isLeft = axisSide === 'left';
+          const isHovered = hoveredVar === l.data_type;
+
           return (
-            <div key={l.data_type} className="legend-item" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', fontWeight: '700', color: theme.hex }}>
+            <div
+              key={l.data_type}
+              onMouseEnter={() => setHoveredVar(l.data_type)}
+              onMouseLeave={() => setHoveredVar(null)}
+              className="legend-item"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '0.82rem',
+                fontWeight: '700',
+                color: theme.hex,
+                backgroundColor: isHovered ? `${theme.hex}22` : theme.bg,
+                border: `1.5px solid ${isHovered ? theme.hex : theme.hex + '44'}`,
+                padding: '4px 12px',
+                borderRadius: '16px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                transform: isHovered ? 'scale(1.04)' : 'scale(1)',
+                boxShadow: isHovered ? `0 4px 12px ${theme.hex}44` : 'none'
+              }}
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
                 {theme.icon}
               </svg>
               <span>{l.tipo} ({l.unidad})</span>
+              {showAxisBadges && (
+                <span style={{ fontSize: '0.68rem', fontWeight: 800, padding: '1px 6px', borderRadius: '4px', backgroundColor: `${theme.hex}22`, color: theme.hex }}>
+                  {isLeft ? '◄ Eje Izq.' : 'Eje Der. ►'}
+                </span>
+              )}
             </div>
           );
         })}
@@ -222,7 +493,7 @@ const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables =
       </div>
 
       {/* Gráfico Recharts */}
-      <div style={{ width: '100%', height: isAmpliado ? '360px' : '260px' }}>
+      <div style={{ width: '100%', height: isAmpliado ? 'calc(100vh - 220px)' : '260px', minHeight: isAmpliado ? '400px' : 'auto' }}>
         {activeLecturas.length === 0 ? (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#94a3b8', fontSize: '0.9rem' }}>
             Sin variables activas marcadas
@@ -234,38 +505,66 @@ const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables =
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             {tipoGrafico === 'bar' ? (
-              <BarChart data={chartData} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
+              <BarChart data={chartData} margin={{ top: 10, right: showAxisBadges ? 25 : 40, left: 10, bottom: 28 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} tickMargin={10} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
+                <XAxis dataKey="time" height={52} tick={<CustomXAxisTick />} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
 
-                {activeLecturas[0] && (
-                  <YAxis yAxisId="left" tick={{ fontSize: 10, fill: getTheme(activeLecturas[0].data_type, activeLecturas[0].icono).hex }} axisLine={false} tickLine={false} dx={-10} />
+                {leftTheme && (
+                  <YAxis
+                    yAxisId="left"
+                    width={55}
+                    tick={{
+                      fontSize: hoveredAxis === 'left' ? 12 : 10,
+                      fill: leftTheme.hex,
+                      fontWeight: hoveredAxis === 'left' ? 900 : 700,
+                      opacity: hoveredAxis === 'right' ? 0.35 : 1
+                    }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
                 )}
-                {activeLecturas[1] && (
-                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: getTheme(activeLecturas[1].data_type, activeLecturas[1].icono).hex }} axisLine={false} tickLine={false} dx={10} />
+                {rightTheme && (
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    width={50}
+                    tick={{
+                      fontSize: hoveredAxis === 'right' ? 12 : 10,
+                      fill: rightTheme.hex,
+                      fontWeight: hoveredAxis === 'right' ? 900 : 700,
+                      opacity: hoveredAxis === 'left' ? 0.35 : 1
+                    }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
                 )}
 
-                <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }} />
+                <Tooltip content={<CustomPublicChartTooltip showAxisBadges={showAxisBadges} axisMapping={axisMapping} activeLecturas={activeLecturas} />} />
 
                 {activeLecturas.map((l, idx) => {
-                  const theme = getTheme(l.data_type, l.icono);
+                  const theme = getTheme(l.data_type, l.icono, showAxisBadges ? idx : null);
+                  const yAxisId = axisMapping[l.data_type] || 'left';
+                  const isHovered = hoveredVar === l.data_type;
+                  const isOtherHovered = hoveredVar && !isHovered;
+
                   return (
                     <Bar
                       key={l.data_type}
-                      yAxisId={idx % 2 === 0 ? "left" : "right"}
+                      yAxisId={yAxisId}
                       dataKey={l.data_type}
                       name={`${l.tipo} (${l.unidad})`}
                       fill={theme.hex}
+                      fillOpacity={isOtherHovered ? 0.2 : 1}
                       radius={[4, 4, 0, 0]}
                     />
                   );
                 })}
               </BarChart>
             ) : (
-              <AreaChart data={chartData} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 10, right: showAxisBadges ? 25 : 40, left: 10, bottom: 28 }}>
                 <defs>
                   {activeLecturas.map((l, idx) => {
-                    const theme = getTheme(l.data_type, l.icono);
+                    const theme = getTheme(l.data_type, l.icono, showAxisBadges ? idx : null);
                     return (
                       <linearGradient key={idx} id={`colorPub${l.data_type}`} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor={theme.hex} stopOpacity={0.4} />
@@ -275,32 +574,59 @@ const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables =
                   })}
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} tickMargin={10} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
-
-                {activeLecturas[0] && (
-                  <YAxis yAxisId="left" tick={{ fontSize: 10, fill: getTheme(activeLecturas[0].data_type, activeLecturas[0].icono).hex }} axisLine={false} tickLine={false} dx={-10} />
+                <XAxis dataKey="time" height={52} tick={<CustomXAxisTick />} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
+                {leftTheme && (
+                  <YAxis
+                    yAxisId="left"
+                    width={55}
+                    tick={{
+                      fontSize: hoveredAxis === 'left' ? 12 : 10,
+                      fill: leftTheme.hex,
+                      fontWeight: hoveredAxis === 'left' ? 900 : 700,
+                      opacity: hoveredAxis === 'right' ? 0.35 : 1
+                    }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
                 )}
-                {activeLecturas[1] && (
-                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: getTheme(activeLecturas[1].data_type, activeLecturas[1].icono).hex }} axisLine={false} tickLine={false} dx={10} />
+                {rightTheme && (
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    width={50}
+                    tick={{
+                      fontSize: hoveredAxis === 'right' ? 12 : 10,
+                      fill: rightTheme.hex,
+                      fontWeight: hoveredAxis === 'right' ? 900 : 700,
+                      opacity: hoveredAxis === 'left' ? 0.35 : 1
+                    }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
                 )}
 
-                <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }} />
+                <Tooltip content={<CustomPublicChartTooltip showAxisBadges={showAxisBadges} axisMapping={axisMapping} activeLecturas={activeLecturas} />} />
 
                 {activeLecturas.map((l, idx) => {
-                  const theme = getTheme(l.data_type, l.icono);
+                  const theme = getTheme(l.data_type, l.icono, showAxisBadges ? idx : null);
+                  const yAxisId = axisMapping[l.data_type] || 'left';
+                  const isHovered = hoveredVar === l.data_type;
+                  const isOtherHovered = hoveredVar && !isHovered;
+
                   return (
                     <Area
                       key={l.data_type}
-                      yAxisId={idx % 2 === 0 ? "left" : "right"}
+                      yAxisId={yAxisId}
                       type="monotone"
                       dataKey={l.data_type}
                       name={`${l.tipo} (${l.unidad})`}
                       stroke={theme.hex}
-                      strokeWidth={2.5}
-                      fillOpacity={1}
+                      strokeWidth={isHovered ? 4.5 : 2.5}
+                      strokeOpacity={isOtherHovered ? 0.2 : 1}
+                      fillOpacity={isOtherHovered ? 0.05 : 1}
                       fill={`url(#colorPub${l.data_type})`}
-                      dot={{ r: 3, strokeWidth: 1.5, fill: '#ffffff', stroke: theme.hex }}
-                      activeDot={{ r: 5, strokeWidth: 0, fill: theme.hex }}
+                      dot={{ r: isHovered ? 5 : 3, strokeWidth: 1.5, fill: '#ffffff', stroke: theme.hex }}
+                      activeDot={{ r: 7, strokeWidth: 0, fill: theme.hex }}
                     />
                   );
                 })}
@@ -447,26 +773,78 @@ export default function VisualizarMapa() {
   // Trigger para simulación de telemetría dinámica en tiempo real
   const [liveTrigger, setLiveTrigger] = useState(0);
 
-  // Estado para los checkboxes de variables activas en tiempo real (todas true por defecto)
+  // Estado para el modo de selección: false (Individual por defecto), true (Multiselección mediante Marcar Todas)
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [activeVariables, setActiveVariables] = useState({});
 
+  // Resetear modo de selección al cambiar de nodo / dispositivo
   useEffect(() => {
-    if (nodoSeleccionado && nodoSeleccionado.lecturas) {
-      const initialMap = {};
-      nodoSeleccionado.lecturas.forEach(l => {
-        initialMap[l.data_type] = true;
-      });
-      setActiveVariables(initialMap);
+    setIsMultiSelectMode(false);
+    if (nodoSeleccionado && nodoSeleccionado.lecturas && nodoSeleccionado.lecturas.length > 0) {
+      const firstDataType = nodoSeleccionado.lecturas[0].data_type;
+      setActiveVariables({ [firstDataType]: true });
     } else {
       setActiveVariables({});
     }
   }, [nodoSeleccionado?.id]);
 
+  // Actualizar variables activas cuando el usuario altera isMultiSelectMode manualmente
+  useEffect(() => {
+    if (!nodoSeleccionado || !nodoSeleccionado.lecturas || nodoSeleccionado.lecturas.length === 0) return;
+    if (isMultiSelectMode) {
+      const initialMap = {};
+      nodoSeleccionado.lecturas.forEach(l => {
+        initialMap[l.data_type] = true;
+      });
+      setActiveVariables(initialMap);
+    }
+  }, [isMultiSelectMode]);
+
   const toggleVariable = (dataType) => {
-    setActiveVariables(prev => ({
-      ...prev,
-      [dataType]: prev[dataType] === false ? true : false
-    }));
+    if (!isMultiSelectMode) {
+      // Modo Individual: solo la variable clickeada está activa (en ROJO)
+      setActiveVariables({ [dataType]: true });
+      if (nodoSeleccionado && nodoSeleccionado.lecturas) {
+        const found = nodoSeleccionado.lecturas.find(l => l.data_type === dataType);
+        if (found) setLecturaSeleccionada(found);
+      }
+    } else {
+      // Modo Multiselección: alternar casilla de verificación
+      setActiveVariables(prev => {
+        const nextState = {
+          ...prev,
+          [dataType]: !prev[dataType]
+        };
+
+        // Si el usuario desmarcó todas las variables manualmente (0 activas), volver automáticamente a modo individual (primera variable en rojo)
+        const hasAnyActive = nodoSeleccionado?.lecturas?.some(l => Boolean(nextState[l.data_type]));
+        if (!hasAnyActive) {
+          setIsMultiSelectMode(false);
+          const firstDataType = nodoSeleccionado.lecturas[0].data_type;
+          return { [firstDataType]: true };
+        }
+
+        return nextState;
+      });
+    }
+  };
+
+  const handleToggleAllVariables = () => {
+    if (!nodoSeleccionado?.lecturas) return;
+    if (!isMultiSelectMode) {
+      // Activar modo multiselección y marcar todas las variables
+      setIsMultiSelectMode(true);
+      const newMap = {};
+      nodoSeleccionado.lecturas.forEach(l => {
+        newMap[l.data_type] = true;
+      });
+      setActiveVariables(newMap);
+    } else {
+      // Desactivar modo multiselección y volver a navegación individual (solo la primera variable)
+      setIsMultiSelectMode(false);
+      const firstDataType = nodoSeleccionado.lecturas[0].data_type;
+      setActiveVariables({ [firstDataType]: true });
+    }
   };
 
   const catParam = searchParams.get('categoria');
@@ -1060,15 +1438,17 @@ export default function VisualizarMapa() {
       const CenterControl = window.L.Control.extend({
         onAdd: function () {
           const btn = window.L.DomUtil.create('button', 'leaflet-bar leaflet-control leaflet-center-btn');
-          btn.innerHTML = '🏠';
+          btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2.5" width="16" height="16">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            <polyline points="9 22 9 12 15 12 15 22" />
+          </svg>`;
           btn.style.width = '30px';
           btn.style.height = '30px';
           btn.style.backgroundColor = '#ffffff';
-          btn.style.border = 'none';
+          btn.style.border = '2px solid rgba(0, 0, 0, 0.2)';
           btn.style.borderRadius = '4px';
           btn.style.boxShadow = '0 1px 5px rgba(0,0,0,0.4)';
           btn.style.cursor = 'pointer';
-          btn.style.fontSize = '14px';
           btn.style.display = 'flex';
           btn.style.alignItems = 'center';
           btn.style.justifyContent = 'center';
@@ -1194,14 +1574,25 @@ export default function VisualizarMapa() {
                 type="button"
                 onClick={handleOpenMapFromHeader}
                 className={`dashboard-tab-pill ${tabActiva === 'mapa' ? 'active' : ''}`}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
               >
-                🗺️ Mapa
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="15" height="15">
+                  <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+                  <line x1="8" y1="2" x2="8" y2="18" />
+                  <line x1="16" y1="6" x2="16" y2="22" />
+                </svg>
+                <span>Mapa</span>
               </button>
               <Link
                 to={nodoSeleccionado ? `/analisis-historico?nodo=${nodoSeleccionado.id}&categoria=${encodeURIComponent(categoriaSeleccionada)}` : `/analisis-historico?categoria=${encodeURIComponent(categoriaSeleccionada)}`}
                 className="dashboard-tab-pill-link"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
               >
-                📈 Histórico
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="15" height="15">
+                  <path d="M3 3v18h18" />
+                  <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" />
+                </svg>
+                <span>Histórico</span>
               </Link>
             </div>
           </div>
@@ -1243,21 +1634,102 @@ export default function VisualizarMapa() {
                 )}
               </div>
 
-              {/* Barra de Filtros: Dropdown Personalizado de Nodos */}
-              <div className="dashboard-filters-toolbar" style={{ borderBottom: nodoSeleccionado ? '1px solid #f1f5f9' : 'none' }}>
-                <PublicCustomSelectNode
-                  nodos={nodosFiltrados}
-                  selectedNodeId={nodoSeleccionado?.id || ''}
-                  onSelect={(nodeId) => handleNodeChange(nodeId)}
-                />
+              {/* Barra de Filtros: Dropdown Personalizado de Nodos y Botón Marcar Todas a la Derecha en la misma línea */}
+              <div className="dashboard-filters-toolbar" style={{ borderBottom: nodoSeleccionado ? '1px solid #f1f5f9' : 'none', marginBottom: '1rem', paddingBottom: '0.75rem' }}>
+                <div className="public-node-select-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: '1rem', marginBottom: '0.85rem' }}>
+                  <PublicCustomSelectNode
+                    nodos={nodosFiltrados}
+                    selectedNodeId={nodoSeleccionado?.id || ''}
+                    onSelect={(nodeId) => handleNodeChange(nodeId)}
+                  />
 
-                {/* Lista de Botones Horizontales de Variables (Checkboxes activos por defecto) */}
+                  {nodoSeleccionado && nodoSeleccionado.lecturas && nodoSeleccionado.lecturas.length > 0 && (() => {
+                    const lecturas = nodoSeleccionado.lecturas;
+                    const totalCount = lecturas.length;
+                    const checkedCount = lecturas.filter(l => Boolean(activeVariables && activeVariables[l.data_type])).length;
+                    const isSomeChecked = isMultiSelectMode && checkedCount > 0 && checkedCount < totalCount;
+
+                    if (!isMultiSelectMode) {
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMultiSelectMode(true);
+                            const newMap = {};
+                            lecturas.forEach(l => { newMap[l.data_type] = true; });
+                            setActiveVariables(newMap);
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '7px 16px',
+                            borderRadius: '10px',
+                            border: '1.5px solid #cbd5e1',
+                            backgroundColor: '#ffffff',
+                            color: '#475569',
+                            fontWeight: 700,
+                            fontSize: '0.83rem',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 5px rgba(0,0,0,0.04)',
+                            transition: 'all 0.2s ease',
+                            userSelect: 'none',
+                            whiteSpace: 'nowrap'
+                          }}
+                          title="Marcar todas las variables para comparación"
+                        >
+                          <span style={{
+                            width: '16px',
+                            height: '16px',
+                            borderRadius: '4px',
+                            border: '1.5px solid #94a3b8',
+                            backgroundColor: '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#ffffff',
+                            fontSize: '11px',
+                            fontWeight: 900
+                          }}></span>
+                          <span>Marcar Todas</span>
+                        </button>
+                      );
+                    }
+
+                    return (
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        {isSomeChecked && (
+                          <MarcarTodasBtnPartial
+                            onClick={() => {
+                              const newMap = {};
+                              lecturas.forEach(l => { newMap[l.data_type] = true; });
+                              setActiveVariables(newMap);
+                            }}
+                          />
+                        )}
+
+                        <DesmarcarTodasBtn
+                          onClick={() => {
+                            setIsMultiSelectMode(false);
+                            const firstDataType = lecturas[0].data_type;
+                            setActiveVariables({ [firstDataType]: true });
+                            setLecturaSeleccionada(lecturas[0]);
+                          }}
+                        />
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Lista de Botones Horizontales de Variables */}
                 {nodoSeleccionado && (
                   <div className="dashboard-variables-scroll-container">
                     <div className="dashboard-variables-list">
                       {nodoSeleccionado.lecturas && nodoSeleccionado.lecturas.map((l, index) => {
-                        const isChecked = activeVariables[l.data_type] !== false;
-                        const theme = getTheme(l.data_type, l.icono);
+                        const isChecked = Boolean(activeVariables && activeVariables[l.data_type]);
+                        const theme = getTheme(l.data_type, l.icono, isMultiSelectMode ? index : null);
+                        const isRedSingleActive = !isMultiSelectMode && isChecked;
+
                         return (
                           <button
                             key={index}
@@ -1265,42 +1737,45 @@ export default function VisualizarMapa() {
                             onClick={() => toggleVariable(l.data_type)}
                             className={`dashboard-variable-btn public-var-checkbox-chip ${isChecked ? 'active' : 'inactive'}`}
                             style={{
-                              borderColor: isChecked ? theme.hex : '#cbd5e1',
-                              backgroundColor: isChecked ? theme.bg : '#f8fafc',
-                              color: isChecked ? '#0f2c59' : '#64748b',
+                              borderColor: isRedSingleActive ? '#b91c1c' : (isChecked ? theme.hex : '#cbd5e1'),
+                              backgroundColor: isRedSingleActive ? '#b91c1c' : (isChecked ? theme.bg : '#ffffff'),
+                              color: isRedSingleActive ? '#ffffff' : (isChecked ? '#0f2c59' : '#0f172a'),
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '6px',
-                              padding: '6px 14px',
-                              borderRadius: '20px',
-                              border: `1.5px solid ${isChecked ? theme.hex : '#cbd5e1'}`,
+                              padding: '6px 16px',
+                              borderRadius: '8px',
+                              border: `1.5px solid ${isRedSingleActive ? '#b91c1c' : (isChecked ? theme.hex : '#cbd5e1')}`,
                               fontWeight: 700,
                               fontSize: '0.84rem',
                               cursor: 'pointer',
-                              transition: 'all 0.2s ease'
+                              transition: 'all 0.2s ease',
+                              boxShadow: isRedSingleActive ? '0 3px 10px rgba(185, 28, 28, 0.35)' : 'none'
                             }}
                           >
-                            <span
-                              className="checkbox-custom-box"
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                width: '15px',
-                                height: '15px',
-                                borderRadius: '4px',
-                                background: isChecked ? theme.hex : '#ffffff',
-                                border: `1.5px solid ${isChecked ? theme.hex : '#cbd5e1'}`,
-                                transition: 'all 0.15s ease'
-                              }}
-                            >
-                              {isChecked && (
-                                <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="3.5" width="10" height="10">
-                                  <polyline points="20 6 9 17 4 12" />
-                                </svg>
-                              )}
-                            </span>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', color: theme.hex }}>
+                            {isMultiSelectMode && (
+                              <span
+                                className="checkbox-custom-box"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '15px',
+                                  height: '15px',
+                                  borderRadius: '4px',
+                                  background: isChecked ? theme.hex : '#ffffff',
+                                  border: `1.5px solid ${isChecked ? theme.hex : '#cbd5e1'}`,
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                {isChecked && (
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="3.5" width="10" height="10">
+                                    <polyline points="20 6 9 17 4 12" />
+                                  </svg>
+                                )}
+                              </span>
+                            )}
+                            <span style={{ display: 'inline-flex', alignItems: 'center', color: isRedSingleActive ? '#ffffff' : theme.hex }}>
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
                                 {theme.icon}
                               </svg>
@@ -1336,11 +1811,19 @@ export default function VisualizarMapa() {
               ) : (
                 <>
                   {/* Grid de Tarjetas de Lecturas en Tiempo Real para Variables Activas */}
-                  {nodoSeleccionado && nodoSeleccionado.lecturas && (
-                    <div className="public-readings-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-                      {nodoSeleccionado.lecturas
-                        .filter(l => activeVariables[l.data_type] !== false)
-                        .map((l) => {
+                  {nodoSeleccionado && nodoSeleccionado.lecturas && (() => {
+                    const activeLecturasList = nodoSeleccionado.lecturas.filter(l => Boolean(activeVariables && activeVariables[l.data_type]));
+                    const isSingleCard = activeLecturasList.length === 1;
+
+                    return (
+                      <div className="public-readings-grid" style={{
+                        display: isSingleCard ? 'flex' : 'grid',
+                        justifyContent: isSingleCard ? 'center' : 'stretch',
+                        gridTemplateColumns: isSingleCard ? 'none' : 'repeat(auto-fit, minmax(220px, 1fr))',
+                        gap: '1rem',
+                        marginBottom: '1.5rem'
+                      }}>
+                        {activeLecturasList.map((l) => {
                           const theme = getTheme(l.data_type, l.icono);
                           const liveVal = generarValorLive(l.data_type);
                           const rawFecha = valoresUltimos[l.data_type]?.fecha;
@@ -1399,7 +1882,10 @@ export default function VisualizarMapa() {
                                 padding: '1.15rem 1.25rem',
                                 overflow: 'hidden',
                                 boxShadow: '0 4px 15px rgba(15, 44, 89, 0.04)',
-                                transition: 'all 0.25s ease'
+                                transition: 'all 0.25s ease',
+                                maxWidth: isSingleCard ? '420px' : 'none',
+                                width: isSingleCard ? '100%' : 'auto',
+                                textAlign: isSingleCard ? 'center' : 'left'
                               }}
                             >
                               {/* Ícono Grande de Fondo / Marca de Agua */}
@@ -1421,7 +1907,7 @@ export default function VisualizarMapa() {
                               </div>
 
                               {/* Cabecera con ícono temático y nombre de variable */}
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: isSingleCard ? 'center' : 'space-between', marginBottom: '6px', gap: '8px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                   <span
                                     style={{
@@ -1471,11 +1957,11 @@ export default function VisualizarMapa() {
 
                               {/* Valor Grande en Real-Time */}
                               <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f2c59', lineHeight: 1.15, margin: '4px 0 8px 0' }}>
-                                {liveVal} <span style={{ fontSize: '0.95rem', fontWeight: 700, color: theme.hex }}>{l.unidad}</span>
+                                {liveVal} <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f2c59' }}>{l.unidad}</span>
                               </div>
 
                               {/* Timestamp Exacto con Hora, Minuto y Segundo */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.74rem', color: '#64748b', fontWeight: 600 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: isSingleCard ? 'center' : 'flex-start', gap: '5px', fontSize: '0.74rem', color: '#1e293b', fontWeight: 700 }}>
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12">
                                   <circle cx="12" cy="12" r="10" />
                                   <polyline points="12 6 12 12 16 14" />
@@ -1485,8 +1971,9 @@ export default function VisualizarMapa() {
                             </div>
                           );
                         })}
-                    </div>
-                  )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Lienzo del Gráfico Analítico Recharts en Tiempo Real */}
                   {nodoSeleccionado && nodoSeleccionado.lecturas && nodoSeleccionado.lecturas.length > 0 && (
@@ -1508,7 +1995,7 @@ export default function VisualizarMapa() {
 
           {/* TAB 2: GEOLOCALIZACIÓN / MAPA DE LA CATEGORÍA EN PANTALLA COMPLETA */}
           {tabActiva === 'mapa' && (
-            <div className="node-fullscreen-overlay">
+            <div className={`node-fullscreen-overlay ${modoMapa === 'categoria' ? 'mode-categoria' : 'mode-nodo'}`}>
               {/* Lienzo del mapa Leaflet a pantalla completa */}
               <div id="leaflet-public-map-preview" className="node-fullscreen-map"></div>
 
@@ -1841,29 +2328,47 @@ export default function VisualizarMapa() {
         nodo={nodoSeleccionado}
       />
 
-      {/* ── MODAL POPUP: GRÁFICO AMPLIADO ── */}
+      {/* ── MODAL FULLSCREEN: GRÁFICO AMPLIADO ── */}
       {showModalAmpliado && nodoSeleccionado && lecturaSeleccionada && (
-        <div className="modal-descarga-overlay" onClick={() => setShowModalAmpliado(false)}>
-          <div className="modal-descarga-card" style={{ maxWidth: '850px', width: '90%' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem' }}>
-              <h3 className="modal-descarga-title" style={{ fontSize: '1.25rem' }}>
-                Gráfico Ampliado - {nodoSeleccionado.nombre}
-              </h3>
-              <button
-                onClick={() => setShowModalAmpliado(false)}
-                style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#64748b' }}
-              >
-                &times;
-              </button>
-            </div>
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'rgba(0,0,0,0.55)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+          onClick={() => setShowModalAmpliado(false)}
+        >
+          <div
+            style={{
+              position: 'relative',
+              margin: '16px',
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              background: '#ffffff',
+              borderRadius: '20px',
+              boxShadow: '0 24px 64px rgba(0,0,0,0.35)',
+              overflow: 'hidden',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
+                  📊 Gráfico Ampliado — {nodoSeleccionado.nombre}
+                </h3>
+                <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>
+                  Ubicación: {mapUbicacionNombre}
+                </span>
+              </div>
 
-            {/* Selector de gráfico y variable interno */}
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.88rem', fontWeight: '700', color: '#64748b' }}>
-                Ubicación: {mapUbicacionNombre}
-              </span>
-
-              <div className="hist-chart-filters-toolbar" style={{ margin: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                {/* Toggle línea / barras */}
                 <div className="hist-chart-type-toggle" style={{ margin: 0 }}>
                   <button
                     type="button"
@@ -1880,27 +2385,45 @@ export default function VisualizarMapa() {
                     Barras
                   </button>
                 </div>
+
+                {/* Botón cerrar */}
+                <button
+                  onClick={() => setShowModalAmpliado(false)}
+                  style={{
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    borderRadius: '10px',
+                    padding: '0.35rem 0.8rem',
+                    cursor: 'pointer',
+                    color: '#b91c1c',
+                    fontWeight: 800,
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 0.18s ease',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#fee2e2'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#fef2f2'; }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                  Cerrar
+                </button>
               </div>
             </div>
 
-            {/* Canvas del gráfico ampliado */}
-            <PublicRechartsChart
-              history={history}
-              nodoSeleccionado={nodoSeleccionado}
-              activeVariables={activeVariables}
-              liveTrigger={liveTrigger}
-              tipoGrafico={tipoGrafico}
-              isAmpliado={true}
-            />
-
-            <div className="modal-action-buttons-row" style={{ marginTop: '1.5rem' }}>
-              <button
-                type="button"
-                onClick={() => setShowModalAmpliado(false)}
-                className="modal-btn-cancel"
-              >
-                Cerrar
-              </button>
+            {/* Chart canvas — fills remaining height */}
+            <div style={{ flex: 1, overflow: 'hidden', padding: '0.5rem 0' }}>
+              <PublicRechartsChart
+                history={history}
+                nodoSeleccionado={nodoSeleccionado}
+                activeVariables={activeVariables}
+                liveTrigger={liveTrigger}
+                tipoGrafico={tipoGrafico}
+                isAmpliado={true}
+              />
             </div>
           </div>
         </div>
