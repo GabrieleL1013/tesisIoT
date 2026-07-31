@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../config/api';
+import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
@@ -21,19 +21,19 @@ const LANGUAGES = [
 
 /* ── Mapa de rutas → títulos de página ── */
 const PAGE_TITLES = {
-  '/admin/dashboard':   'Dashboard General',
-  '/admin/metricas':    'Dispositivos - Lecturas',
-  '/admin/nodos':       'Control de Nodos IoT Activos',
-  '/admin/categorias':  'Líneas de Investigación',
+  '/admin/dashboard': 'Dashboard General',
+  '/admin/metricas': 'Dispositivos - Lecturas',
+  '/admin/nodos': 'Control de Nodos IoT Activos',
+  '/admin/categorias': 'Líneas de Investigación',
   '/admin/ubicaciones': 'Centro de Ubicaciones y Coordenadas',
-  '/admin/usuarios':    'Gestión de Usuarios',
-  '/admin/sensores':    'Gestión de Sensores',
-  '/admin/lecturas':    'Lecturas de Sensores',
-  '/admin/noticias':    'Registro de Noticias & Divulgación',
-  '/admin/articulos':   'Registro de Artículos Académicos',
+  '/admin/usuarios': 'Gestión de Usuarios',
+  '/admin/sensores': 'Gestión de Sensores',
+  '/admin/lecturas': 'Lecturas de Sensores',
+  '/admin/noticias': 'Registro de Noticias & Divulgación',
+  '/admin/articulos': 'Registro de Artículos Académicos',
   '/admin/monitor-en-vivo': 'Telemetría en Vivo',
-  '/admin/historico':       'Histórico de Telemetría',
-  '/admin/notificaciones':  'Centro de Notificaciones',
+  '/admin/historico': 'Histórico de Telemetría',
+  '/admin/notificaciones': 'Centro de Notificaciones',
 };
 
 const getPageIcon = (pathname) => {
@@ -139,21 +139,21 @@ const BellIcon = () => (
 );
 
 const AdminLayout = () => {
-  const [menuAbierto,       setMenuAbierto]       = useState(false);
-  const [showLangDropdown,  setShowLangDropdown]  = useState(false);
+  const [menuAbierto, setMenuAbierto] = useState(false);
+  const [showLangDropdown, setShowLangDropdown] = useState(false);
   const langRef = useRef(null);
 
-  const { user }              = useAuth();
+  const { user } = useAuth();
   const { language, setLanguage } = useLanguage();
-  const location              = useLocation();
-  const navigate              = useNavigate();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const [dbUser, setDbUser] = useState(null);
   const [appInterfaces, setAppInterfaces] = useState([]);
 
   // Estados de Notificaciones de Mensajes de Contacto
   const [notificaciones, setNotificaciones] = useState([]);
-  
+
   // Estados de Notificaciones del Sistema (Alertas de nodos)
   const [alertasSistema, setAlertasSistema] = useState([]);
   const [unreadAlertsCount, setUnreadAlertsCount] = useState(0);
@@ -186,7 +186,7 @@ const AdminLayout = () => {
       try {
         const parsed = JSON.parse(ses);
         if (parsed && parsed.id) {
-          fetch(`${API_BASE_URL}/users/${parsed.id}`)
+          fetchWithAuth(`${API_BASE_URL}/users/${parsed.id}`)
             .then(res => {
               if (res.status === 404 || res.status === 401) {
                 // El usuario activo ha sido eliminado de la Base de Datos
@@ -237,7 +237,7 @@ const AdminLayout = () => {
 
   const fetchNotificaciones = () => {
     // 1. Fetch Contactos
-    fetch(`${API_BASE_URL}/contactos`)
+    fetchWithAuth(`${API_BASE_URL}/contactos`)
       .then(res => {
         if (!res.ok) throw new Error("Error fetching contacts");
         return res.json();
@@ -248,19 +248,19 @@ const AdminLayout = () => {
       .catch(err => console.error("Error loading notifications:", err));
 
     // 2. Fetch System Alerts Latest
-    fetch(`${API_BASE_URL}/node-alerts/latest`)
+    fetchWithAuth(`${API_BASE_URL}/node-alerts/latest`)
       .then(res => res.json())
       .then(data => setAlertasSistema(Array.isArray(data) ? data : []))
       .catch(err => console.error("Error loading system alerts:", err));
 
     // 3. Fetch System Alerts Unread Count
-    fetch(`${API_BASE_URL}/node-alerts/unread-count`)
+    fetchWithAuth(`${API_BASE_URL}/node-alerts/unread-count`)
       .then(res => res.json())
       .then(data => setUnreadAlertsCount(data.count || 0))
       .catch(err => console.error("Error loading unread count:", err));
 
     // 4. Fetch App Interfaces for RBAC
-    fetch(`${API_BASE_URL}/interfaces`)
+    fetchWithAuth(`${API_BASE_URL}/interfaces`)
       .then(res => res.json())
       .then(data => setAppInterfaces(Array.isArray(data) ? data : []))
       .catch(err => console.error("Error loading interfaces:", err));
@@ -279,24 +279,23 @@ const AdminLayout = () => {
   const abrirMensajeCompleto = (notif) => {
     setMensajeActivo(notif);
     setMostrarNotificaciones(false);
-    
+
     if (!notif.leido) {
-      fetch(`${API_BASE_URL}/contactos/${notif.id}`, {
+      fetchWithAuth(`${API_BASE_URL}/contactos/${notif.id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ leido: true })
       })
-      .then(res => {
-        if (res.ok) {
-          setNotificaciones(prev => 
-            prev.map(n => n.id === notif.id ? { ...n, leido: true } : n)
-          );
-        }
-      })
-      .catch(err => console.error("Error marking read:", err));
+        .then(res => {
+          if (res.ok) {
+            setNotificaciones(prev =>
+              prev.map(n => n.id === notif.id ? { ...n, leido: true } : n)
+            );
+          }
+        })
+        .catch(err => console.error("Error marking read:", err));
     }
   };
 
@@ -324,10 +323,10 @@ const AdminLayout = () => {
   } catch (e) { sessionUser = {}; }
 
   const nombreMostrar = dbUser?.name || sessionUser.name || sessionUser.nombre || user?.name || 'Administrador';
-  const rolMostrar    = dbUser?.role?.name || sessionUser?.role?.name || dbUser?.rol || sessionUser.rol || (dbUser?.role_id === 1 ? 'Superusuario' : 'Administrador');
-  const rolColor      = dbUser?.role?.color || sessionUser?.role?.color || '#2563eb';
-  const emailToMatch  = sessionUser.email || user?.email || '';
-  const pageTitle     = PAGE_TITLES[location.pathname] || 'DASHBOARD GENERAL';
+  const rolMostrar = dbUser?.role?.name || sessionUser?.role?.name || dbUser?.rol || sessionUser.rol || (dbUser?.role_id === 1 ? 'Superusuario' : 'Administrador');
+  const rolColor = dbUser?.role?.color || sessionUser?.role?.color || '#2563eb';
+  const emailToMatch = sessionUser.email || user?.email || '';
+  const pageTitle = PAGE_TITLES[location.pathname] || 'DASHBOARD GENERAL';
 
   /* Idioma activo — siempre usa la abreviatura fija del array, no texto traducido */
   const activeLang = LANGUAGES.find(l => l.code === language) || LANGUAGES[0];
@@ -349,7 +348,7 @@ const AdminLayout = () => {
       allowed = typeof notifIface.allowed_roles === 'string'
         ? JSON.parse(notifIface.allowed_roles)
         : notifIface.allowed_roles;
-    } catch (e) {}
+    } catch (e) { }
 
     if (!Array.isArray(allowed)) allowed = [];
 
@@ -367,12 +366,12 @@ const AdminLayout = () => {
   return (
     <div className="admin-layout-container">
       <AdminNavbarMobile abrirMenu={toggleMenu} toggleMenu={toggleMenu} />
-      <Sidebar 
-        isOpen={menuAbierto} 
-        cerrarMenu={cerrarMenu} 
-        appInterfaces={appInterfaces} 
-        dbUser={dbUser} 
-        userSession={session ? JSON.parse(session) : user} 
+      <Sidebar
+        isOpen={menuAbierto}
+        cerrarMenu={cerrarMenu}
+        appInterfaces={appInterfaces}
+        dbUser={dbUser}
+        userSession={session ? JSON.parse(session) : user}
       />
 
       <main className="admin-main-content">
@@ -390,111 +389,111 @@ const AdminLayout = () => {
 
             {/* Campana de Notificaciones */}
             {canAccessNotificaciones && (
-            <div className="admin-notifications-container" ref={notifRef}>
-              <button 
-                className="admin-notif-btn"
-                onClick={() => setMostrarNotificaciones(!mostrarNotificaciones)}
-                title="Notificaciones"
-              >
-                <BellIcon />
-                {(notificaciones.filter(n => !n.leido).length + unreadAlertsCount) > 0 && (
-                  <span className="admin-notif-badge">
-                    {(notificaciones.filter(n => !n.leido).length + unreadAlertsCount) > 99 
-                      ? '99+' 
-                      : (notificaciones.filter(n => !n.leido).length + unreadAlertsCount)}
-                  </span>
-                )}
-              </button>
-              
-              {mostrarNotificaciones && (
-                <div className="admin-notif-dropdown" style={{ width: '380px' }}>
-                  <div className="admin-notif-dropdown-header" style={{ paddingBottom: '0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <h4 style={{ padding: '0 16px' }}>Notificaciones</h4>
-                    <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0' }}>
-                      <button 
-                        style={{ flex: 1, padding: '10px', background: 'none', border: 'none', borderBottom: activeNotifTab === 'sistema' ? '2px solid #2563eb' : '2px solid transparent', color: activeNotifTab === 'sistema' ? '#2563eb' : '#64748b', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer' }}
-                        onClick={() => setActiveNotifTab('sistema')}
-                      >
-                        Sistema {unreadAlertsCount > 0 && <span style={{ background: '#ef4444', color: 'white', padding: '2px 6px', borderRadius: '10px', fontSize: '0.7rem', marginLeft: '4px' }}>{unreadAlertsCount}</span>}
-                      </button>
-                      <button 
-                        style={{ flex: 1, padding: '10px', background: 'none', border: 'none', borderBottom: activeNotifTab === 'contacto' ? '2px solid #2563eb' : '2px solid transparent', color: activeNotifTab === 'contacto' ? '#2563eb' : '#64748b', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer' }}
-                        onClick={() => setActiveNotifTab('contacto')}
-                      >
-                        Contacto {notificaciones.filter(n => !n.leido).length > 0 && <span style={{ background: '#ef4444', color: 'white', padding: '2px 6px', borderRadius: '10px', fontSize: '0.7rem', marginLeft: '4px' }}>{notificaciones.filter(n => !n.leido).length}</span>}
-                      </button>
+              <div className="admin-notifications-container" ref={notifRef}>
+                <button
+                  className="admin-notif-btn"
+                  onClick={() => setMostrarNotificaciones(!mostrarNotificaciones)}
+                  title="Notificaciones"
+                >
+                  <BellIcon />
+                  {(notificaciones.filter(n => !n.leido).length + unreadAlertsCount) > 0 && (
+                    <span className="admin-notif-badge">
+                      {(notificaciones.filter(n => !n.leido).length + unreadAlertsCount) > 99
+                        ? '99+'
+                        : (notificaciones.filter(n => !n.leido).length + unreadAlertsCount)}
+                    </span>
+                  )}
+                </button>
+
+                {mostrarNotificaciones && (
+                  <div className="admin-notif-dropdown" style={{ width: '380px' }}>
+                    <div className="admin-notif-dropdown-header" style={{ paddingBottom: '0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <h4 style={{ padding: '0 16px' }}>Notificaciones</h4>
+                      <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0' }}>
+                        <button
+                          style={{ flex: 1, padding: '10px', background: 'none', border: 'none', borderBottom: activeNotifTab === 'sistema' ? '2px solid #2563eb' : '2px solid transparent', color: activeNotifTab === 'sistema' ? '#2563eb' : '#64748b', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer' }}
+                          onClick={() => setActiveNotifTab('sistema')}
+                        >
+                          Sistema {unreadAlertsCount > 0 && <span style={{ background: '#ef4444', color: 'white', padding: '2px 6px', borderRadius: '10px', fontSize: '0.7rem', marginLeft: '4px' }}>{unreadAlertsCount}</span>}
+                        </button>
+                        <button
+                          style={{ flex: 1, padding: '10px', background: 'none', border: 'none', borderBottom: activeNotifTab === 'contacto' ? '2px solid #2563eb' : '2px solid transparent', color: activeNotifTab === 'contacto' ? '#2563eb' : '#64748b', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer' }}
+                          onClick={() => setActiveNotifTab('contacto')}
+                        >
+                          Contacto {notificaciones.filter(n => !n.leido).length > 0 && <span style={{ background: '#ef4444', color: 'white', padding: '2px 6px', borderRadius: '10px', fontSize: '0.7rem', marginLeft: '4px' }}>{notificaciones.filter(n => !n.leido).length}</span>}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="admin-notif-dropdown-body" style={{ maxHeight: '350px' }}>
+                      {activeNotifTab === 'contacto' ? (
+                        notificaciones.length === 0 ? (
+                          <div className="admin-notif-empty">No hay mensajes recientes.</div>
+                        ) : (
+                          notificaciones.map((notif) => (
+                            <div
+                              key={notif.id}
+                              className={`admin-notif-item ${!notif.leido ? 'unread' : ''}`}
+                              onClick={() => abrirMensajeCompleto(notif)}
+                            >
+                              <div className="admin-notif-item-title">
+                                <span className="admin-notif-author">{notif.nombre}</span>
+                                <span className="admin-notif-date">{formatearFechaStr(notif.created_at)}</span>
+                              </div>
+                              <span className="admin-notif-tel">📞 {notif.telefono}</span>
+                              <p className="admin-notif-text">
+                                {notif.mensaje.length > 50 ? `${notif.mensaje.substring(0, 50)}...` : notif.mensaje}
+                              </p>
+                            </div>
+                          ))
+                        )
+                      ) : (
+                        alertasSistema.length === 0 ? (
+                          <div className="admin-notif-empty">No hay alertas del sistema.</div>
+                        ) : (
+                          <>
+                            {alertasSistema.map((alerta) => (
+                              <div
+                                key={alerta.id}
+                                className={`admin-notif-item ${!alerta.is_read ? 'unread' : ''}`}
+                                onClick={() => {
+                                  setMostrarNotificaciones(false);
+                                  navigate('/admin/notificaciones');
+                                }}
+                                style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}
+                              >
+                                <div style={{ marginTop: '2px', color: alerta.severity === 'critical' ? '#ef4444' : '#f59e0b' }}>
+                                  {alerta.type === 'offline' ? (
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><path d="M10.7 17a2.5 2.5 0 0 0 2.6 0M2.6 9a14.8 14.8 0 0 1 18.8 0M6.6 13a9.8 9.8 0 0 1 10.8 0" /><line x1="2" y1="2" x2="22" y2="22" /></svg>
+                                  ) : (
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                                  )}
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <div className="admin-notif-item-title">
+                                    <span className="admin-notif-author" style={{ color: alerta.severity === 'critical' ? '#b91c1c' : '#b45309' }}>{alerta.title}</span>
+                                    <span className="admin-notif-date">{formatearFechaStr(alerta.created_at)}</span>
+                                  </div>
+                                  <p className="admin-notif-text" style={{ marginTop: '4px', fontSize: '0.75rem' }}>
+                                    {alerta.message.length > 70 ? `${alerta.message.substring(0, 70)}...` : alerta.message}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                            <div style={{ padding: '12px', textAlign: 'center', borderTop: '1px solid #e2e8f0' }}>
+                              <button
+                                onClick={() => { setMostrarNotificaciones(false); navigate('/admin/notificaciones'); }}
+                                style={{ color: '#2563eb', fontSize: '0.85rem', fontWeight: '600', background: 'none', border: 'none', cursor: 'pointer' }}
+                              >
+                                Ver todas las notificaciones →
+                              </button>
+                            </div>
+                          </>
+                        )
+                      )}
                     </div>
                   </div>
-                  <div className="admin-notif-dropdown-body" style={{ maxHeight: '350px' }}>
-                    {activeNotifTab === 'contacto' ? (
-                      notificaciones.length === 0 ? (
-                        <div className="admin-notif-empty">No hay mensajes recientes.</div>
-                      ) : (
-                        notificaciones.map((notif) => (
-                          <div 
-                            key={notif.id} 
-                            className={`admin-notif-item ${!notif.leido ? 'unread' : ''}`}
-                            onClick={() => abrirMensajeCompleto(notif)}
-                          >
-                            <div className="admin-notif-item-title">
-                              <span className="admin-notif-author">{notif.nombre}</span>
-                              <span className="admin-notif-date">{formatearFechaStr(notif.created_at)}</span>
-                            </div>
-                            <span className="admin-notif-tel">📞 {notif.telefono}</span>
-                            <p className="admin-notif-text">
-                              {notif.mensaje.length > 50 ? `${notif.mensaje.substring(0, 50)}...` : notif.mensaje}
-                            </p>
-                          </div>
-                        ))
-                      )
-                    ) : (
-                      alertasSistema.length === 0 ? (
-                        <div className="admin-notif-empty">No hay alertas del sistema.</div>
-                      ) : (
-                        <>
-                          {alertasSistema.map((alerta) => (
-                            <div 
-                              key={alerta.id} 
-                              className={`admin-notif-item ${!alerta.is_read ? 'unread' : ''}`}
-                              onClick={() => {
-                                setMostrarNotificaciones(false);
-                                navigate('/admin/notificaciones');
-                              }}
-                              style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}
-                            >
-                              <div style={{ marginTop: '2px', color: alerta.severity === 'critical' ? '#ef4444' : '#f59e0b' }}>
-                                {alerta.type === 'offline' ? (
-                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><path d="M10.7 17a2.5 2.5 0 0 0 2.6 0M2.6 9a14.8 14.8 0 0 1 18.8 0M6.6 13a9.8 9.8 0 0 1 10.8 0"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
-                                ) : (
-                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                                )}
-                              </div>
-                              <div style={{ flex: 1 }}>
-                                <div className="admin-notif-item-title">
-                                  <span className="admin-notif-author" style={{ color: alerta.severity === 'critical' ? '#b91c1c' : '#b45309' }}>{alerta.title}</span>
-                                  <span className="admin-notif-date">{formatearFechaStr(alerta.created_at)}</span>
-                                </div>
-                                <p className="admin-notif-text" style={{ marginTop: '4px', fontSize: '0.75rem' }}>
-                                  {alerta.message.length > 70 ? `${alerta.message.substring(0, 70)}...` : alerta.message}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                          <div style={{ padding: '12px', textAlign: 'center', borderTop: '1px solid #e2e8f0' }}>
-                            <button 
-                              onClick={() => { setMostrarNotificaciones(false); navigate('/admin/notificaciones'); }}
-                              style={{ color: '#2563eb', fontSize: '0.85rem', fontWeight: '600', background: 'none', border: 'none', cursor: 'pointer' }}
-                            >
-                              Ver todas las notificaciones →
-                            </button>
-                          </div>
-                        </>
-                      )
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
             )}
 
             {/* ── SELECTOR DE IDIOMA: etiquetas siempre fijas, sin traducción ── */}
@@ -508,15 +507,15 @@ const AdminLayout = () => {
                 {/* Globo — igual que GlobeIcon del Navbar */}
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                   width="16" height="16" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="2" y1="12" x2="22" y2="12"/>
-                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="2" y1="12" x2="22" y2="12" />
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
                 </svg>
                 <span className="notranslate" translate="no" style={{ marginLeft: '6px' }}>{activeLang.label}</span>
                 {/* Chevron */}
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                   width="14" height="14" style={{ marginLeft: '4px', display: 'inline-block', verticalAlign: 'middle' }}>
-                  <polyline points="6 9 12 15 18 9"/>
+                  <polyline points="6 9 12 15 18 9" />
                 </svg>
               </button>
 
@@ -537,7 +536,7 @@ const AdminLayout = () => {
             </div>
 
             {/* Perfil de usuario */}
-            <div className="user-profile-badge" title={emailToMatch || 'admin@uleam.edu.ec'}>
+            <div className="user-profile-badge" title={emailToMatch || 'Usuario'}>
               <div className="user-profile-text">
                 <span className="user-name-detail">{nombreMostrar}</span>
                 <span className="user-role-label" style={{ color: rolColor, fontWeight: 700 }}>
@@ -558,7 +557,7 @@ const AdminLayout = () => {
           const userRoleId = dbUser?.role_id || dbUser?.role?.id || currentSession?.role_id || currentSession?.role?.id;
           const userRoleName = dbUser?.role?.name || currentSession?.role?.name || currentSession?.rol;
           const userLevel = dbUser?.role?.level_permission ?? currentSession?.role?.level_permission ?? 1;
-          
+
           if (userRoleName === 'Superusuario' || userRoleId === 1) {
             hasAccess = true;
           } else if (appInterfaces.length > 0) {
@@ -566,8 +565,8 @@ const AdminLayout = () => {
             if (matchingInterface) {
               let allowed = [];
               try {
-                allowed = typeof matchingInterface.allowed_roles === 'string' 
-                  ? JSON.parse(matchingInterface.allowed_roles) 
+                allowed = typeof matchingInterface.allowed_roles === 'string'
+                  ? JSON.parse(matchingInterface.allowed_roles)
                   : matchingInterface.allowed_roles;
               } catch (e) {
                 allowed = [];
@@ -575,9 +574,9 @@ const AdminLayout = () => {
 
               if (!Array.isArray(allowed)) allowed = [];
 
-              const isRoleAdmitted = allowed.some(item => 
-                item === userRoleId || 
-                item === String(userRoleId) || 
+              const isRoleAdmitted = allowed.some(item =>
+                item === userRoleId ||
+                item === String(userRoleId) ||
                 item === userRoleName
               );
 
@@ -624,7 +623,7 @@ const AdminLayout = () => {
               </div>
             </div>
             <div className="modal-card-footer">
-              <button 
+              <button
                 className="btn-modal-respond"
                 onClick={() => responderGmail(mensajeActivo)}
               >

@@ -194,10 +194,22 @@ function ImageCropper({ imageSrc, aspectRatio, recommendedW, recommendedH, onCro
     canvas.width = recommendedW;
     canvas.height = recommendedH;
     const ctx = canvas.getContext("2d");
+
+    const isPng = imageSrc && (imageSrc.includes("data:image/png") || imageSrc.includes(".png"));
+    const mimeType = isPng ? "image/png" : "image/jpeg";
+
+    if (isPng) {
+      ctx.clearRect(0, 0, recommendedW, recommendedH);
+    } else {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, recommendedW, recommendedH);
+    }
+
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, recommendedW, recommendedH);
 
     const quality = recommendedW <= 300 ? 0.75 : 0.88;
-    onCrop(canvas.toDataURL("image/jpeg", quality), "image/jpeg");
+    const croppedDataUrl = isPng ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", quality);
+    onCrop(croppedDataUrl, mimeType);
   };
 
   if (!imageSrc) return null;
@@ -276,21 +288,6 @@ function ImageCropper({ imageSrc, aspectRatio, recommendedW, recommendedH, onCro
 // ─────────────────────────────────────────────
 // Main EditableImage Component
 // ─────────────────────────────────────────────
-/**
- * Props:
- *   imageKey          – unique DB key, e.g. "ad-logo"
- *   defaultSrc        – fallback image (imported asset or null for SVG-only)
- *   defaultSvg        – fallback JSX (SVG element) when there is no image file asset
- *   alt               – alt text
- *   className         – extra class for <img>
- *   style             – inline styles for <img>
- *   wrapperClassName  – extra class for wrapper
- *   wrapperStyle      – inline style for wrapper
- *   recommendedWidth  – pixel width used as crop output size
- *   recommendedHeight – pixel height used as crop output size
- *   hint              – description shown in the modal
- *   circular          – if true, uses overflow-visible + clip-path so pencil btn escapes circle
- */
 export default function EditableImage({
   imageKey,
   defaultSrc = null,
@@ -358,8 +355,36 @@ export default function EditableImage({
       e.target.value = "";
       return;
     }
+
     const reader = new FileReader();
-    reader.onload = (ev) => setCropperSrc(ev.target.result);
+    reader.onload = (ev) => {
+      const dataUrl = ev.target.result;
+      const fileType = file.type;
+
+      // Si es un GIF animado, PNG o SVG, preguntar si desea usarse directo sin compresión ni recorte
+      if (fileType === "image/gif" || fileType === "image/png" || fileType === "image/svg+xml") {
+        Swal.fire({
+          title: "Formato de Imagen Detectado",
+          text: `Has seleccionado un archivo ${fileType.split("/")[1].toUpperCase()}. ¿Deseas usar el archivo original directo (sin comprimir/recortar) o abrir la herramienta de recorte?`,
+          icon: "question",
+          showCancelButton: true,
+          showDenyButton: true,
+          confirmButtonText: "Usar Original (Sin comprimir)",
+          denyButtonText: "✂️ Recortar imagen",
+          cancelButtonText: "Cancelar",
+          confirmButtonColor: "#2563eb",
+          denyButtonColor: "#475569",
+        }).then((res) => {
+          if (res.isConfirmed) {
+            setPreviewSrc(dataUrl);
+          } else if (res.isDenied) {
+            setCropperSrc(dataUrl);
+          }
+        });
+      } else {
+        setCropperSrc(dataUrl);
+      }
+    };
     reader.readAsDataURL(file);
     e.target.value = "";
   };

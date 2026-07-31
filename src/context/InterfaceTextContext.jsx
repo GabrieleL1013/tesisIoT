@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../config/api";
+import { API_BASE_URL, fetchWithAuth } from "../config/api";
 import { createContext, useState, useContext, useEffect } from "react";
 
 const InterfaceTextContext = createContext();
@@ -43,11 +43,10 @@ export function InterfaceTextProvider({ children }) {
   // Función para actualizar o crear un texto
   const updateText = async (key, textValue) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/interface-texts`, {
+      const response = await fetchWithAuth(`${API_BASE_URL}/interface-texts`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({ key, text: textValue }),
       });

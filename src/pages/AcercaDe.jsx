@@ -894,14 +894,16 @@ export default function AcercaDe() {
               })}
             </div>
             {canEdit && (
-              <button
-                type="button"
-                className="add-member-btn"
-                title="Añadir desarrollador"
-                onClick={() => handleAddMember("ad-devs-count", devsCount, "Nuevo Desarrollador", "ad-dev-name-")}
-              >
-                +
-              </button>
+              <div className="add-member-btn-wrap">
+                <button
+                  type="button"
+                  className="add-member-btn"
+                  title="Añadir desarrollador"
+                  onClick={() => handleAddMember("ad-devs-count", devsCount, "Nuevo Desarrollador", "ad-dev-name-")}
+                >
+                  +
+                </button>
+              </div>
             )}
           </div>
 
@@ -939,8 +941,10 @@ export default function AcercaDe() {
                 })}
               </div>
               {canEdit && (
-                <button type="button" className="add-member-btn" title="Añadir docente"
-                  onClick={() => handleAddMember("ad-teachers-count", teachersCount, "Nuevo docente", "ad-teacher")}>+</button>
+                <div className="add-member-btn-wrap">
+                  <button type="button" className="add-member-btn" title="Añadir docente"
+                    onClick={() => handleAddMember("ad-teachers-count", teachersCount, "Nuevo docente", "ad-teacher")}>+</button>
+                </div>
               )}
             </div>
 
@@ -985,8 +989,10 @@ export default function AcercaDe() {
                 })}
               </ul>
               {canEdit && (
-                <button type="button" className="add-member-btn" title="Añadir colaborador"
-                  onClick={() => handleAddMember("ad-collabs-count", collabsCount, "Nuevo colaborador", "ad-collab")}>+</button>
+                <div className="add-member-btn-wrap">
+                  <button type="button" className="add-member-btn" title="Añadir colaborador"
+                    onClick={() => handleAddMember("ad-collabs-count", collabsCount, "Nuevo colaborador", "ad-collab")}>+</button>
+                </div>
               )}
             </div>
 
@@ -1022,8 +1028,10 @@ export default function AcercaDe() {
                 })}
               </div>
               {canEdit && (
-                <button type="button" className="add-member-btn" title="Añadir estudiante"
-                  onClick={() => handleAddMember("ad-students-count", studentsCount, "Nuevo estudiante", "ad-student")}>+</button>
+                <div className="add-member-btn-wrap">
+                  <button type="button" className="add-member-btn" title="Añadir estudiante"
+                    onClick={() => handleAddMember("ad-students-count", studentsCount, "Nuevo estudiante", "ad-student")}>+</button>
+                </div>
               )}
             </div>
 
@@ -1058,8 +1066,10 @@ export default function AcercaDe() {
                 })}
               </div>
               {canEdit && (
-                <button type="button" className="add-member-btn" title="Añadir practicante"
-                  onClick={() => handleAddMember("ad-interns-count", internsCount, "Nuevo practicante", "ad-intern")}>+</button>
+                <div className="add-member-btn-wrap">
+                  <button type="button" className="add-member-btn" title="Añadir practicante"
+                    onClick={() => handleAddMember("ad-interns-count", internsCount, "Nuevo practicante", "ad-intern")}>+</button>
+                </div>
               )}
             </div>
 

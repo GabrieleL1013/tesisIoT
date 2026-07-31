@@ -1,5 +1,5 @@
-import { API_BASE_URL } from '../../config/api';
-import React, { useState, useEffect } from 'react';
+import { API_BASE_URL, fetchWithAuth } from '../../config/api';
+import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import '../../styles/components/admin/GestionarUbicaciones.css';
 
@@ -420,7 +420,7 @@ export default function GestionarUbicaciones() {
 
     if (editandoId) {
       // API UPDATE (PUT)
-      fetch(`${API_BASE_URL}/ubicaciones/${editandoId}`, {
+      fetchWithAuth(`${API_BASE_URL}/ubicaciones/${editandoId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -449,7 +449,7 @@ export default function GestionarUbicaciones() {
         });
     } else {
       // API CREATE (POST)
-      fetch(`${API_BASE_URL}/ubicaciones`, {
+      fetchWithAuth(`${API_BASE_URL}/ubicaciones`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -502,7 +502,7 @@ export default function GestionarUbicaciones() {
     }).then((result) => {
       if (result.isConfirmed) {
         // API DELETE
-        fetch(`${API_BASE_URL}/ubicaciones/${id}`, { method: 'DELETE' })
+        fetchWithAuth(`${API_BASE_URL}/ubicaciones/${id}`, { method: 'DELETE' })
           .then(async res => {
             const data = await res.json();
             if (!res.ok) {

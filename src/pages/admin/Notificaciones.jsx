@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../config/api';
+import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -116,7 +116,7 @@ const Notificaciones = () => {
     if (filterStatus !== 'all') params.append('status', filterStatus);
     if (search) params.append('search', search);
 
-    fetch(`${API_BASE_URL}/node-alerts?${params.toString()}`)
+    fetchWithAuth(`${API_BASE_URL}/node-alerts?${params.toString()}`)
       .then(res => res.json())
       .then(data => {
         setAlerts(data.data || []);
@@ -149,7 +149,7 @@ const Notificaciones = () => {
   };
 
   const markAsRead = (id) => {
-    fetch(`${API_BASE_URL}/node-alerts/${id}/read`, {
+    fetchWithAuth(`${API_BASE_URL}/node-alerts/${id}/read`, {
       method: 'PUT'
     })
     .then(res => res.json())
@@ -160,7 +160,7 @@ const Notificaciones = () => {
   };
 
   const markAllAsRead = () => {
-    fetch(`${API_BASE_URL}/node-alerts/mark-all-read`, {
+    fetchWithAuth(`${API_BASE_URL}/node-alerts/mark-all-read`, {
       method: 'PUT'
     })
     .then(res => res.json())
@@ -193,7 +193,7 @@ const Notificaciones = () => {
       color: '#ffffff'
     }).then((result) => {
       if (result.isConfirmed) {
-        fetch(`${API_BASE_URL}/node-alerts/${id}`, {
+        fetchWithAuth(`${API_BASE_URL}/node-alerts/${id}`, {
           method: 'DELETE'
         })
         .then(res => res.json())

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../config/api';
+import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import { usePageTitle } from '../../context/PageTitleContext';
@@ -325,7 +325,7 @@ export default function GestionarMetricas() {
     const endpoint = editandoId ? `${API_BASE_URL}/metricas/${editandoId}` : `${API_BASE_URL}/metricas`;
     const method = editandoId ? 'PUT' : 'POST';
     try {
-      const res = await fetch(endpoint, {
+      const res = await fetchWithAuth(endpoint, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -371,7 +371,7 @@ export default function GestionarMetricas() {
     }).then(async (r) => {
       if (!r.isConfirmed) return;
       try {
-        await fetch(`${API_BASE_URL}/metricas/${id}`, { method: 'DELETE' });
+        await fetchWithAuth(`${API_BASE_URL}/metricas/${id}`, { method: 'DELETE' });
         if (editandoId === id) cancelar();
         cargarMetricas();
       } catch {

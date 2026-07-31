@@ -3,10 +3,15 @@ import { useState, useEffect } from "react";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import { useInterfaceText } from "../context/InterfaceTextContext";
+import { checkEditPermission } from "../utils/checkEditPermission";
 import { Link, useNavigate, useLocation } from "react-router-dom"; // ── USAMOS LINK PARA CONECTAR LAS VISTAS ──
 import LogoImg from "../assets/LOGO.png";
 import IotLogoImg from "../assets/IOT-LOGO.png";
+import EditableImage from "./EditableImage";
+import EditableText from "./EditableText";
 import "../styles/components/Navbar.css"; 
+
+
 
 // ── Iconos SVG originales como componentes locales ──
 const ChevronDownIcon = ({ className }) => (
@@ -62,13 +67,10 @@ export default function Navbar() {
   const [showLangDropdown, setShowLangDropdown] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [sessionUser, setSessionUser] = useState(null);
-  const [appInterfaces, setAppInterfaces] = useState([]);
+  const [canEditMode, setCanEditMode] = useState(false);
 
-  const cargarInterfaces = () => {
-    fetch(`${API_BASE_URL}/interfaces`)
-      .then(res => res.json())
-      .then(data => setAppInterfaces(Array.isArray(data) ? data : []))
-      .catch(err => console.error("Error fetching interfaces in Navbar:", err));
+  const updateCanEditMode = () => {
+    checkEditPermission().then(res => setCanEditMode(res));
   };
 
   const cargarSessionUser = () => {
@@ -87,6 +89,7 @@ export default function Navbar() {
                   setSessionUser(dbUser);
                   const updatedSession = { ...parsed, name: dbUser.name, role: dbUser.role, role_id: dbUser.role_id, email: dbUser.email };
                   localStorage.setItem('iot_sesion_activa', JSON.stringify(updatedSession));
+                  updateCanEditMode();
                 }
               })
               .catch(err => {
@@ -104,47 +107,24 @@ export default function Navbar() {
 
   useEffect(() => {
     cargarSessionUser();
-    cargarInterfaces();
+    updateCanEditMode();
 
-    window.addEventListener('userProfileUpdated', cargarSessionUser);
-    window.addEventListener('appInterfacesUpdated', cargarInterfaces);
+    const handleProfileUpdate = () => {
+      cargarSessionUser();
+      updateCanEditMode();
+    };
+
+    const handleInterfacesUpdate = () => {
+      updateCanEditMode();
+    };
+
+    window.addEventListener('userProfileUpdated', handleProfileUpdate);
+    window.addEventListener('appInterfacesUpdated', handleInterfacesUpdate);
     return () => {
-      window.removeEventListener('userProfileUpdated', cargarSessionUser);
-      window.removeEventListener('appInterfacesUpdated', cargarInterfaces);
+      window.removeEventListener('userProfileUpdated', handleProfileUpdate);
+      window.removeEventListener('appInterfacesUpdated', handleInterfacesUpdate);
     };
   }, [isLoggedIn]);
-
-  const canAccessEditMode = () => {
-    if (!isLoggedIn || !sessionUser) return false;
-
-    const userRoleId = sessionUser?.role_id || sessionUser?.role?.id;
-    const userRoleName = sessionUser?.role?.name || sessionUser?.rol;
-    const userLevel = sessionUser?.role?.level_permission ?? 1;
-
-    if (userRoleName === 'Superusuario' || userRoleId === 1) return true;
-
-    const editModeIface = appInterfaces.find(i => i.path === '/modo-edicion');
-    if (!editModeIface) return false;
-
-    let allowed = [];
-    try {
-      allowed = typeof editModeIface.allowed_roles === 'string'
-        ? JSON.parse(editModeIface.allowed_roles)
-        : editModeIface.allowed_roles;
-    } catch (e) {}
-
-    if (!Array.isArray(allowed)) allowed = [];
-
-    const isRoleAdmitted = allowed.some(item =>
-      item === userRoleId ||
-      item === String(userRoleId) ||
-      item === userRoleName
-    );
-
-    const isLevelSufficient = editModeIface.min_level === null || userLevel >= editModeIface.min_level;
-
-    return isRoleAdmitted && isLevelSufficient;
-  };
   const [categoriasDinamicas, setCategoriasDinamicas] = useState([]);
 
   useEffect(() => {
@@ -254,9 +234,25 @@ export default function Navbar() {
       <nav className={`nav-main ${scrolled ? "nav-scrolled" : ""}`}>
         <div className="nav-container">
           {/* Brand/Logo */}
-          <Link to="/" className="nav-logo">
-            <img src={LogoImg} alt="Universidad Logo" className="nav-logo-img" />
-            <img src={IotLogoImg} alt="IOT Logo" className="nav-logo-img-secondary" />
+          <Link to="/" className="nav-logo" style={{ display: "inline-flex", alignItems: "center", gap: "10px" }}>
+            <EditableImage
+              imageKey="nav_logo_primary"
+              defaultSrc={LogoImg}
+              alt="Universidad Logo"
+              className="nav-logo-img"
+              recommendedWidth={240}
+              recommendedHeight={80}
+              hint="Logo principal de la universidad en el menú superior."
+            />
+            <EditableImage
+              imageKey="nav_logo_secondary"
+              defaultSrc={IotLogoImg}
+              alt="IOT Logo"
+              className="nav-logo-img-secondary"
+              recommendedWidth={120}
+              recommendedHeight={80}
+              hint="Logo secundario de IoT en el menú superior."
+            />
           </Link>
 
           {/* Desktop Links */}
@@ -354,9 +350,31 @@ export default function Navbar() {
                       <span className="nav-profile-dropdown-title">Mi Cuenta</span>
                       <span className="nav-profile-dropdown-name">{sessionUser.name}</span>
                       <span className="nav-profile-dropdown-email">{sessionUser.email}</span>
-                      <span className={`nav-profile-dropdown-role-badge ${sessionUser.rol === 'Superusuario' ? 'superadmin' : ''}`}>
-                        {sessionUser.rol}
-                      </span>
+                      {(() => {
+                        const roleName = typeof sessionUser.role === 'object' ? sessionUser.role?.name : (sessionUser.role || sessionUser.rol || 'Usuario');
+                        const roleColor = sessionUser.role?.color || (roleName === 'Superusuario' ? '#f50000' : '#2563eb');
+                        return (
+                          <div style={{ marginTop: '6px' }}>
+                            <span
+                              className="nav-profile-dropdown-role-badge"
+                              style={{
+                                display: 'inline-block',
+                                padding: '3px 10px',
+                                borderRadius: '12px',
+                                fontSize: '0.72rem',
+                                fontWeight: '800',
+                                color: '#ffffff',
+                                backgroundColor: roleColor,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.04em',
+                                boxShadow: `0 2px 6px ${roleColor}44`
+                              }}
+                            >
+                              {roleName}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
                     
                     <Link
@@ -391,7 +409,7 @@ export default function Navbar() {
             )}
 
             {/* Botón de alternancia de Modo Edición (Configurable mediante Gestión de Interfaces) */}
-            {canAccessEditMode() && (
+            {canEditMode && (
               <button 
                 onClick={toggleEditMode}
                 className="nav-edit-mode-text-only-btn"

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../config/api';
+import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import '../../styles/components/admin/GestionarUsuarios.css';
@@ -253,10 +253,10 @@ export default function GestionarUsuarios() {
 
   const cargarUsuarios = () => {
     setLoading(true);
-    fetch(`${API_BASE_URL}/users`)
+    fetchWithAuth(`${API_BASE_URL}/users`)
       .then(res => res.json())
       .then(data => {
-        setUsuarios(data);
+        setUsuarios(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch(err => {
@@ -266,9 +266,9 @@ export default function GestionarUsuarios() {
   };
 
   const cargarRoles = () => {
-    fetch(`${API_BASE_URL}/roles`)
+    fetchWithAuth(`${API_BASE_URL}/roles`)
       .then(res => res.json())
-      .then(data => setRoles(data))
+      .then(data => setRoles(Array.isArray(data) ? data : []))
       .catch(err => console.error("Error fetching roles:", err));
   };
 
@@ -342,11 +342,10 @@ export default function GestionarUsuarios() {
 
     const method = editandoId ? 'PUT' : 'POST';
 
-    fetch(endpoint, {
+    fetchWithAuth(endpoint, {
       method: method,
       headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(payload)
     })
@@ -416,9 +415,8 @@ export default function GestionarUsuarios() {
       cancelButtonText: 'Cancelar'
     }).then((result) => {
       if (result.isConfirmed) {
-        fetch(`${API_BASE_URL}/users/${id}`, {
-          method: 'DELETE',
-          headers: { 'Accept': 'application/json' }
+        fetchWithAuth(`${API_BASE_URL}/users/${id}`, {
+          method: 'DELETE'
         })
           .then(async res => {
             const data = await res.json();

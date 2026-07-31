@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../config/api";
+import { API_BASE_URL, fetchWithAuth } from "../config/api";
 
 let fetchPromise = null;
 
@@ -19,7 +19,7 @@ export async function checkEditPermission() {
 
     // Reutilizar la misma promesa activa de consulta a /interfaces para evitar peticiones redundantes
     if (!fetchPromise) {
-      fetchPromise = fetch(`${API_BASE_URL}/interfaces`)
+      fetchPromise = fetchWithAuth(`${API_BASE_URL}/interfaces`)
         .then((res) => (res.ok ? res.json() : []))
         .catch(() => []);
     }

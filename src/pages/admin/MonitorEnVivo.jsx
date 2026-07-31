@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../config/api';
+import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import { echo } from '../../config/echo';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -7,8 +7,19 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 
-const formatTimeSeconds = () => {
-  const d = new Date();
+const formatTimeSeconds = (val) => {
+  let d;
+  if (!val) d = new Date();
+  else if (typeof val === 'number') d = new Date(val > 1e11 ? val : val * 1000);
+  else if (typeof val === 'string') {
+    const parsed = new Date(val);
+    d = isNaN(parsed.getTime()) ? new Date() : parsed;
+  } else if (val instanceof Date) {
+    d = val;
+  } else {
+    d = new Date();
+  }
+
   return d.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
@@ -33,7 +44,7 @@ const formatDateTimeFull = (val) => {
   const day = String(d.getDate()).padStart(2, '0');
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const year = d.getFullYear();
-  
+
   const timeStr = d.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
@@ -63,7 +74,7 @@ export default function MonitorEnVivo() {
 
   const [sensorData, setSensorData] = useState({});
   const [previousData, setPreviousData] = useState({});
-  const [history, setHistory] = useState([]); 
+  const [history, setHistory] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
   const [logs, setLogs] = useState([]);
@@ -109,7 +120,7 @@ export default function MonitorEnVivo() {
   const addLog = (message, type = 'info') => {
     setLogs(prev => {
       const newLogs = [{ time: new Date().toLocaleTimeString(), msg: message, type }, ...prev];
-      return newLogs.slice(0, 50); 
+      return newLogs.slice(0, 50);
     });
   };
 
@@ -167,7 +178,7 @@ export default function MonitorEnVivo() {
 
   useEffect(() => {
     if (nodoActivo) {
-       localStorage.setItem('shared_node_id', nodoActivo.id);
+      localStorage.setItem('shared_node_id', nodoActivo.id);
     }
   }, [nodoActivo]);
 
@@ -179,25 +190,25 @@ export default function MonitorEnVivo() {
         const res = await fetch(`${API_BASE_URL}/lecturas/recientes?serial_number=${nodoActivo.serial_number}`);
         const data = await res.json();
         if (data && data.length > 0) {
-            const parsedData = data.map(item => {
-              const tsMs = getItemTimestampMs(item);
-              const fullDt = tsMs ? formatDateTimeFull(tsMs) : formatDateTimeFull(item.created_at || item.dateTime);
-              return {
-                ...item,
-                fullDateTime: fullDt,
-                shortTime: item.shortTime || formatTimeSeconds()
-              };
-            });
-            setHistory(parsedData);
-            const last = parsedData[parsedData.length - 1];
-            const prev = parsedData.length > 1 ? parsedData[parsedData.length - 2] : {};
-            setSensorData(last);
-            setPreviousData(prev);
-            addLog(`Historial reciente cargado (${data.length} registros).`, 'info');
+          const parsedData = data.map(item => {
+            const tsMs = getItemTimestampMs(item);
+            const fullDt = tsMs ? formatDateTimeFull(tsMs) : formatDateTimeFull(item.created_at || item.dateTime);
+            return {
+              ...item,
+              fullDateTime: fullDt,
+              shortTime: item.shortTime || formatTimeSeconds()
+            };
+          });
+          setHistory(parsedData);
+          const last = parsedData[parsedData.length - 1];
+          const prev = parsedData.length > 1 ? parsedData[parsedData.length - 2] : {};
+          setSensorData(last);
+          setPreviousData(prev);
+          addLog(`Historial reciente cargado (${data.length} registros).`, 'info');
         } else {
-            setHistory([]);
-            setSensorData({ fullDateTime: formatDateTimeFull(), shortTime: formatTimeSeconds() });
-            setPreviousData({});
+          setHistory([]);
+          setSensorData({ fullDateTime: formatDateTimeFull(), shortTime: formatTimeSeconds() });
+          setPreviousData({});
         }
       } catch (err) {
         console.error("Error fetching recent history", err);
@@ -211,19 +222,19 @@ export default function MonitorEnVivo() {
   useEffect(() => {
     if (!nodoActivo) return;
     addLog(`Conectando a telemetría MQTT [${nodoActivo.serial_number}]...`, 'info');
-    
+
     const channelName = `telemetry.${nodoActivo.serial_number}`;
     const channel = echo.channel(channelName);
-    
+
     channel.subscribed(() => {
-        setIsConnected(true);
-        addLog(`Conexión establecida con broker.`, 'success');
+      setIsConnected(true);
+      addLog(`Conexión establecida con broker.`, 'success');
     });
 
     channel.listen('.LecturaRecibida', (e) => {
       const newData = e.data || e;
       if (!newData) return;
-      
+
       const fullDt = formatDateTimeFull();
       const parsedData = {
         ...newData,
@@ -231,16 +242,19 @@ export default function MonitorEnVivo() {
         fullDateTime: fullDt,
         shortTime: formatTimeSeconds()
       };
-      
+
       setPreviousData(sensorDataRef.current);
-      setSensorData(parsedData);
+      setSensorData(prev => ({
+        ...prev,
+        ...parsedData
+      }));
 
       setHistory(prev => {
         const newHistory = [...prev, parsedData];
-        if (newHistory.length > 400) newHistory.shift(); 
+        if (newHistory.length > 400) newHistory.shift();
         return newHistory;
       });
-      
+
       const metricsLog = Object.keys(newData)
         .filter(k => !['Sensor', 'timestamp', 'dateTime'].includes(k))
         .map(k => `${k}=${newData[k]}`)
@@ -262,7 +276,7 @@ export default function MonitorEnVivo() {
     nodoActivo.lecturas.forEach(l => {
       const values = history.map(h => h[l.data_type]).filter(v => v !== undefined && v !== null);
       if (values.length > 0) {
-        const avg = values.reduce((a,b)=>a+b,0) / values.length;
+        const avg = values.reduce((a, b) => a + b, 0) / values.length;
         const max = Math.max(...values);
         const min = Math.min(...values);
 
@@ -289,7 +303,7 @@ export default function MonitorEnVivo() {
                 : (l?.max !== undefined && l?.max !== null && l?.max !== '')
                   ? parseFloat(l.max)
                   : null;
-        
+
         let estabilidad = 'Normal';
         if (minExp !== null && !isNaN(minExp) && avg < minExp) {
           estabilidad = 'Baja';
@@ -398,19 +412,19 @@ export default function MonitorEnVivo() {
           <div className="node-info-text node-dropdown-container" style={{ position: 'relative' }}>
             <span className="node-info-label">Nodo</span>
             {isLoadingNodos ? (
-              <div className="skeleton skeleton-text" style={{width: '200px', marginTop: '6px'}}></div>
+              <div className="skeleton skeleton-text" style={{ width: '200px', marginTop: '6px' }}></div>
             ) : (
-            <div className="node-select-wrapper" onClick={toggleDropdown}>
-              <div className="node-select-custom">
-                {nodoActivo ? nodoActivo.nombre || nodoActivo.serial_number : 'Seleccionar Nodo'}
+              <div className="node-select-wrapper" onClick={toggleDropdown}>
+                <div className="node-select-custom">
+                  {nodoActivo ? nodoActivo.nombre || nodoActivo.serial_number : 'Seleccionar Nodo'}
+                </div>
+                <svg className="node-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
               </div>
-              <svg className="node-select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
-            </div>
             )}
 
             {/* Ruta Informativa: / Categoría / Ubicación / Nombre del Nodo */}
             {nodoActivo && (
-              <div 
+              <div
                 onClick={() => setIsDropdownOpen(false)}
                 style={{ fontSize: '0.78rem', fontWeight: 600, color: '#64748b', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap', cursor: 'pointer' }}
               >
@@ -424,27 +438,27 @@ export default function MonitorEnVivo() {
                 <strong style={{ color: '#0f2c59' }}>{nodoActivo.nombre}</strong>
               </div>
             )}
-            
+
             {isDropdownOpen && (
               <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '8px', zIndex: 50, display: 'flex' }}>
                 <div className="custom-dropdown-menu" style={{ position: 'relative', top: 0, marginTop: 0, minWidth: '320px' }}>
                   <div className="dropdown-search-wrapper" onClick={e => e.stopPropagation()}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                    <input 
-                      type="text" 
-                      placeholder="Buscar nodo por nombre o serial..." 
+                    <input
+                      type="text"
+                      placeholder="Buscar nodo por nombre o serial..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       autoFocus
                     />
                   </div>
-                  
+
                   <div className="dropdown-list-wrapper">
                     {searchQuery.trim() !== '' ? (
                       nodos.filter(n => n.serial_number.toLowerCase().includes(searchQuery.toLowerCase()) || (n.nombre && n.nombre.toLowerCase().includes(searchQuery.toLowerCase()))).length > 0 ? (
                         nodos.filter(n => n.serial_number.toLowerCase().includes(searchQuery.toLowerCase()) || (n.nombre && n.nombre.toLowerCase().includes(searchQuery.toLowerCase()))).map(n => (
-                          <div 
-                            key={n.id} 
+                          <div
+                            key={n.id}
                             className={`custom-dropdown-item ${nodoActivo?.id === n.id ? 'active' : ''}`}
                             onClick={() => {
                               if (nodoActivo?.id !== n.id) {
@@ -469,14 +483,14 @@ export default function MonitorEnVivo() {
                     ) : (
                       Object.entries(groupedNodos).map(([cat, catNodos]) => (
                         <div key={cat} className="dropdown-category-group">
-                          <div 
+                          <div
                             className="dropdown-category-header"
                             onClick={(e) => {
-                               e.stopPropagation();
-                               setExpandedCategories(prev => {
-                                 if (prev[cat]) return {}; // Collapse if already expanded
-                                 return { [cat]: true };   // Expand only this one
-                               });
+                              e.stopPropagation();
+                              setExpandedCategories(prev => {
+                                if (prev[cat]) return {}; // Collapse if already expanded
+                                return { [cat]: true };   // Expand only this one
+                              });
                             }}
                             style={{ background: expandedCategories[cat] ? '#f1f5f9' : '' }}
                           >
@@ -500,8 +514,8 @@ export default function MonitorEnVivo() {
                     </div>
                     <div className="dropdown-list-wrapper">
                       {groupedNodos[Object.keys(expandedCategories).find(k => expandedCategories[k])].map(n => (
-                        <div 
-                          key={n.id} 
+                        <div
+                          key={n.id}
                           className={`custom-dropdown-item ${nodoActivo?.id === n.id ? 'active' : ''}`}
                           onClick={() => {
                             if (nodoActivo?.id !== n.id) {
@@ -538,7 +552,7 @@ export default function MonitorEnVivo() {
           <div className="node-info-text">
             <span className="node-info-label">Estado</span>
             {isLoadingNodos ? (
-              <div className="skeleton skeleton-text" style={{width: '80px', marginTop: '4px'}}></div>
+              <div className="skeleton skeleton-text" style={{ width: '80px', marginTop: '4px' }}></div>
             ) : (
               <span className="node-info-value" style={{ color: isConnected ? '#10b981' : '#ef4444' }}>{isConnected ? 'Conectado' : 'Desconectado'}</span>
             )}
@@ -552,7 +566,7 @@ export default function MonitorEnVivo() {
           <div className="node-info-text">
             <span className="node-info-label">Protocolo</span>
             {isLoadingNodos ? (
-              <div className="skeleton skeleton-text" style={{width: '60px', marginTop: '4px'}}></div>
+              <div className="skeleton skeleton-text" style={{ width: '60px', marginTop: '4px' }}></div>
             ) : (
               <span className="node-info-value">MQTT</span>
             )}
@@ -566,7 +580,7 @@ export default function MonitorEnVivo() {
           <div className="node-info-text">
             <span className="node-info-label">Frecuencia (UI)</span>
             {isLoadingNodos ? (
-              <div className="skeleton skeleton-text" style={{width: '100px', marginTop: '4px'}}></div>
+              <div className="skeleton skeleton-text" style={{ width: '100px', marginTop: '4px' }}></div>
             ) : (
               <span className="node-info-value">1 msg / 5s</span>
             )}
@@ -580,7 +594,7 @@ export default function MonitorEnVivo() {
           <div className="node-info-text">
             <span className="node-info-label">Último dato</span>
             {isLoadingNodos || isLoadingHistory ? (
-              <div className="skeleton skeleton-text" style={{width: '120px', marginTop: '4px'}}></div>
+              <div className="skeleton skeleton-text" style={{ width: '120px', marginTop: '4px' }}></div>
             ) : (
               (() => {
                 if (!sensorData || (!sensorData.fullDateTime && !sensorData.shortTime)) {
@@ -674,9 +688,9 @@ export default function MonitorEnVivo() {
             const alertMsg = isLow
               ? `Nivel Bajo: El valor registrado (${numVal} ${l.unidad || ''}) está por debajo del mínimo esperado (${minExp} ${l.unidad || ''})`
               : isHigh
-              ? `Nivel Alto: El valor registrado (${numVal} ${l.unidad || ''}) sobrepasó el máximo esperado (${maxExp} ${l.unidad || ''})`
-              : `Estado Normal: El valor (${numVal !== undefined && !isNaN(numVal) ? numVal : '--'} ${l.unidad || ''}) se encuentra dentro del rango seguro.`;
-            
+                ? `Nivel Alto: El valor registrado (${numVal} ${l.unidad || ''}) sobrepasó el máximo esperado (${maxExp} ${l.unidad || ''})`
+                : `Estado Normal: El valor (${numVal !== undefined && !isNaN(numVal) ? numVal : '--'} ${l.unidad || ''}) se encuentra dentro del rango seguro.`;
+
             let diff = 0;
             let trendClass = 'trend-flat';
             let trendIcon = '';
@@ -721,7 +735,7 @@ export default function MonitorEnVivo() {
                   ) : (
                     <>
                       <h2>{currentVal !== undefined ? currentVal : '--'} <span className="kpi-unit">{l.unidad}</span></h2>
-                      
+
                       {/* Texto de Estabilidad: Normal (Verde), Baja (Azul), Alta (Rojo) */}
                       <div style={{ marginTop: '8px' }}>
                         {isLow ? (
@@ -767,26 +781,26 @@ export default function MonitorEnVivo() {
           </div>
           <div className="chart-controls">
             <div className="monitor-live-badge" style={{ padding: '4px 8px', fontSize: '0.65rem' }}>
-              <span className="dot" style={{width: '4px', height: '4px'}}></span> En Vivo
+              <span className="dot" style={{ width: '4px', height: '4px' }}></span> En Vivo
             </div>
             <div className="chart-window-dropdown-container" ref={windowDropdownRef} style={{ position: 'relative' }}>
-              <button 
+              <button
                 type="button"
                 className="chart-window-trigger-btn"
                 onClick={() => setShowWindowDropdown(prev => !prev)}
               >
                 <span>{chartWindow} min</span>
-                <svg 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  strokeWidth="2.5" 
-                  width="14" 
-                  height="14" 
-                  style={{ 
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  width="14"
+                  height="14"
+                  style={{
                     transform: showWindowDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
                     transition: 'transform 0.2s ease',
-                    color: '#64748b' 
+                    color: '#64748b'
                   }}
                 >
                   <polyline points="6 9 12 15 18 9"></polyline>
@@ -827,46 +841,46 @@ export default function MonitorEnVivo() {
         </div>
 
         <div className="chart-legend" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', marginBottom: '14px' }}>
-           {nodoActivo?.lecturas?.map((l, i) => {
-             const t = getTheme(l.data_type, l.icono);
-             const isChecked = activeVariables[l.data_type] !== false;
-             return (
-               <label 
-                 key={i} 
-                 className="variable-toggle-chip"
-                 onClick={() => toggleVariable(l.data_type)}
-                 style={{
-                   display: 'inline-flex',
-                   alignItems: 'center',
-                   gap: '8px',
-                   padding: '5px 12px',
-                   borderRadius: '20px',
-                   fontSize: '0.8rem',
-                   fontWeight: 600,
-                   cursor: 'pointer',
-                   userSelect: 'none',
-                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                   backgroundColor: isChecked ? `${t.hex}15` : '#f1f5f9',
-                   border: `1.5px solid ${isChecked ? t.hex : '#cbd5e1'}`,
-                   color: isChecked ? t.hex : '#94a3b8',
-                   boxShadow: isChecked ? `0 2px 4px ${t.hex}20` : 'none'
-                 }}
-               >
-                 <input 
-                   type="checkbox"
-                   checked={isChecked}
-                   onChange={() => {}} 
-                   style={{
-                     accentColor: t.hex,
-                     cursor: 'pointer',
-                     width: '14px',
-                     height: '14px'
-                   }}
-                 />
-                 <span>{l.tipo} ({l.unidad})</span>
-               </label>
-             );
-           })}
+          {nodoActivo?.lecturas?.map((l, i) => {
+            const t = getTheme(l.data_type, l.icono);
+            const isChecked = activeVariables[l.data_type] !== false;
+            return (
+              <label
+                key={i}
+                className="variable-toggle-chip"
+                onClick={() => toggleVariable(l.data_type)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '5px 12px',
+                  borderRadius: '20px',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  backgroundColor: isChecked ? `${t.hex}15` : '#f1f5f9',
+                  border: `1.5px solid ${isChecked ? t.hex : '#cbd5e1'}`,
+                  color: isChecked ? t.hex : '#94a3b8',
+                  boxShadow: isChecked ? `0 2px 4px ${t.hex}20` : 'none'
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={() => { }}
+                  style={{
+                    accentColor: t.hex,
+                    cursor: 'pointer',
+                    width: '14px',
+                    height: '14px'
+                  }}
+                />
+                <span>{l.tipo} ({l.unidad})</span>
+              </label>
+            );
+          })}
         </div>
 
         <div style={{ width: '100%', height: '300px' }}>
@@ -882,57 +896,57 @@ export default function MonitorEnVivo() {
                     const theme = getTheme(l.data_type, l.icono);
                     return (
                       <linearGradient key={idx} id={`colorVivo${l.data_type}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={theme.hex} stopOpacity={0.4}/>
-                        <stop offset="95%" stopColor={theme.hex} stopOpacity={0}/>
+                        <stop offset="5%" stopColor={theme.hex} stopOpacity={0.4} />
+                        <stop offset="95%" stopColor={theme.hex} stopOpacity={0} />
                       </linearGradient>
                     );
                   })}
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="shortTime" tick={{fontSize: 10, fill: '#94a3b8'}} tickMargin={10} axisLine={{stroke: '#e2e8f0'}} tickLine={false} />
-                
+                <XAxis dataKey="shortTime" tick={{ fontSize: 10, fill: '#94a3b8' }} tickMargin={10} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
+
                 {/* Dynamically render YAxis based on active readings */}
                 {nodoActivo?.lecturas?.some((l, idx) => idx % 2 === 0 && activeVariables[l.data_type] !== false) && (
-                  <YAxis 
-                    yAxisId="left" 
-                    tick={{fontSize: 10, fill: getTheme(nodoActivo.lecturas[0]?.data_type, nodoActivo.lecturas[0]?.icono).hex}} 
-                    axisLine={false} 
-                    tickLine={false} 
-                    dx={-10} 
+                  <YAxis
+                    yAxisId="left"
+                    tick={{ fontSize: 10, fill: getTheme(nodoActivo.lecturas[0]?.data_type, nodoActivo.lecturas[0]?.icono).hex }}
+                    axisLine={false}
+                    tickLine={false}
+                    dx={-10}
                   />
                 )}
                 {nodoActivo?.lecturas?.some((l, idx) => idx % 2 === 1 && activeVariables[l.data_type] !== false) && (
-                  <YAxis 
-                    yAxisId="right" 
-                    orientation="right" 
-                    tick={{fontSize: 10, fill: getTheme(nodoActivo.lecturas[1]?.data_type, nodoActivo.lecturas[1]?.icono).hex}} 
-                    axisLine={false} 
-                    tickLine={false} 
-                    dx={10} 
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    tick={{ fontSize: 10, fill: getTheme(nodoActivo.lecturas[1]?.data_type, nodoActivo.lecturas[1]?.icono).hex }}
+                    axisLine={false}
+                    tickLine={false}
+                    dx={10}
                   />
                 )}
-                
+
                 <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }} />
-                
+
                 {nodoActivo?.lecturas?.map((l, idx) => {
-                   if (activeVariables[l.data_type] === false) return null;
-                   const theme = getTheme(l.data_type, l.icono);
-                   return (
-                     <Area 
-                       key={idx} 
-                       yAxisId={idx % 2 === 0 ? "left" : "right"}
-                       type="monotone" 
-                       dataKey={l.data_type} 
-                       name={`${l.tipo} (${l.unidad})`} 
-                       stroke={theme.hex} 
-                       strokeWidth={2.5} 
-                       fillOpacity={1} 
-                       fill={`url(#colorVivo${l.data_type})`} 
-                       dot={{r: 4, strokeWidth: 2, fill: '#fff', stroke: theme.hex}} 
-                       activeDot={{r: 6, strokeWidth: 0, fill: theme.hex}} 
-                       isAnimationActive={false}
-                     />
-                   );
+                  if (activeVariables[l.data_type] === false) return null;
+                  const theme = getTheme(l.data_type, l.icono);
+                  return (
+                    <Area
+                      key={idx}
+                      yAxisId={idx % 2 === 0 ? "left" : "right"}
+                      type="monotone"
+                      dataKey={l.data_type}
+                      name={`${l.tipo} (${l.unidad})`}
+                      stroke={theme.hex}
+                      strokeWidth={2.5}
+                      fillOpacity={1}
+                      fill={`url(#colorVivo${l.data_type})`}
+                      dot={{ r: 4, strokeWidth: 2, fill: '#fff', stroke: theme.hex }}
+                      activeDot={{ r: 6, strokeWidth: 0, fill: theme.hex }}
+                      isAnimationActive={false}
+                    />
+                  );
                 })}
               </AreaChart>
             </ResponsiveContainer>
@@ -942,7 +956,7 @@ export default function MonitorEnVivo() {
 
       {/* 5. TABLES GRID */}
       <div className="monitor-tables-grid">
-        
+
         {/* Resumen Estadístico */}
         <div className="monitor-table-card">
           <h3>Resumen Estadístico (Hoy)</h3>
@@ -976,9 +990,9 @@ export default function MonitorEnVivo() {
                       <tr key={i}>
                         <td style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <div className="kpi-icon-wrapper" style={{ width: '32px', height: '32px', background: theme.bg, color: theme.hex, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-                               {theme.icon}
-                             </svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                              {theme.icon}
+                            </svg>
                           </div>
                           <span style={{ fontWeight: 700, color: '#0f172a' }}>{l.tipo} ({l.unidad})</span>
                         </td>
@@ -1038,8 +1052,8 @@ export default function MonitorEnVivo() {
                   <th>Fecha y Hora</th>
                   {isLoadingNodos ? (
                     <>
-                       <th><div className="skeleton skeleton-text" style={{ width: '80px', margin: '0 auto' }}></div></th>
-                       <th><div className="skeleton skeleton-text" style={{ width: '80px', margin: '0 auto' }}></div></th>
+                      <th><div className="skeleton skeleton-text" style={{ width: '80px', margin: '0 auto' }}></div></th>
+                      <th><div className="skeleton skeleton-text" style={{ width: '80px', margin: '0 auto' }}></div></th>
                     </>
                   ) : (
                     nodoActivo?.lecturas?.map((l, i) => <th key={i}>{l.tipo} ({l.unidad})</th>)
@@ -1072,12 +1086,12 @@ export default function MonitorEnVivo() {
               </tbody>
             </table>
           </div>
-          <button 
-             className="table-footer-btn"
-             onClick={() => setVisibleRows(prev => prev === 5 ? 20 : 5)}
-             disabled={isLoadingNodos || isLoadingHistory}
+          <button
+            className="table-footer-btn"
+            onClick={() => setVisibleRows(prev => prev === 5 ? 20 : 5)}
+            disabled={isLoadingNodos || isLoadingHistory}
           >
-             {visibleRows === 5 ? 'Ver más lecturas ▾' : 'Ver menos lecturas ▴'}
+            {visibleRows === 5 ? 'Ver más lecturas ▾' : 'Ver menos lecturas ▴'}
           </button>
         </div>
 
@@ -1092,8 +1106,8 @@ export default function MonitorEnVivo() {
               const text = logs.map(l => `[${l.time}] ${l.msg}`).join('\n');
               navigator.clipboard.writeText(text);
               addLog('Logs copiados al portapapeles', 'success');
-            }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{cursor: 'pointer'}}><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-            <svg onClick={() => setLogs([])} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{cursor: 'pointer'}}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ cursor: 'pointer' }}><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            <svg onClick={() => setLogs([])} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ cursor: 'pointer' }}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
           </div>
         </div>
         <div className="terminal-logs-content">

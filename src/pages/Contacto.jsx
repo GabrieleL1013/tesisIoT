@@ -3,8 +3,20 @@ import { useState, useEffect } from "react";
 import "../styles/Contacto.css";
 import IotBgImg from "../assets/IOT.jpg";
 import EditableText from "../components/EditableText";
+import EditableImage from "../components/EditableImage";
+import { useInterfaceText } from "../context/InterfaceTextContext";
+import { useInterfaceImage } from "../context/InterfaceImageContext";
+import { checkEditPermission } from "../utils/checkEditPermission";
+import Swal from "sweetalert2";
 
 // ── Iconos SVG Autocontenidos para Contacto ──
+const PencilIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+    <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z" />
+  </svg>
+);
+
 const MailIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24" strokeLinecap="round" strokeLinejoin="round">
     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
@@ -98,9 +110,106 @@ const COUNTRIES = [
 ];
 
 export default function Contacto() {
+  const { texts, updateText, loading, editMode } = useInterfaceText();
+  const { imagesLoading } = useInterfaceImage();
+  const [hasPermission, setHasPermission] = useState(false);
+
   useEffect(() => {
     document.title = "Contacto - Ecosistema IoT ULEAM";
+    const checkRole = () => {
+      checkEditPermission().then(res => setHasPermission(res));
+    };
+    checkRole();
+    window.addEventListener("userProfileUpdated", checkRole);
+    window.addEventListener("appInterfacesUpdated", checkRole);
+    return () => {
+      window.removeEventListener("userProfileUpdated", checkRole);
+      window.removeEventListener("appInterfacesUpdated", checkRole);
+    };
   }, []);
+
+  const handleEditSocialLinks = async () => {
+    const permitted = await checkEditPermission();
+    if (!permitted) {
+      Swal.fire({
+        title: "Permiso Denegado",
+        text: "No cumples con el nivel de permiso o rol configurado en Gestión de Interfaces para editar este contenido.",
+        icon: "error",
+        background: "#0b0f19",
+        color: "#ffffff",
+        confirmButtonColor: "#d0182b"
+      });
+      return;
+    }
+
+    const fbDefault = texts['contacto_social_facebook'] || "https://facebook.com/UleamEc";
+    const twDefault = texts['contacto_social_twitter'] || "https://twitter.com/UleamEc";
+    const ytDefault = texts['contacto_social_youtube'] || "https://youtube.com";
+    const ghDefault = texts['contacto_social_github'] || "https://github.com";
+
+    const { value: formValues } = await Swal.fire({
+      title: 'Editar Enlaces de Redes Sociales',
+      html: `
+        <div style="text-align: left; font-size: 0.9rem;">
+          <label style="display:block; margin-bottom:4px; font-weight:600; color:#cbd5e1;">Facebook URL:</label>
+          <input id="swal-input-fb" class="swal2-input" style="width:100%; margin:0 0 12px 0; box-sizing:border-box;" value="${fbDefault}" placeholder="https://facebook.com/..." />
+          
+          <label style="display:block; margin-bottom:4px; font-weight:600; color:#cbd5e1;">X (Twitter) URL:</label>
+          <input id="swal-input-tw" class="swal2-input" style="width:100%; margin:0 0 12px 0; box-sizing:border-box;" value="${twDefault}" placeholder="https://twitter.com/..." />
+
+          <label style="display:block; margin-bottom:4px; font-weight:600; color:#cbd5e1;">YouTube URL:</label>
+          <input id="swal-input-yt" class="swal2-input" style="width:100%; margin:0 0 12px 0; box-sizing:border-box;" value="${ytDefault}" placeholder="https://youtube.com/..." />
+
+          <label style="display:block; margin-bottom:4px; font-weight:600; color:#cbd5e1;">GitHub URL:</label>
+          <input id="swal-input-gh" class="swal2-input" style="width:100%; margin:0 0 12px 0; box-sizing:border-box;" value="${ghDefault}" placeholder="https://github.com/..." />
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Guardar Enlaces',
+      cancelButtonText: 'Cancelar',
+      background: '#0b0f19',
+      color: '#ffffff',
+      confirmButtonColor: '#d0182b',
+      cancelButtonColor: '#475569',
+      preConfirm: () => {
+        return {
+          facebook: document.getElementById('swal-input-fb').value.trim(),
+          twitter: document.getElementById('swal-input-tw').value.trim(),
+          youtube: document.getElementById('swal-input-yt').value.trim(),
+          github: document.getElementById('swal-input-gh').value.trim()
+        };
+      }
+    });
+
+    if (formValues) {
+      try {
+        await Promise.all([
+          updateText('contacto_social_facebook', formValues.facebook),
+          updateText('contacto_social_twitter', formValues.twitter),
+          updateText('contacto_social_youtube', formValues.youtube),
+          updateText('contacto_social_github', formValues.github)
+        ]);
+        Swal.fire({
+          title: '¡Enlaces Guardados!',
+          text: 'Los enlaces de las redes sociales han sido actualizados en la base de datos.',
+          icon: 'success',
+          background: '#0b0f19',
+          color: '#ffffff',
+          confirmButtonColor: '#d0182b'
+        });
+      } catch (err) {
+        Swal.fire({
+          title: 'Error',
+          text: 'No se pudieron guardar los enlaces.',
+          icon: 'error',
+          background: '#0b0f19',
+          color: '#ffffff',
+          confirmButtonColor: '#d0182b'
+        });
+      }
+    }
+  };
 
   // ── ESTADO DEL FORMULARIO ──
   const [formData, setFormData] = useState({
@@ -238,11 +347,20 @@ export default function Contacto() {
 
   return (
     <div className="contact-page">
-      {/* ── HERO BANNER CON IMAGEN DE FONDO IOT.png ── */}
-      <section 
-        className="contact-hero" 
-        style={{ backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.72), rgba(15, 23, 42, 0.88)), url(${IotBgImg})` }}
-      >
+      {/* ── HERO BANNER CON IMAGEN DE FONDO EDITABLE CON RECORTE ── */}
+      <section className="contact-hero">
+        <EditableImage
+          imageKey="contacto_hero_bg"
+          defaultSrc={IotBgImg}
+          alt="Fondo Sección Contacto"
+          recommendedWidth={1920}
+          recommendedHeight={600}
+          aspectRatio={1920 / 600}
+          hint="Imagen de fondo principal de la sección Héroe en la página de Contacto."
+          wrapperClassName="contact-hero-bg-wrapper"
+          className="contact-hero-bg-img"
+        />
+        <div className="contact-hero-bg-overlay" />
         <div className="contact-hero-overlay" />
         <div className="contact-hero-grid" />
         <div className="contact-hero-container" style={{ textAlign: "center" }}>
@@ -264,7 +382,7 @@ export default function Contacto() {
                     <div className="info-icon-box"><MailIcon /></div>
                     <div>
                       <h3><EditableText textKey="contacto_correo_titulo" defaultText="Correo Institucional" /></h3>
-                      <p className="info-detail">dit@uleam.edu.ec</p>
+                      <p className="info-detail"><EditableText textKey="contacto_correo_detalle" defaultText="dit@uleam.edu.ec" /></p>
                       <p className="info-sub"><EditableText textKey="contacto_correo_sub" defaultText="Consultas técnicas e investigación" /></p>
                     </div>
                   </div>
@@ -273,7 +391,7 @@ export default function Contacto() {
                     <div className="info-icon-box"><PhoneIcon /></div>
                     <div>
                       <h3><EditableText textKey="contacto_telefono_titulo" defaultText="Teléfono / Extensión" /></h3>
-                      <p className="info-detail">+593 (5) 2623-026</p>
+                      <p className="info-detail"><EditableText textKey="contacto_telefono_detalle" defaultText="+593 (5) 2623-026" /></p>
                       <p className="info-sub"><EditableText textKey="contacto_telefono_sub" defaultText="Ext. 2400 (Soporte DIT - Telecomunicaciones)" /></p>
                     </div>
                   </div>
@@ -282,7 +400,7 @@ export default function Contacto() {
                     <div className="info-icon-box"><MapPinIcon /></div>
                     <div>
                       <h3><EditableText textKey="contacto_ubicacion_titulo" defaultText="Ubicación Física" /></h3>
-                      <p className="info-detail">Av. Circunvalación, Manta - Ecuador</p>
+                      <p className="info-detail"><EditableText textKey="contacto_ubicacion_detalle" defaultText="Av. Circunvalación, Manta - Ecuador" /></p>
                       <p className="info-sub"><EditableText textKey="contacto_ubicacion_sub" defaultText="Edificio de Innovación y Tecnología (Planta Baja)" /></p>
                     </div>
                   </div>
@@ -290,24 +408,59 @@ export default function Contacto() {
 
                 {/* GRILA DE REDES SOCIALES: SOLO EL LOGO */}
                 <div className="social-networks-section">
-                  <h3><EditableText textKey="contacto_social_titulo" defaultText="Redes Sociales y Comunidad" /></h3>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                    <h3 style={{ margin: 0 }}><EditableText textKey="contacto_social_titulo" defaultText="Redes Sociales y Comunidad" /></h3>
+                    {editMode && hasPermission && (
+                      <button
+                        type="button"
+                        onClick={handleEditSocialLinks}
+                        className="btn-edit-social-links"
+                        title="Editar enlaces de redes sociales"
+                        style={{
+                          background: 'rgba(239, 68, 68, 0.12)',
+                          border: '1px solid rgba(239, 68, 68, 0.35)',
+                          color: '#ef4444',
+                          borderRadius: '6px',
+                          padding: '4px 10px',
+                          fontSize: '0.82rem',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontWeight: 600,
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <PencilIcon /> Editar Links
+                      </button>
+                    )}
+                  </div>
                   <p className="social-networks-desc">
                     <EditableText textKey="contacto_social_desc" defaultText="Sigue los canales oficiales del ecosistema de Internet de las Cosas." isTextArea={true} />
                   </p>
-                  <div className="social-only-icons-row">
-                    <a href="https://facebook.com/UleamEc" target="_blank" rel="noopener noreferrer" className="social-icon-circle facebook" title="Facebook">
-                      <FacebookIcon />
-                    </a>
-                    <a href="https://twitter.com/UleamEc" target="_blank" rel="noopener noreferrer" className="social-icon-circle twitter" title="X (Twitter)">
-                      <TwitterIcon />
-                    </a>
-                    <a href="https://youtube.com" target="_blank" rel="noopener noreferrer" className="social-icon-circle youtube" title="YouTube">
-                      <YoutubeIcon />
-                    </a>
-                    <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="social-icon-circle github" title="GitHub">
-                      <GithubIcon />
-                    </a>
-                  </div>
+                  {loading ? (
+                    <div className="social-only-icons-row" style={{ gap: '12px', marginTop: '14px' }}>
+                      <span className="editable-text-skeleton" style={{ width: '42px', height: '42px', borderRadius: '50%', display: 'inline-block' }} />
+                      <span className="editable-text-skeleton" style={{ width: '42px', height: '42px', borderRadius: '50%', display: 'inline-block' }} />
+                      <span className="editable-text-skeleton" style={{ width: '42px', height: '42px', borderRadius: '50%', display: 'inline-block' }} />
+                      <span className="editable-text-skeleton" style={{ width: '42px', height: '42px', borderRadius: '50%', display: 'inline-block' }} />
+                    </div>
+                  ) : (
+                    <div className="social-only-icons-row">
+                      <a href={texts['contacto_social_facebook'] || "https://facebook.com/UleamEc"} target="_blank" rel="noopener noreferrer" className="social-icon-circle facebook" title="Facebook">
+                        <FacebookIcon />
+                      </a>
+                      <a href={texts['contacto_social_twitter'] || "https://twitter.com/UleamEc"} target="_blank" rel="noopener noreferrer" className="social-icon-circle twitter" title="X (Twitter)">
+                        <TwitterIcon />
+                      </a>
+                      <a href={texts['contacto_social_youtube'] || "https://youtube.com"} target="_blank" rel="noopener noreferrer" className="social-icon-circle youtube" title="YouTube">
+                        <YoutubeIcon />
+                      </a>
+                      <a href={texts['contacto_social_github'] || "https://github.com"} target="_blank" rel="noopener noreferrer" className="social-icon-circle github" title="GitHub">
+                        <GithubIcon />
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

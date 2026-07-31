@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../config/api';
+import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import '../../styles/components/admin/GestionarCategorias.css';
@@ -351,7 +351,7 @@ export default function GestionarCategorias() {
       return;
     }
     try {
-      const res = await fetch(`${API_BASE_URL}/categorias`, {
+      const res = await fetchWithAuth(`${API_BASE_URL}/categorias`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: newNombre.trim(), color: newColorHex, colorHex: newColorHex })
@@ -382,7 +382,7 @@ export default function GestionarCategorias() {
       return;
     }
     try {
-      const res = await fetch(`${API_BASE_URL}/categorias/${editId}`, {
+      const res = await fetchWithAuth(`${API_BASE_URL}/categorias/${editId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: editNombre.trim(), color: editColorHex, colorHex: editColorHex })
@@ -414,7 +414,7 @@ export default function GestionarCategorias() {
     }).then(async (result) => {
       if (!result.isConfirmed) return;
       try {
-        const res = await fetch(`${API_BASE_URL}/categorias/${id}`, { method: 'DELETE' });
+        const res = await fetchWithAuth(`${API_BASE_URL}/categorias/${id}`, { method: 'DELETE' });
         if (res.ok) {
           if (editId === id) cancelEdit();
           fetchCategorias();

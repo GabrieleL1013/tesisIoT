@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../config/api';
+import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import '../../styles/components/admin/GestionarArticulos.css';
@@ -227,7 +227,7 @@ export default function GestionarArticulos() {
 
     const method = editandoId ? 'PUT' : 'POST';
 
-    fetch(endpoint, {
+    fetchWithAuth(endpoint, {
       method: method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -254,8 +254,8 @@ export default function GestionarArticulos() {
         console.error("Error saving article:", err);
         Swal.fire({
           icon: 'error',
-          title: 'Error al Guardar',
-          text: 'Ocurrió un error en el servidor al intentar procesar la solicitud.',
+          title: 'Error de Red',
+          text: 'No se pudo guardar el artículo científico en la base de datos.',
           confirmButtonColor: '#2563eb'
         });
       });
@@ -263,9 +263,9 @@ export default function GestionarArticulos() {
 
   const cargarEdicion = (art) => {
     setEditandoId(art.id);
-    setTipoRegistro(art.tipo_registro || 'Completo');
-    setTitulo(art.titulo || '');
-    setAutores(art.autores || '');
+    setTipoRegistro(art.tipo_registro || (art.resumen ? 'Completo' : 'PDF'));
+    setTitulo(art.titulo);
+    setAutores(art.autores);
     setRevista(art.revista || '');
     setResumen(art.resumen || '');
     setPalabrasClave(art.palabras_clave || '');
@@ -307,7 +307,7 @@ export default function GestionarArticulos() {
       cancelButtonText: 'Cancelar'
     }).then((result) => {
       if (result.isConfirmed) {
-        fetch(`${API_BASE_URL}/articulos/${id}`, {
+        fetchWithAuth(`${API_BASE_URL}/articulos/${id}`, {
           method: 'DELETE'
         })
           .then(res => {

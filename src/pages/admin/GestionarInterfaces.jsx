@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../config/api';
+import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import '../../styles/components/admin/GestionarUsuarios.css';
@@ -144,10 +144,10 @@ export default function GestionarInterfaces() {
 
   const cargarInterfaces = () => {
     setLoading(true);
-    fetch(`${API_BASE_URL}/interfaces`)
+    fetchWithAuth(`${API_BASE_URL}/interfaces`)
       .then(res => res.json())
       .then(data => {
-        setInterfaces(data);
+        setInterfaces(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch(err => {
@@ -157,9 +157,9 @@ export default function GestionarInterfaces() {
   };
 
   const cargarRoles = () => {
-    fetch(`${API_BASE_URL}/roles`)
+    fetchWithAuth(`${API_BASE_URL}/roles`)
       .then(res => res.json())
-      .then(data => setRoles(data))
+      .then(data => setRoles(Array.isArray(data) ? data : []))
       .catch(err => console.error("Error fetching roles:", err));
   };
 
@@ -236,11 +236,10 @@ export default function GestionarInterfaces() {
       allowed_roles: finalRoleIds
     };
 
-    fetch(`${API_BASE_URL}/interfaces/${editandoId}`, {
+    fetchWithAuth(`${API_BASE_URL}/interfaces/${editandoId}`, {
       method: 'PUT',
       headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(payload)
     })

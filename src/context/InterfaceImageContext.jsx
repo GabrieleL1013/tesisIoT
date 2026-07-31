@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../config/api";
+import { API_BASE_URL, fetchWithAuth } from "../config/api";
 import { createContext, useState, useContext, useEffect } from "react";
 
 const InterfaceImageContext = createContext();
@@ -41,11 +41,10 @@ export function InterfaceImageProvider({ children }) {
 
   // Upload or update an interface image
   const updateImage = async (key, imageData, mimeType = "image/jpeg") => {
-    const response = await fetch(`${API_BASE_URL}/interface-images`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/interface-images`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({ key, image_data: imageData, mime_type: mimeType }),
     });
@@ -68,9 +67,8 @@ export function InterfaceImageProvider({ children }) {
 
   // Delete an interface image
   const deleteImage = async (key) => {
-    const response = await fetch(`${API_BASE_URL}/interface-images/${encodeURIComponent(key)}`, {
-      method: "DELETE",
-      headers: { "Accept": "application/json" },
+    const response = await fetchWithAuth(`${API_BASE_URL}/interface-images/${encodeURIComponent(key)}`, {
+      method: "DELETE"
     });
 
     if (!response.ok) {

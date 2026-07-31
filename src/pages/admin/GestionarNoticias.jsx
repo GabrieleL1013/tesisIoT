@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../config/api';
+import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import '../../styles/components/admin/GestionarNoticias.css';
@@ -202,7 +202,7 @@ export default function GestionarNoticias() {
 
     const method = editandoId ? 'PUT' : 'POST';
 
-    fetch(endpoint, {
+    fetchWithAuth(endpoint, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -261,7 +261,7 @@ export default function GestionarNoticias() {
       cancelButtonText: 'Cancelar'
     }).then((result) => {
       if (result.isConfirmed) {
-        fetch(`${API_BASE_URL}/noticias/${id}`, { method: 'DELETE' })
+        fetchWithAuth(`${API_BASE_URL}/noticias/${id}`, { method: 'DELETE' })
           .then(res => { if (!res.ok) throw new Error("Server error"); return res.json(); })
           .then(() => {
             Swal.fire({ icon: 'success', title: 'Eliminado', text: 'Artículo eliminado correctamente.', confirmButtonColor: '#0f2c59' });

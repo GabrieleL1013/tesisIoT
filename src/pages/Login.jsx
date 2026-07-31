@@ -85,43 +85,10 @@ export default function Login() {
       if (response.ok && data.success) {
         localStorage.setItem('iot_token_seguro', data.access_token);
         localStorage.setItem('iot_sesion_activa', JSON.stringify(data.user));
-        
+
         Swal.fire({
           title: '¡Acceso Concedido!',
           text: `Bienvenido al Panel, ${data.user.name}`,
-          icon: 'success',
-          background: '#0b0f19',
-          color: '#ffffff',
-          confirmButtonColor: '#d0182b',
-          timer: 1600,
-          timerProgressBar: true,
-          showConfirmButton: false
-        }).then(() => {
-          if (login) {
-            login(email, password); 
-          }
-          navigate('/admin/nodos');
-          window.location.reload(); 
-        });
-      } else {
-        Swal.fire({
-          title: 'Error de Acceso',
-          text: data.message || 'Credenciales inválidas.',
-          icon: 'error',
-          background: '#0b0f19',
-          color: '#ffffff',
-          confirmButtonColor: '#d0182b'
-        });
-      }
-    } catch (error) {
-      console.error('Error de conexión con la API:', error);
-      // Fallback for prototype testing if backend Laravel is serving offline or credentials seed:
-      if (email === "admin@uleam.edu.ec" && password === "uleamiot2026") {
-        localStorage.setItem('iot_sesion_activa', JSON.stringify({ username: 'admin', rol: 'Superusuario' }));
-        
-        Swal.fire({
-          title: '¡Acceso Concedido!',
-          text: 'Sesión iniciada con éxito (Prototipo Local)',
           icon: 'success',
           background: '#0b0f19',
           color: '#ffffff',
@@ -138,14 +105,24 @@ export default function Login() {
         });
       } else {
         Swal.fire({
-          title: 'Error de Conexión',
-          text: 'No se pudo establecer conexión con el servidor. (Usa admin@uleam.edu.ec / uleamiot2026 para prototipo local)',
+          title: 'Error de Acceso',
+          text: data.message || 'Credenciales inválidas.',
           icon: 'error',
           background: '#0b0f19',
           color: '#ffffff',
           confirmButtonColor: '#d0182b'
         });
       }
+    } catch (error) {
+      console.error('Error de conexión con la API:', error);
+      Swal.fire({
+        title: 'Error de Conexión',
+        text: 'No se pudo establecer conexión con el servidor. Por favor, verifica tu conexión a internet o intenta más tarde.',
+        icon: 'error',
+        background: '#0b0f19',
+        color: '#ffffff',
+        confirmButtonColor: '#d0182b'
+      });
     } finally {
       setLoading(false);
     }

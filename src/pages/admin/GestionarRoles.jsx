@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../config/api';
+import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import '../../styles/components/admin/GestionarUsuarios.css';
@@ -380,10 +380,10 @@ export default function GestionarRoles() {
 
   const cargarRoles = () => {
     setLoading(true);
-    fetch(`${API_BASE_URL}/roles`)
+    fetchWithAuth(`${API_BASE_URL}/roles`)
       .then(res => res.json())
       .then(data => {
-        setRoles(data);
+        setRoles(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch(err => {
@@ -455,11 +455,10 @@ export default function GestionarRoles() {
 
     const method = editandoId ? 'PUT' : 'POST';
 
-    fetch(endpoint, {
+    fetchWithAuth(endpoint, {
       method: method,
       headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(payload)
     })
@@ -526,9 +525,8 @@ export default function GestionarRoles() {
       color: '#ffffff'
     }).then((result) => {
       if (result.isConfirmed) {
-        fetch(`${API_BASE_URL}/roles/${id}`, {
-          method: 'DELETE',
-          headers: { 'Accept': 'application/json' }
+        fetchWithAuth(`${API_BASE_URL}/roles/${id}`, {
+          method: 'DELETE'
         })
           .then(async res => {
             const data = await res.json();

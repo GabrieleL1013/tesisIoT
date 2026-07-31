@@ -1,5 +1,5 @@
-import { API_BASE_URL } from '../../config/api';
-import React, { useState, useEffect } from 'react';
+import { API_BASE_URL, fetchWithAuth } from '../../config/api';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import '../../styles/components/admin/RegistrarNodo.css';
@@ -635,7 +635,7 @@ export default function RegistrarNodo() {
 
     if (editandoId) {
       const cambiosHtml = obtenerCambiosDetallados();
-      
+
       if (!cambiosHtml) {
         Swal.fire({
           icon: 'info',
@@ -658,7 +658,7 @@ export default function RegistrarNodo() {
       }).then((result) => {
         if (result.isConfirmed) {
           // API UPDATE NODE (PUT)
-          fetch(`${API_BASE_URL}/nodos/${editandoId}`, {
+          fetchWithAuth(`${API_BASE_URL}/nodos/${editandoId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -696,7 +696,7 @@ export default function RegistrarNodo() {
 
     } else {
       // API CREATE NODE (POST)
-      fetch(`${API_BASE_URL}/nodos`, {
+      fetchWithAuth(`${API_BASE_URL}/nodos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -708,10 +708,10 @@ export default function RegistrarNodo() {
         .then(newNode => {
           const list = [...nodosRegistrados, newNode];
           setNodosRegistrados(list);
-          
+
           setVerifyingNodeId(newNode.id);
           iniciarVerificacionConexion(newNode.id, newNode.nombre);
-          
+
           limpiarFormulario();
           setMostrarFormulario(false);
         })
@@ -756,7 +756,7 @@ export default function RegistrarNodo() {
     setIsSimulated(nodo.is_simulated || false);
     setSaveFrequency(nodo.save_frequency?.toString() || '30');
     setInstabilityAlertInterval(nodo.instability_alert_interval?.toString() || '300');
-    
+
     setInitialState({
       nombreNodo: nodo.nombre,
       serialNumber: nodo.serial_number,
@@ -792,7 +792,7 @@ export default function RegistrarNodo() {
     }).then((result) => {
       if (result.isConfirmed) {
         // API DELETE
-        fetch(`${API_BASE_URL}/nodos/${id}`, { method: 'DELETE' })
+        fetchWithAuth(`${API_BASE_URL}/nodos/${id}`, { method: 'DELETE' })
           .then(() => {
             const listaActualizada = nodosRegistrados.filter(nodo => nodo.id !== id);
             setNodosRegistrados(listaActualizada);
@@ -841,7 +841,7 @@ export default function RegistrarNodo() {
   const obtenerCambiosDetallados = () => {
     if (!initialState) return '';
     const cambios = [];
-    
+
     if (nombreNodo !== initialState.nombreNodo) cambios.push(`<b>Nombre:</b> ${initialState.nombreNodo || '(vacío)'} &rarr; ${nombreNodo}`);
     if (serialNumber !== initialState.serialNumber) cambios.push(`<b>Serial:</b> ${initialState.serialNumber || '(vacío)'} &rarr; ${serialNumber}`);
     if (String(ubicacionId) !== String(initialState.ubicacionId)) {
@@ -850,19 +850,19 @@ export default function RegistrarNodo() {
       cambios.push(`<b>Ubicación:</b> ${ubiAntes} &rarr; ${ubiDespues}`);
     }
     if (categoria !== initialState.categoria) cambios.push(`<b>Categoría:</b> ${initialState.categoria || '(vacío)'} &rarr; ${categoria}`);
-    
+
     if (broker !== initialState.broker) cambios.push(`<b>Broker:</b> ${initialState.broker} &rarr; ${broker}`);
     if (String(port) !== String(initialState.port)) cambios.push(`<b>Puerto:</b> ${initialState.port} &rarr; ${port}`);
     if (topicData !== initialState.topicData) cambios.push(`<b>Topic MQTT:</b> ${initialState.topicData} &rarr; ${topicData}`);
     if (clientId !== initialState.clientId) cambios.push(`<b>Client ID:</b> ${initialState.clientId || '(automático)'} &rarr; ${clientId || '(automático)'}`);
     if (username !== initialState.username) cambios.push(`<b>Usuario MQTT:</b> ${initialState.username || '(vacío)'} &rarr; ${username || '(vacío)'}`);
     if (password !== initialState.password) cambios.push(`<b>Clave MQTT:</b> ${(initialState.password ? '****' : '(vacío)')} &rarr; ${(password ? '****' : '(vacío)')}`);
-    
+
     if (useMqttV5 !== initialState.useMqttV5) cambios.push(`<b>MQTT v5:</b> ${initialState.useMqttV5 ? 'Sí' : 'No'} &rarr; ${useMqttV5 ? 'Sí' : 'No'}`);
     if (isSimulated !== initialState.isSimulated) cambios.push(`<b>Simulado:</b> ${initialState.isSimulated ? 'Sí' : 'No'} &rarr; ${isSimulated ? 'Sí' : 'No'}`);
     if (saveFrequency !== initialState.saveFrequency) cambios.push(`<b>Frec. Guardado:</b> ${initialState.saveFrequency}s &rarr; ${saveFrequency}s`);
     if (instabilityAlertInterval !== initialState.instabilityAlertInterval) cambios.push(`<b>Frec. Alerta:</b> ${initialState.instabilityAlertInterval}s &rarr; ${instabilityAlertInterval}s`);
-    
+
     if (JSON.stringify(lecturas) !== JSON.stringify(initialState.lecturas)) {
       cambios.push(`<b>Métricas:</b> Fueron modificadas (${initialState.lecturas.length} subvariables &rarr; ${lecturas.length} subvariables)`);
     }
@@ -880,7 +880,7 @@ export default function RegistrarNodo() {
     let tieneCambios = false;
     if (editandoId !== null && initialState) {
       const isLecturasSame = JSON.stringify(lecturas) === JSON.stringify(initialState.lecturas);
-      tieneCambios = 
+      tieneCambios =
         nombreNodo !== initialState.nombreNodo ||
         serialNumber !== initialState.serialNumber ||
         String(ubicacionId) !== String(initialState.ubicacionId) ||
@@ -964,7 +964,7 @@ export default function RegistrarNodo() {
 
     let timeLeft = 60;
     let lastKnownTime = new Date().getTime(); // Fallback
-    
+
     // Obtenemos el timestamp exacto que tiene la BD en este momento
     fetch(`${API_BASE_URL}/lecturas/ultimas?node_id=${nodeId}`)
       .then(res => res.json())
@@ -973,7 +973,7 @@ export default function RegistrarNodo() {
           lastKnownTime = new Date(data[0].fecha).getTime();
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     const timerInterval = setInterval(() => {
       timeLeft -= 1;
@@ -983,7 +983,7 @@ export default function RegistrarNodo() {
         clearInterval(pollInterval);
         setTerminalStatus('failed');
         setTerminalLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ❌ Tiempo agotado. No se recibieron datos. El nodo quedará inactivo.`]);
-        
+
         fetch(`${API_BASE_URL}/nodos/${nodeId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -1001,13 +1001,13 @@ export default function RegistrarNodo() {
           if (Array.isArray(data) && data.length > 0) {
             const hasData = data.some(d => d.valor !== null);
             const readingTime = data[0].fecha ? new Date(data[0].fecha).getTime() : 0;
-            
+
             // Verificamos que el tiempo del dato sea ESTRICTAMENTE MAYOR al que había cuando empezamos
             if (hasData && readingTime > lastKnownTime) {
               clearInterval(timerInterval);
               clearInterval(pollInterval);
               setTerminalStatus('success');
-              
+
               // Reconstruir un objeto de payload bonito con TODAS las variables
               const payloadReconstruido = data.reduce((acc, curr) => {
                 if (curr.valor !== null) {
@@ -1017,7 +1017,7 @@ export default function RegistrarNodo() {
               }, {});
 
               setTerminalLogs(prev => [
-                ...prev, 
+                ...prev,
                 `[${new Date().toLocaleTimeString()}] ✅ ¡Datos nuevos recibidos exitosamente!`,
                 `Payload recibido: ${JSON.stringify(payloadReconstruido)}`
               ]);
@@ -1119,7 +1119,7 @@ export default function RegistrarNodo() {
               <div className="ubi-dropdown-container custom-dropdown-container">
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <div style={{ flex: 1, position: 'relative' }}>
-                    <div 
+                    <div
                       className={`custom-dropdown-input ${isUbiDropdownOpen ? 'active' : ''} ${!ubicacionId ? 'empty' : ''}`}
                       onClick={() => setIsUbiDropdownOpen(!isUbiDropdownOpen)}
                     >
@@ -1136,7 +1136,7 @@ export default function RegistrarNodo() {
                     {isUbiDropdownOpen && (
                       <div className="custom-dropdown-menu">
                         {ubicaciones.map((u) => (
-                          <div 
+                          <div
                             key={u.id}
                             className={`custom-dropdown-item ${ubicacionId == u.id ? 'selected' : ''}`}
                             onClick={() => { setUbicacionId(u.id); setIsUbiDropdownOpen(false); }}
@@ -1163,7 +1163,7 @@ export default function RegistrarNodo() {
               <div className="cat-dropdown-container custom-dropdown-container">
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <div style={{ flex: 1, position: 'relative' }}>
-                    <div 
+                    <div
                       className={`custom-dropdown-input ${isCatDropdownOpen ? 'active' : ''} ${!categoria ? 'empty' : ''}`}
                       onClick={() => setIsCatDropdownOpen(!isCatDropdownOpen)}
                     >
@@ -1180,7 +1180,7 @@ export default function RegistrarNodo() {
                     {isCatDropdownOpen && (
                       <div className="custom-dropdown-menu">
                         {categorias.map((c) => (
-                          <div 
+                          <div
                             key={c.id}
                             className={`custom-dropdown-item ${categoria == c.nombre ? 'selected' : ''}`}
                             onClick={() => { setCategoria(c.nombre); setIsCatDropdownOpen(false); }}
@@ -1206,7 +1206,7 @@ export default function RegistrarNodo() {
               </div>
               <div className="frec-dropdown-container custom-dropdown-container">
                 <div style={{ position: 'relative' }}>
-                  <div 
+                  <div
                     className={`custom-dropdown-input ${isFrecDropdownOpen ? 'active' : ''}`}
                     onClick={() => setIsFrecDropdownOpen(!isFrecDropdownOpen)}
                   >
@@ -1240,8 +1240,8 @@ export default function RegistrarNodo() {
                           { v: '120', l: 'Cada 2 min' },
                           { v: '300', l: 'Cada 5 min' }
                         ].map(opt => (
-                          <button 
-                            key={opt.v} 
+                          <button
+                            key={opt.v}
                             type="button"
                             className={`frec-btn ${saveFrequency === opt.v ? 'selected' : ''}`}
                             onClick={() => { setSaveFrequency(opt.v); setIsFrecDropdownOpen(false); }}
@@ -1257,7 +1257,7 @@ export default function RegistrarNodo() {
 
               <div className="frec-dropdown-container custom-dropdown-container">
                 <div style={{ position: 'relative' }}>
-                  <div 
+                  <div
                     className={`custom-dropdown-input ${isAlertIntervalDropdownOpen ? 'active' : ''}`}
                     onClick={() => setIsAlertIntervalDropdownOpen(!isAlertIntervalDropdownOpen)}
                   >
@@ -1297,8 +1297,8 @@ export default function RegistrarNodo() {
                           { v: '1800', l: '30 min' },
                           { v: '3600', l: '1 hora' }
                         ].map(opt => (
-                          <button 
-                            key={opt.v} 
+                          <button
+                            key={opt.v}
                             type="button"
                             className={`frec-btn ${instabilityAlertInterval === opt.v ? 'selected' : ''}`}
                             onClick={() => { setInstabilityAlertInterval(opt.v); setIsAlertIntervalDropdownOpen(false); }}
@@ -1322,10 +1322,10 @@ export default function RegistrarNodo() {
             <div className="iot-section-box space-y-4">
               <div className="simulated-checkbox-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '1.25rem', padding: '1rem', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <input 
-                    type="checkbox" 
-                    id="is_simulated" 
-                    checked={isSimulated} 
+                  <input
+                    type="checkbox"
+                    id="is_simulated"
+                    checked={isSimulated}
                     onChange={(e) => setIsSimulated(e.target.checked)}
                     style={{ width: '1.25rem', height: '1.25rem', accentColor: '#2563eb', cursor: 'pointer', margin: 0 }}
                   />
@@ -1402,12 +1402,12 @@ export default function RegistrarNodo() {
                   />
                 </div>
               </div>
-              
+
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '1rem', padding: '12px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   id="use_mqtt_v5"
-                  checked={useMqttV5} 
+                  checked={useMqttV5}
                   onChange={(e) => setUseMqttV5(e.target.checked)}
                   style={{ width: '1.2rem', height: '1.2rem', accentColor: '#0f172a', cursor: 'pointer' }}
                 />
@@ -2044,9 +2044,9 @@ export default function RegistrarNodo() {
                     <span className="node-fullscreen-index-value" style={{ color: status.color }}>
                       {status.value}
                     </span>
-                    <span 
-                      className="node-fullscreen-index-badge" 
-                      style={{ 
+                    <span
+                      className="node-fullscreen-index-badge"
+                      style={{
                         backgroundColor: status.color,
                         display: 'inline-flex',
                         alignItems: 'center',
