@@ -5,9 +5,11 @@
   box-sizing: border-box;
 }
 
-body, html {
+body,
+html {
   width: 100%;
-  overflow-x: hidden; /* Evita que aparezca una barra de desplazamiento horizontal innecesaria */
+  overflow-x: hidden;
+  /* Evita que aparezca una barra de desplazamiento horizontal innecesaria */
 }
 
 /* Estilos para textos editables */
@@ -57,11 +59,104 @@ body, html {
   right: -36px;
 }
 
+/* ── MODAL EDITABLE TEXT - FLOATING TRANSLATION CHECKBOX ── */
+.swal-editable-text-popup {
+  overflow: visible !important;
+  position: relative !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6) !important;
+}
+
+.swal-floating-translate-card {
+  position: absolute;
+  top: -46px;
+  right: 16px;
+  background: #0f172a;
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 14px rgba(37, 99, 235, 0.25);
+  border-radius: 20px;
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 10000;
+  backdrop-filter: blur(12px);
+  transition: all 0.25s ease-in-out;
+}
+
+.swal-floating-translate-card:hover {
+  border-color: rgba(59, 130, 246, 0.85);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.6), 0 0 18px rgba(37, 99, 235, 0.4);
+  transform: translateY(-1px);
+}
+
+.swal-floating-translate-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #e2e8f0;
+  margin: 0;
+}
+
+.swal-custom-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #3b82f6;
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+  position: relative;
+  background-color: rgba(15, 23, 42, 0.9);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.swal-custom-checkbox:checked {
+  background-color: #2563eb;
+  border-color: #60a5fa;
+}
+
+.swal-custom-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.swal-checkbox-text {
+  color: #f1f5f9;
+  white-space: nowrap;
+}
+
+@media (max-width: 540px) {
+  .swal-floating-translate-card {
+    top: -42px;
+    right: 50%;
+    transform: translateX(50%);
+  }
+  .swal-floating-translate-card:hover {
+    transform: translateX(50%) translateY(-1px);
+  }
+}
+
 /* ── SKELETON LOADER ANIMATIONS ── */
 @keyframes skeletonShimmer {
   0% {
     background-position: -200% 0;
   }
+
   100% {
     background-position: 200% 0;
   }
@@ -92,4 +187,283 @@ body, html {
 /* SweetAlert2: asegurar que siempre aparezca por encima de modales, croppers y overlays */
 .swal2-container {
   z-index: 999999 !important;
+}
+
+/* 1. Ocultar el icono flotante de Google Translate en la izquierda */
+[class*="VIpgJd"],
+div[class*="VIpgJd"],
+span[class*="VIpgJd"],
+iframe[class*="VIpgJd"],
+iframe[src*="translate"],
+.VIpgJd-yD05fd-Lg4eAc-bN9bZe,
+.VIpgJd-yD05fd-Lg4eAc,
+.VIpgJd-ZT2dfd-aL92fe,
+.goog-te-gadget-icon,
+.goog-te-gadget-simple,
+#google_translate_element img,
+.goog-te-banner-frame,
+iframe.goog-te-banner-frame,
+.goog-te-balloon-frame,
+#goog-gt-tt,
+.goog-gt-tt,
+.goog-tooltip {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  top: -9999px !important;
+  left: -9999px !important;
+  z-index: -99999 !important;
+}
+
+/* 2. Forzar visibilidad 100% permanente sin destellos */
+font,
+font *,
+font:hover,
+font:hover *,
+font:active,
+font:focus,
+.goog-text-highlight,
+.goog-text-highlight * {
+  display: inline !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: inherit !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  filter: none !important;
+  cursor: text !important;
+}
+
+/* Puntero de mano ("pointer") EXCLUSIVAMENTE para elementos que realizan acciones o clics */
+a font,
+a font *,
+button font,
+button font *,
+[role="button"] font,
+[role="button"] font *,
+[onclick] font,
+[onclick] font *,
+[style*="cursor: pointer"] font,
+[style*="cursor: pointer"] font *,
+[style*="cursor:pointer"] font,
+[style*="cursor:pointer"] font *,
+.admin-sidebar a font,
+.admin-sidebar a font *,
+.admin-sidebar button font,
+.admin-sidebar button font *,
+.admin-sidebar-item font,
+.admin-sidebar-item font *,
+.admin-nav-item font,
+.admin-nav-item font *,
+[class*="btn"] font,
+[class*="btn"] font *,
+[class*="button"] font,
+[class*="button"] font *,
+[class*="link"] font,
+[class*="link"] font *,
+[class*="action"] font,
+[class*="action"] font *,
+[class*="tab-btn"] font,
+[class*="tab-btn"] font *,
+[class*="menu-item"] font,
+[class*="menu-item"] font *,
+[class*="dropdown-item"] font,
+[class*="dropdown-item"] font *,
+[class*="pagination"] font,
+[class*="pagination"] font *,
+.public-reading-card font,
+.public-reading-card font *,
+.pub-art-card font,
+.pub-art-card font *,
+.pub-news-card font,
+.pub-news-card font * {
+  cursor: pointer !important;
+  pointer-events: none !important;
+}
+
+/* Puntero "I" de selección de texto para TODO el texto estático sin acción */
+font,
+font *,
+p font,
+p font *,
+h1 font,
+h1 font *,
+h2 font,
+h2 font *,
+h3 font,
+h3 font *,
+h4 font,
+h4 font *,
+h5 font,
+h5 font *,
+h6 font,
+h6 font *,
+span font,
+span font *,
+label font,
+label font *,
+td font,
+td font *,
+th font,
+th font *,
+div font,
+div font * {
+  cursor: text !important;
+  pointer-events: auto !important;
+}
+
+/* Re-asegurar mano de selección en elementos interactivos */
+a font,
+a font *,
+button font,
+button font *,
+[role="button"] font,
+[role="button"] font *,
+[style*="cursor: pointer"] font,
+[style*="cursor: pointer"] font *,
+[style*="cursor:pointer"] font,
+[style*="cursor:pointer"] font *,
+[class*="btn"] font,
+[class*="btn"] font *,
+[class*="button"] font,
+[class*="button"] font *,
+[class*="link"] font,
+[class*="link"] font *,
+[class*="action"] font,
+[class*="action"] font *,
+.public-reading-card font,
+.public-reading-card font *,
+.pub-art-card font,
+.pub-art-card font *,
+.pub-news-card font,
+.pub-news-card font * {
+  cursor: pointer !important;
+  pointer-events: none !important;
+}
+
+.pub-news-btn-back font,
+.pub-news-btn-back font *,
+.pub-art-btn-back font,
+.pub-art-btn-back font *,
+.pub-paper-btn-pdf font,
+.pub-paper-btn-pdf font * {
+  cursor: pointer !important;
+  pointer-events: none !important;
+}
+
+/* Protección estricta para que las unidades y números de telemetría (°C, ppm, %, hPa, V, A, kW, etc.) no sean alterados */
+[class*="unit"],
+[class*="unidad"],
+[class*="telemetry"],
+[class*="kpi-value"],
+[class*="reading"] {
+  translate: no !important;
+}
+
+font::selection,
+font *::selection {
+  background-color: #3b82f6 !important;
+  color: #ffffff !important;
+}
+
+body {
+  top: 0 !important;
+  position: static !important;
+}
+
+/* Cargador limpio fijado exactamente en el viewport libre entre Header (70px) y Sidebar (260px) */
+.admin-content-loader-overlay {
+  position: fixed !important;
+  top: 70px !important;
+  left: 260px !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: calc(100vw - 260px) !important;
+  height: calc(100vh - 70px) !important;
+  background: rgba(248, 250, 252, 0.96) !important;
+  backdrop-filter: blur(6px) !important;
+  z-index: 99999 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+@media (max-width: 992px) {
+  .admin-content-loader-overlay {
+    left: 0 !important;
+    width: 100vw !important;
+  }
+}
+
+.admin-content-loader-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.admin-loader-spinner {
+  width: 44px;
+  height: 44px;
+  border: 4px solid #e2e8f0;
+  border-top-color: #2563eb;
+  border-right-color: #2563eb;
+  border-radius: 50%;
+  animation: adminSpinner 0.75s linear infinite;
+}
+
+@keyframes adminSpinner {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.admin-loader-text {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #2563eb;
+  letter-spacing: 0.02em;
+}
+
+.admin-content-fade-wrapper.is-loading {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.admin-content-fade-wrapper.is-ready {
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+/* Suavizar la apertura de desplegables y modales para eliminar el destello en español */
+html[lang="en"] .nav-profile-dropdown-menu,
+html[lang="en"] .admin-notifications-dropdown,
+html[lang="en"] .nav-lang-dropdown,
+html[lang="en"] .admin-lang-dropdown,
+html[lang="en"] .pub-news-unified-panel,
+html[lang="en"] .select-panel {
+  animation: smoothDropdownFadeIn 0.1s ease-out;
+}
+
+@keyframes smoothDropdownFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }

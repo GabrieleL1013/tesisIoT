@@ -1,6 +1,7 @@
 import { API_BASE_URL } from "../config/api";
 import { useState, useEffect } from "react";
 import { useInterfaceText } from "../context/InterfaceTextContext";
+import { useLanguage } from "../context/LanguageContext";
 import { checkEditPermission } from "../utils/checkEditPermission";
 import Swal from "sweetalert2";
 
@@ -21,8 +22,10 @@ const PencilIcon = () => (
   </svg>
 );
 
-export default function EditableText({ textKey, defaultText, isTextArea = false, className = "", style = {}, block = false }) {
+export default function EditableText({ textKey, defaultText, isTextArea = false, className = "", style = {}, block = false, forcePath = null }) {
   const { texts, updateText, editMode, loading } = useInterfaceText();
+  const { language } = useLanguage();
+  const isEn = language === 'en';
   const [hasPermission, setHasPermission] = useState(false);
 
   // Leer sesión de localStorage y evaluar permisos RBAC para Modo Edición
@@ -44,7 +47,7 @@ export default function EditableText({ textKey, defaultText, isTextArea = false,
   if (loading) {
     if (isTextArea) {
       return (
-        <span 
+        <span
           className={`editable-text-skeleton-container ${className}`}
           style={{ display: 'block', width: '100%', margin: '4px 0', ...style }}
         >
@@ -55,12 +58,12 @@ export default function EditableText({ textKey, defaultText, isTextArea = false,
       );
     }
 
-    const calcWidth = defaultText 
-      ? `${Math.min(Math.max(defaultText.length * 8, 80), 400)}px` 
+    const calcWidth = defaultText
+      ? `${Math.min(Math.max(defaultText.length * 8, 80), 400)}px`
       : '120px';
 
     return (
-      <span 
+      <span
         className={`editable-text-skeleton ${className}`}
         style={{
           width: calcWidth,
@@ -81,46 +84,87 @@ export default function EditableText({ textKey, defaultText, isTextArea = false,
     e.preventDefault();
     e.stopPropagation();
 
-    const { value: newText } = await Swal.fire({
-      title: "Editar texto de la interfaz",
-      input: isTextArea ? "textarea" : "text",
-      inputValue: displayText,
-      inputLabel: `Clave: ${textKey}`,
+    // Escapar caracteres HTML para el valor inicial
+    const escapedValue = (displayText || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+
+    const { value: result } = await Swal.fire({
+      title: isEn ? "Edit Interface Text" : "Editar texto de la interfaz",
+      html: `
+        <div class="swal-floating-translate-card">
+          <label class="swal-floating-translate-label" for="swal-auto-translate-checkbox">
+            <input type="checkbox" id="swal-auto-translate-checkbox" class="swal-custom-checkbox" checked />
+            <span class="swal-checkbox-text">${isEn ? "Do you want to translate automatically?" : "¿Desea que se traduzca automáticamente?"}</span>
+          </label>
+        </div>
+        <div style="text-align: left; margin-bottom: 10px; font-size: 0.85rem; color: #94a3b8;">
+          <strong>${isEn ? "Key:" : "Clave:"}</strong> <code style="background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; color: #38bdf8; font-family: monospace;">${textKey}</code>
+        </div>
+        ${
+          isTextArea
+            ? `<textarea id="swal-input-text" class="swal2-textarea" style="width: 100%; margin: 0; min-height: 120px; background: #1e293b; color: #ffffff; border: 1px solid #334155; border-radius: 8px; padding: 12px; font-family: inherit; font-size: 0.95rem; resize: vertical; box-sizing: border-box;">${escapedValue}</textarea>`
+            : `<input id="swal-input-text" class="swal2-input" style="width: 100%; margin: 0; height: 44px; background: #1e293b; color: #ffffff; border: 1px solid #334155; border-radius: 8px; padding: 0 12px; font-family: inherit; font-size: 0.95rem; box-sizing: border-box;" value="${escapedValue}" />`
+        }
+      `,
       showCancelButton: true,
-      confirmButtonText: "Guardar",
-      cancelButtonText: "Cancelar",
+      confirmButtonText: isEn ? "Save" : "Guardar",
+      cancelButtonText: isEn ? "Cancel" : "Cancelar",
       background: "#0b0f19",
       color: "#ffffff",
       confirmButtonColor: "#2563eb",
       cancelButtonColor: "#475569",
-      inputValidator: (value) => {
-        if (!value || !value.trim()) {
-          return "El texto no puede estar vacío";
+      customClass: {
+        popup: "swal-editable-text-popup"
+      },
+      didOpen: () => {
+        const input = document.getElementById("swal-input-text");
+        if (input) {
+          input.focus();
+          if (typeof input.setSelectionRange === "function" && !isTextArea) {
+            const len = input.value.length;
+            input.setSelectionRange(len, len);
+          }
         }
       },
+      preConfirm: () => {
+        const inputEl = document.getElementById("swal-input-text");
+        const checkEl = document.getElementById("swal-auto-translate-checkbox");
+        const val = inputEl ? inputEl.value : "";
+        if (!val || !val.trim()) {
+          Swal.showValidationMessage(isEn ? "Text cannot be empty" : "El texto no puede estar vacío");
+          return false;
+        }
+        return {
+          newText: val.trim(),
+          autoTranslate: checkEl ? checkEl.checked : true
+        };
+      }
     });
 
-    if (newText !== undefined && newText !== displayText) {
+    if (result && result.newText !== undefined && (result.newText !== displayText || result.autoTranslate !== undefined)) {
       try {
-        await updateText(textKey, newText.trim());
+        await updateText(textKey, result.newText, forcePath, result.autoTranslate);
 
         Swal.fire({
           toast: true,
-          position: 'top-end',
+          position: "top-end",
           showConfirmButton: false,
           timer: 2500,
           timerProgressBar: true,
           icon: "success",
-          title: "Texto de interfaz actualizado"
+          title: isEn ? "Interface text updated" : "Texto de interfaz actualizado"
         });
       } catch (err) {
         Swal.fire({
           toast: true,
-          position: 'top-end',
+          position: "top-end",
           showConfirmButton: false,
           timer: 3000,
           icon: "error",
-          title: "Error al guardar el texto"
+          title: isEn ? "Error saving text" : "Error al guardar el texto"
         });
       }
     }
@@ -133,7 +177,7 @@ export default function EditableText({ textKey, defaultText, isTextArea = false,
         <button
           onClick={handleEditClick}
           className="edit-text-pencil-btn"
-          title={`Editar texto: ${textKey}`}
+          title={isEn ? `Edit text: ${textKey}` : `Editar texto: ${textKey}`}
           type="button"
         >
           <PencilIcon />

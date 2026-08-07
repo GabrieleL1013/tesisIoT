@@ -119,9 +119,13 @@
   background-color: #f8fafc;
 }
 
-/* No leído: Fondo sutilmente azul con barra roja lateral */
+/* No leído: Fondo azulado distinguible tipo Facebook con barra indicadora */
 .admin-notif-item.unread {
-  background-color: rgba(59, 130, 246, 0.03);
+  background-color: rgba(37, 99, 235, 0.07);
+}
+
+.admin-notif-item.unread:hover {
+  background-color: rgba(37, 99, 235, 0.12);
 }
 
 .admin-notif-item.unread::before {
@@ -131,7 +135,7 @@
   top: 0;
   bottom: 0;
   width: 4px;
-  background-color: #ef4444;
+  background-color: #2563eb;
 }
 
 .admin-notif-item-title {
@@ -173,11 +177,12 @@
 
 
 /* ── OVERLAY Y MODAL CENTRAL ── */
+/* ── OVERLAY Y MODAL CENTRAL DE DETALLE DE MENSAJE ── */
 .admin-msg-modal-overlay {
   position: fixed;
   inset: 0;
   background-color: rgba(15, 23, 42, 0.65);
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(6px);
   z-index: 10000;
   display: flex;
   align-items: center;
@@ -186,11 +191,12 @@
 }
 
 .admin-msg-modal-card {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   background-color: #ffffff;
   width: 100%;
-  max-width: 550px;
-  border-radius: 16px;
-  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+  max-width: 560px;
+  border-radius: 20px;
+  box-shadow: 0 25px 60px -15px rgba(15, 44, 89, 0.25);
   overflow: hidden;
   animation: modal-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   border: 1px solid #e2e8f0;
@@ -202,19 +208,23 @@
 }
 
 .modal-card-header {
-  padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid #e2e8f0;
+  padding: 1.25rem 1.75rem;
+  border-bottom: 1px solid #f1f5f9;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: #f8fafc;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
 }
 
 .modal-card-header h3 {
-  font-size: 1.1rem;
-  font-weight: 850;
-  color: #0f172a;
+  font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+  font-size: 1.12rem;
+  font-weight: 800;
+  color: #0f2c59;
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .modal-close-btn {
@@ -233,65 +243,130 @@
 }
 
 .modal-card-body {
-  padding: 1.8rem 1.5rem;
+  padding: 1.5rem 1.75rem;
   display: flex;
   flex-direction: column;
-  gap: 1.2rem;
+  gap: 1rem;
   text-align: left;
 }
 
-.modal-detail-row {
+.modal-sender-profile {
   display: flex;
-  border-bottom: 1px dashed #f1f5f9;
-  padding-bottom: 0.6rem;
+  align-items: center;
+  gap: 12px;
+  padding: 0.85rem 1rem;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  margin-bottom: 0.25rem;
 }
 
-.detail-label {
-  font-size: 0.8rem;
+.modal-sender-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  font-family: 'Outfit', sans-serif;
   font-weight: 800;
-  color: #94a3b8;
-  width: 140px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2);
   flex-shrink: 0;
 }
 
-.detail-value {
-  font-size: 0.92rem;
-  font-weight: 700;
-  color: #1e293b;
-}
-
-.detail-value.font-bold {
-  font-weight: 850;
-  color: #ef4444;
-}
-
-.modal-detail-message-box {
+.modal-sender-info {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  margin-top: 0.5rem;
 }
 
-.modal-message-text {
-  font-size: 0.92rem;
-  color: #475569;
-  line-height: 1.65;
-  background-color: #f8fafc;
-  padding: 1.2rem;
+.modal-sender-name {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f2c59;
+}
+
+.modal-sender-subtitle {
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.modal-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+@media (max-width: 520px) {
+  .modal-info-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.modal-info-card {
+  padding: 0.75rem 1rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.modal-info-card .info-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.modal-info-card .info-value {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #1e293b;
+  word-break: break-all;
+}
+
+.modal-message-box-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.modal-message-box-wrapper .box-label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.modal-message-content {
+  font-size: 0.9rem;
+  color: #334155;
+  line-height: 1.6;
+  background-color: #f8fafc;
+  padding: 1.1rem 1.25rem;
+  border-radius: 12px;
   border: 1px solid #e2e8f0;
   margin: 0;
-  min-height: 120px;
-  max-height: 220px;
+  min-height: 100px;
+  max-height: 200px;
   overflow-y: auto;
-  text-align: justify;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .modal-card-footer {
-  padding: 1.25rem 1.5rem;
-  border-top: 1px solid #e2e8f0;
+  padding: 1.25rem 1.75rem;
+  border-top: 1px solid #f1f5f9;
   display: flex;
   justify-content: flex-end;
   gap: 12px;
@@ -301,33 +376,34 @@
 .btn-modal-respond {
   font-family: inherit;
   font-size: 0.88rem;
-  font-weight: 850;
+  font-weight: 800;
   color: #ffffff;
-  background-color: #ef4444;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   border: none;
   padding: 0.65rem 1.25rem;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 10px rgba(239, 68, 68, 0.2);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
 }
 
 .btn-modal-respond:hover {
-  background-color: #b91c1c;
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
   transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.35);
 }
 
 .btn-modal-close {
   font-family: inherit;
   font-size: 0.88rem;
-  font-weight: 800;
+  font-weight: 700;
   color: #475569;
   background-color: #ffffff;
   border: 1px solid #cbd5e1;
   padding: 0.65rem 1.25rem;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s ease;
 }

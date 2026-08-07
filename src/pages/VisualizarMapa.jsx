@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config/api';
+import { API_BASE_URL, fetchDeduplicated } from '../config/api';
 import { echo } from '../config/echo';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
@@ -6,6 +6,8 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import '../styles/VisualizarMapa.css';
 import EditableText from '../components/EditableText';
 import ModalExportarCSV from '../components/ModalExportarCSV';
+import { useLanguage } from '../context/LanguageContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 // Icono de Calendario SVG
 const CalendarIcon = () => (
@@ -90,17 +92,17 @@ const VAR_PALETTE = [
 
 const getTheme = (clave, icono, idx = null) => {
   let baseTheme = null;
-  const t = (clave || '').toLowerCase();
-  if (t.includes('temp')) baseTheme = DYNAMIC_ICONS_PUBLIC.termometro;
-  else if (t.includes('hum') || t.includes('soil')) baseTheme = DYNAMIC_ICONS_PUBLIC.humedad;
-  else if (t.includes('press') || t.includes('presion')) baseTheme = DYNAMIC_ICONS_PUBLIC.presion;
-  else if (t.includes('wind') || t.includes('viento')) baseTheme = DYNAMIC_ICONS_PUBLIC.viento;
-  else if (t.includes('rain') || t.includes('lluvia')) baseTheme = DYNAMIC_ICONS_PUBLIC.lluvia;
-  else if (t.includes('ph')) baseTheme = DYNAMIC_ICONS_PUBLIC.ph;
-  else if (t.includes('oxigen') || t.includes('oxy')) baseTheme = DYNAMIC_ICONS_PUBLIC.oxigeno;
-
-  if (!baseTheme && icono && DYNAMIC_ICONS_PUBLIC[icono]) {
+  if (icono && DYNAMIC_ICONS_PUBLIC[icono]) {
     baseTheme = DYNAMIC_ICONS_PUBLIC[icono];
+  } else {
+    const t = (clave || '').toLowerCase();
+    if (t.includes('temp')) baseTheme = DYNAMIC_ICONS_PUBLIC.termometro;
+    else if (t.includes('hum') || t.includes('soil')) baseTheme = DYNAMIC_ICONS_PUBLIC.humedad;
+    else if (t.includes('press') || t.includes('presion')) baseTheme = DYNAMIC_ICONS_PUBLIC.presion;
+    else if (t.includes('wind') || t.includes('viento')) baseTheme = DYNAMIC_ICONS_PUBLIC.viento;
+    else if (t.includes('rain') || t.includes('lluvia')) baseTheme = DYNAMIC_ICONS_PUBLIC.lluvia;
+    else if (t.includes('ph')) baseTheme = DYNAMIC_ICONS_PUBLIC.ph;
+    else if (t.includes('oxigen') || t.includes('oxy')) baseTheme = DYNAMIC_ICONS_PUBLIC.oxigeno;
   }
 
   if (idx !== null && idx !== undefined) {
@@ -118,7 +120,9 @@ const getTheme = (clave, icono, idx = null) => {
 };
 
 // Componente Custom Select para la Selección de Nodo / Dispositivo en la Interfaz Pública
-const PublicCustomSelectNode = ({ nodos, selectedNodeId, onSelect, placeholder = "-- Seleccionar Dispositivo / Nodo --" }) => {
+const PublicCustomSelectNode = ({ nodos, selectedNodeId, onSelect, placeholder = null }) => {
+  const { t } = useLanguage();
+  const defaultPlaceholder = placeholder || t("map.select_device_node", "-- Seleccionar Dispositivo / Nodo --");
   const [open, setOpen] = useState(false);
   const ref = React.useRef(null);
 
@@ -157,7 +161,7 @@ const PublicCustomSelectNode = ({ nodos, selectedNodeId, onSelect, placeholder =
             </svg>
           </span>
           <span style={{ fontWeight: 700, fontSize: '0.88rem', color: selectedNode ? '#0f2c59' : '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {selectedNode ? selectedNode.nombre : placeholder}
+            {selectedNode ? selectedNode.nombre : defaultPlaceholder}
           </span>
         </div>
         <svg className={`public-select-chevron ${open ? 'rotated' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
@@ -176,7 +180,7 @@ const PublicCustomSelectNode = ({ nodos, selectedNodeId, onSelect, placeholder =
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="public-option-bullet" />
-              <span>{placeholder}</span>
+              <span>{defaultPlaceholder}</span>
             </div>
             {!selectedNodeId && (
               <svg viewBox="0 0 24 24" fill="none" stroke="#b91c1c" strokeWidth="3" width="14" height="14">
@@ -305,13 +309,87 @@ const DesmarcarTodasBtn = ({ onClick }) => {
   );
 };
 
-// Tooltip interactivo personalizado para diferenciar ejes y colores por variable
-const CustomPublicChartTooltip = ({ active, payload, label, showAxisBadges = false, axisMapping = {}, activeLecturas = [] }) => {
+const formatTimestampCard = (rawFecha) => {
+  if (!rawFecha) {
+    const d = new Date();
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const seconds = String(d.getSeconds()).padStart(2, '0');
+    return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
+  }
+
+  let d;
+  if (typeof rawFecha === 'number') {
+    d = new Date(rawFecha > 1e11 ? rawFecha : rawFecha * 1000);
+  } else if (typeof rawFecha === 'string') {
+    let str = rawFecha.trim().replace(/\s*([ap]\.?m\.?|AM|PM)/gi, '').trim();
+
+    // 1. Coincidencia YYYY-MM-DD HH:MM:SS o YYYY/MM/DD
+    const matchYMD = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})[T\s,]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
+    // 2. Coincidencia DD/MM/YYYY HH:MM:SS o DD-MM-YYYY
+    const matchDMY = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})[T\s,]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
+
+    if (matchYMD) {
+      d = new Date(parseInt(matchYMD[1], 10), parseInt(matchYMD[2], 10) - 1, parseInt(matchYMD[3], 10), parseInt(matchYMD[4], 10), parseInt(matchYMD[5], 10), matchYMD[6] ? parseInt(matchYMD[6], 10) : 0);
+    } else if (matchDMY) {
+      d = new Date(parseInt(matchDMY[3], 10), parseInt(matchDMY[2], 10) - 1, parseInt(matchDMY[1], 10), parseInt(matchDMY[4], 10), parseInt(matchDMY[5], 10), matchDMY[6] ? parseInt(matchDMY[6], 10) : 0);
+    } else {
+      d = new Date(str);
+    }
+  } else if (rawFecha instanceof Date) {
+    d = rawFecha;
+  }
+
+  if (!d || isNaN(d.getTime())) return String(rawFecha).replace(/\s*([ap]\.?m\.?|AM|PM)/gi, '');
+
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const seconds = String(d.getSeconds()).padStart(2, '0');
+
+  return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
+};
+
+// Tooltip personalizado para el gráfico público
+const CustomPublicChartTooltip = ({ active, payload, label }) => {
   if (!active || !payload || !payload.length) return null;
+
+  const itemData = payload[0]?.payload || {};
+  let dateStr = '';
+  let timeStr = label || itemData.time || itemData.shortTime || '';
+
+  // Extraer fecha y hora de dateTime o created_at
+  if (itemData.dateTime) {
+    const parts = itemData.dateTime.split(/[\s,]+/);
+    if (parts.length >= 2) {
+      dateStr = parts[0];
+      if (!timeStr) timeStr = parts[1];
+    } else {
+      dateStr = itemData.dateTime;
+    }
+  } else if (itemData.created_at) {
+    try {
+      const d = new Date(itemData.created_at);
+      dateStr = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      if (!timeStr) {
+        timeStr = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+      }
+    } catch (e) {}
+  }
+
+  // Fallback de fecha actual en formato DD/MM/YYYY
+  if (!dateStr) {
+    dateStr = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
 
   return (
     <div style={{
-      backgroundColor: 'rgba(15, 23, 42, 0.94)',
+      backgroundColor: 'rgba(15, 23, 42, 0.95)',
       backdropFilter: 'blur(12px)',
       border: '1px solid rgba(255, 255, 255, 0.15)',
       borderRadius: '12px',
@@ -321,30 +399,24 @@ const CustomPublicChartTooltip = ({ active, payload, label, showAxisBadges = fal
       fontSize: '0.82rem',
       minWidth: '180px'
     }}>
-      <div style={{ fontWeight: 800, color: '#38bdf8', marginBottom: '6px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>
-        🕒 {label}
+      <div style={{ marginBottom: '6px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '6px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        <div style={{ fontWeight: 700, color: '#94a3b8', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <span>📅</span> <span>{dateStr}</span>
+        </div>
+        <div style={{ fontWeight: 800, color: '#38bdf8', fontSize: '0.86rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <span>🕒</span> <span>{timeStr}</span>
+        </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
         {payload.map((item, idx) => {
           const color = item.color || item.fill || '#10b981';
-          const matchLectura = activeLecturas.find(l => (item.dataKey && item.dataKey === l.data_type) || (item.name && item.name.includes(l.tipo)));
-          const dataKey = matchLectura ? matchLectura.data_type : item.dataKey;
-          const axisSide = (axisMapping && dataKey && axisMapping[dataKey]) || (axisMapping && item.dataKey && axisMapping[item.dataKey]) || item.yAxisId || item.axisId;
-          const isLeft = axisSide ? axisSide === 'left' : idx % 2 === 0;
           return (
             <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ width: '9px', height: '9px', borderRadius: '50%', backgroundColor: color, display: 'inline-block' }} />
                 <span style={{ fontWeight: 600, color: '#cbd5e1' }}>{item.name}:</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontWeight: 800, color: color }}>{item.value}</span>
-                {showAxisBadges && (
-                  <span style={{ fontSize: '0.68rem', fontWeight: 800, color: color, backgroundColor: `${color}22`, padding: '1px 5px', borderRadius: '4px' }}>
-                    {isLeft ? '◄ Izq.' : 'Der. ►'}
-                  </span>
-                )}
-              </div>
+              <span style={{ fontWeight: 800, color: color }}>{item.value}</span>
             </div>
           );
         })}
@@ -353,10 +425,10 @@ const CustomPublicChartTooltip = ({ active, payload, label, showAxisBadges = fal
   );
 };
 
-// Garante ticks de 2 líneas (Hora arriba, Fecha con año abajo) para la XAxis
+// Garante ticks de 2 líneas (Hora arriba, Fecha con año abajo) para la XAxis en formato 24h
 const CustomXAxisTick = ({ x, y, payload }) => {
   if (!payload || !payload.value) return null;
-  const rawStr = String(payload.value).trim();
+  const rawStr = String(payload.value).trim().replace(/\s*([ap]\.?m\.?|AM|PM)/gi, '');
   const parts = rawStr.split(' ');
   let dateText = '';
   let timeText = '';
@@ -380,8 +452,10 @@ const CustomXAxisTick = ({ x, y, payload }) => {
   );
 };
 
-// Componente para dibujar la gráfica Recharts interactiva en tiempo real
-const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables = {}, tipoGrafico, onDescargarClick, onAmpliarClick, isAmpliado = false }) => {
+// Componente para dibujar la gráfica Recharts interactiva en tiempo real (eje único a la izquierda)
+const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables = {}, tipoGrafico, onDescargarClick, onAmpliarClick, isAmpliado = false, liveMode = false }) => {
+  const { language } = useLanguage();
+  const isEn = language === 'en';
   const lecturas = nodoSeleccionado?.lecturas || [];
   const activeLecturas = lecturas.filter(l => Boolean(activeVariables && activeVariables[l.data_type]));
   const [hoveredVar, setHoveredVar] = useState(null);
@@ -391,63 +465,12 @@ const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables =
     return history.slice(-10);
   }, [history]);
 
-  // Mapeo inteligente de ejes por orden de magnitud (valores grandes ej. 6000 van a 'left', pequeños ej. 8 y 9 van a 'right')
-  const axisMapping = useMemo(() => {
-    if (!activeLecturas || activeLecturas.length <= 1) {
-      return { [activeLecturas[0]?.data_type]: 'left' };
-    }
-
-    const maxes = activeLecturas.map(l => {
-      let max = 0;
-      chartData.forEach(d => {
-        const val = Math.abs(parseFloat(d[l.data_type]) || 0);
-        if (val > max) max = val;
-      });
-      return { data_type: l.data_type, max };
-    });
-
-    const sorted = [...maxes].sort((a, b) => b.max - a.max);
-    const topMax = sorted[0].max;
-
-    const mapping = {};
-    maxes.forEach(item => {
-      if (topMax > 50 && item.max >= topMax * 0.15) {
-        mapping[item.data_type] = 'left';
-      } else {
-        mapping[item.data_type] = 'right';
-      }
-    });
-
-    const leftCount = Object.values(mapping).filter(v => v === 'left').length;
-    if (leftCount === 0 || leftCount === activeLecturas.length) {
-      const result = {};
-      activeLecturas.forEach((l, i) => {
-        result[l.data_type] = i === 0 ? 'left' : 'right';
-      });
-      return result;
-    }
-
-    return mapping;
-  }, [activeLecturas, chartData]);
-
-  const showAxisBadges = activeLecturas.length > 1;
-
-  const leftVariable = activeLecturas.find(l => axisMapping[l.data_type] === 'left');
-  const rightVariable = activeLecturas.find(l => axisMapping[l.data_type] === 'right');
-
-  const leftTheme = leftVariable ? getTheme(leftVariable.data_type, leftVariable.icono, activeLecturas.indexOf(leftVariable)) : null;
-  const rightTheme = (rightVariable && showAxisBadges) ? getTheme(rightVariable.data_type, rightVariable.icono, activeLecturas.indexOf(rightVariable)) : null;
-
-  const hoveredAxis = hoveredVar ? axisMapping[hoveredVar] : null;
-
   return (
     <div className="dashboard-chart-svg-container" style={{ padding: isAmpliado ? '1rem' : '0.5rem 0' }}>
-      {/* Leyenda Dinámica de Variables Activas con Indicador de Eje y Efecto Hover */}
+      {/* Leyenda Dinámica de Variables Activas */}
       <div className="dashboard-chart-legend" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '0.85rem', alignItems: 'center' }}>
         {activeLecturas.map((l, idx) => {
-          const theme = getTheme(l.data_type, l.icono, showAxisBadges ? idx : null);
-          const axisSide = axisMapping[l.data_type] || 'left';
-          const isLeft = axisSide === 'left';
+          const theme = getTheme(l.data_type, l.icono, idx);
           const isHovered = hoveredVar === l.data_type;
 
           return (
@@ -476,81 +499,45 @@ const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables =
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
                 {theme.icon}
               </svg>
-              <span>{l.tipo} ({l.unidad})</span>
-              {showAxisBadges && (
-                <span style={{ fontSize: '0.68rem', fontWeight: 800, padding: '1px 6px', borderRadius: '4px', backgroundColor: `${theme.hex}22`, color: theme.hex }}>
-                  {isLeft ? '◄ Eje Izq.' : 'Eje Der. ►'}
-                </span>
-              )}
+              <span>{isEn ? (l.tipo_en || l.nombre_en || l.tipo) : (l.tipo_es || l.tipo)} ({l.unidad})</span>
             </div>
           );
         })}
         {activeLecturas.length === 0 && (
           <span style={{ fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>
-            Selecciona al menos una variable en los checkboxes superiores para visualizar la línea de tiempo.
+            Selecciona al menos una variable para visualizar la línea de tiempo.
           </span>
         )}
       </div>
 
-      {/* Gráfico Recharts */}
-      <div style={{ width: '100%', height: isAmpliado ? 'calc(100vh - 220px)' : '260px', minHeight: isAmpliado ? '400px' : 'auto' }}>
+      {/* Gráfico Recharts con Único Eje Izquierdo */}
+      <div style={{ width: '100%', height: isAmpliado ? '100%' : '260px', flex: isAmpliado ? 1 : 'initial', minHeight: isAmpliado ? '220px' : 'auto', display: 'flex', flexDirection: 'column' }}>
         {activeLecturas.length === 0 ? (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#94a3b8', fontSize: '0.9rem' }}>
             Sin variables activas marcadas
           </div>
         ) : chartData.length === 0 ? (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#94a3b8', fontSize: '0.9rem' }}>
-            Cargando datos en tiempo real...
+            {liveMode ? 'Cargando datos en tiempo real...' : 'No existen registros guardados'}
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             {tipoGrafico === 'bar' ? (
-              <BarChart data={chartData} margin={{ top: 10, right: showAxisBadges ? 25 : 40, left: 10, bottom: 28 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="time" height={52} tick={<CustomXAxisTick />} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
+              <BarChart data={chartData} margin={{ top: 15, right: 35, left: 10, bottom: liveMode ? 10 : 45 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#cbd5e1" strokeOpacity={0.65} />
+                <XAxis dataKey="time" height={liveMode ? 15 : 56} tick={liveMode ? false : <CustomXAxisTick />} axisLine={{ stroke: '#334155', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.2 }} />
+                <YAxis orientation="left" width={45} tick={{ fontSize: 11, fill: '#0f2c59', fontWeight: 800 }} axisLine={{ stroke: '#334155', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.2 }} />
 
-                {leftTheme && (
-                  <YAxis
-                    yAxisId="left"
-                    width={55}
-                    tick={{
-                      fontSize: hoveredAxis === 'left' ? 12 : 10,
-                      fill: leftTheme.hex,
-                      fontWeight: hoveredAxis === 'left' ? 900 : 700,
-                      opacity: hoveredAxis === 'right' ? 0.35 : 1
-                    }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                )}
-                {rightTheme && (
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    width={50}
-                    tick={{
-                      fontSize: hoveredAxis === 'right' ? 12 : 10,
-                      fill: rightTheme.hex,
-                      fontWeight: hoveredAxis === 'right' ? 900 : 700,
-                      opacity: hoveredAxis === 'left' ? 0.35 : 1
-                    }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                )}
-
-                <Tooltip content={<CustomPublicChartTooltip showAxisBadges={showAxisBadges} axisMapping={axisMapping} activeLecturas={activeLecturas} />} />
+                <Tooltip content={<CustomPublicChartTooltip />} />
 
                 {activeLecturas.map((l, idx) => {
-                  const theme = getTheme(l.data_type, l.icono, showAxisBadges ? idx : null);
-                  const yAxisId = axisMapping[l.data_type] || 'left';
+                  const theme = getTheme(l.data_type, l.icono, idx);
                   const isHovered = hoveredVar === l.data_type;
                   const isOtherHovered = hoveredVar && !isHovered;
 
                   return (
                     <Bar
                       key={l.data_type}
-                      yAxisId={yAxisId}
                       dataKey={l.data_type}
                       name={`${l.tipo} (${l.unidad})`}
                       fill={theme.hex}
@@ -561,10 +548,10 @@ const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables =
                 })}
               </BarChart>
             ) : (
-              <AreaChart data={chartData} margin={{ top: 10, right: showAxisBadges ? 25 : 40, left: 10, bottom: 28 }}>
+              <AreaChart data={chartData} margin={{ top: 15, right: 35, left: 10, bottom: liveMode ? 10 : 45 }}>
                 <defs>
                   {activeLecturas.map((l, idx) => {
-                    const theme = getTheme(l.data_type, l.icono, showAxisBadges ? idx : null);
+                    const theme = getTheme(l.data_type, l.icono, idx);
                     return (
                       <linearGradient key={idx} id={`colorPub${l.data_type}`} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor={theme.hex} stopOpacity={0.4} />
@@ -573,50 +560,20 @@ const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables =
                     );
                   })}
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="time" height={52} tick={<CustomXAxisTick />} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
-                {leftTheme && (
-                  <YAxis
-                    yAxisId="left"
-                    width={55}
-                    tick={{
-                      fontSize: hoveredAxis === 'left' ? 12 : 10,
-                      fill: leftTheme.hex,
-                      fontWeight: hoveredAxis === 'left' ? 900 : 700,
-                      opacity: hoveredAxis === 'right' ? 0.35 : 1
-                    }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                )}
-                {rightTheme && (
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    width={50}
-                    tick={{
-                      fontSize: hoveredAxis === 'right' ? 12 : 10,
-                      fill: rightTheme.hex,
-                      fontWeight: hoveredAxis === 'right' ? 900 : 700,
-                      opacity: hoveredAxis === 'left' ? 0.35 : 1
-                    }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                )}
+                <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#cbd5e1" strokeOpacity={0.65} />
+                <XAxis dataKey="time" height={liveMode ? 15 : 56} tick={liveMode ? false : <CustomXAxisTick />} axisLine={{ stroke: '#334155', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.2 }} />
+                <YAxis orientation="left" width={45} tick={{ fontSize: 11, fill: '#0f2c59', fontWeight: 800 }} axisLine={{ stroke: '#334155', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.2 }} />
 
-                <Tooltip content={<CustomPublicChartTooltip showAxisBadges={showAxisBadges} axisMapping={axisMapping} activeLecturas={activeLecturas} />} />
+                <Tooltip content={<CustomPublicChartTooltip />} />
 
                 {activeLecturas.map((l, idx) => {
-                  const theme = getTheme(l.data_type, l.icono, showAxisBadges ? idx : null);
-                  const yAxisId = axisMapping[l.data_type] || 'left';
+                  const theme = getTheme(l.data_type, l.icono, idx);
                   const isHovered = hoveredVar === l.data_type;
                   const isOtherHovered = hoveredVar && !isHovered;
 
                   return (
                     <Area
                       key={l.data_type}
-                      yAxisId={yAxisId}
                       type="monotone"
                       dataKey={l.data_type}
                       name={`${l.tipo} (${l.unidad})`}
@@ -645,7 +602,7 @@ const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables =
               <polyline points="17 8 12 3 7 8" />
               <line x1="12" y1="3" x2="12" y2="15" />
             </svg>
-            Descargar Datos
+            {isEn ? 'Download Data' : 'Descargar Datos'}
           </button>
           <button onClick={onAmpliarClick} className="chart-footer-btn zoom">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '6px' }}>
@@ -654,7 +611,7 @@ const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables =
               <line x1="21" y1="3" x2="14" y2="10" />
               <line x1="3" y1="21" x2="10" y2="14" />
             </svg>
-            Gráfico Ampliado
+            {isEn ? 'Expanded Chart' : 'Gráfico Ampliado'}
           </button>
         </div>
       )}
@@ -663,6 +620,8 @@ const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables =
 };
 
 export default function VisualizarMapa() {
+  const { language, t } = useLanguage();
+  const isEn = language === 'en';
   const [searchParams, setSearchParams] = useSearchParams();
   const [categorias, setCategorias] = useState([]);
   const [nodos, setNodos] = useState([]);
@@ -670,11 +629,25 @@ export default function VisualizarMapa() {
   const [nodoSeleccionado, setNodoSeleccionado] = useState(null);
   const [lecturaSeleccionada, setLecturaSeleccionada] = useState(null);
 
+  // Título dinámico de la pestaña del navegador
+  const pageLabel = nodoSeleccionado
+    ? nodoSeleccionado.nombre
+    : categoriaSeleccionada
+    ? categoriaSeleccionada
+    : (language === 'en' ? 'Real-Time Map' : 'Mapa en Tiempo Real');
+  usePageTitle(pageLabel);
+
   // Pestaña activa (realtime / mapa)
   const [tabActiva, setTabActiva] = useState('realtime');
 
+  // Estado de carga inicial y de transiciones de datos
+  const [pageLoading, setPageLoading] = useState(true);
+
   // Modo de mapa: 'categoria' (mapa general de la categoría) o 'nodo' (mapa de un nodo específico)
   const [modoMapa, setModoMapa] = useState('categoria');
+
+  // Panel flotante de información en el mapa (abierto solo cuando se pulsa un marcador)
+  const [showInfoPanel, setShowInfoPanel] = useState(false);
 
   // Forma del gráfico ('line' o 'bar')
   const [tipoGrafico, setTipoGrafico] = useState('line');
@@ -685,23 +658,44 @@ export default function VisualizarMapa() {
   // Valores de telemetría más recientes en BD
   const [valoresUltimos, setValoresUltimos] = useState({});
 
-  // Puntos del gráfico histórico y tiempo real
+  // Puntos del gráfico histórico (BD)
   const [history, setHistory] = useState([]);
 
-  // Cargar datos históricos iniciales cuando cambia el nodo seleccionado (50 lecturas recientes)
+  // Modo de visualización del gráfico: true = En vivo (sin horas en eje X), false = Base de Datos (con horas en eje X). Por defecto APAGADO (false)
+  const [liveMode, setLiveMode] = useState(false);
+  // Estado que indica si se están recibiendo datos en tiempo real de forma activa
+  const [isReceivingLive, setIsReceivingLive] = useState(false);
+  // Buffer temporal en memoria para almacenar máximo 10 lecturas en tiempo real
+  const [liveBuffer, setLiveBuffer] = useState([]);
+  // Referencia al timestamp de la última recepción de paquete en tiempo real
+  const lastLivePacketTime = React.useRef(0);
+
+  // Cargar datos históricos iniciales cuando cambia el nodo seleccionado y reiniciar buffer live
   useEffect(() => {
+    setLiveBuffer([]);
+    setIsReceivingLive(false);
+    lastLivePacketTime.current = 0;
+
     const serial = nodoSeleccionado?.serial_number;
     if (!serial) {
       setHistory([]);
+      setPageLoading(false);
       return;
     }
 
     const fetchInitialHistory = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/lecturas/recientes?serial_number=${serial}&limit=50`);
+        const res = await fetch(`${API_BASE_URL}/lecturas/recientes?serial_number=${serial}&limit=15`);
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
-          const points = data.map(item => {
+          // Ordenar cronológicamente ASC (el más antiguo primero a la izquierda, el más reciente al final a la derecha)
+          const dataAsc = [...data].sort((a, b) => {
+            const tA = a.timestamp ? Number(a.timestamp) : (a.created_at ? new Date(a.created_at).getTime() : 0);
+            const tB = b.timestamp ? Number(b.timestamp) : (b.created_at ? new Date(b.created_at).getTime() : 0);
+            return tA - tB;
+          });
+
+          const points = dataAsc.map(item => {
             let shortT = item.shortTime;
             let fullT = item.dateTime;
 
@@ -718,28 +712,42 @@ export default function VisualizarMapa() {
             };
           });
 
-          setHistory(points);
+          // Tomar exactamente máximo 10 lecturas guardadas de la BD
+          const last10History = points.slice(-10);
+          setHistory(last10History);
+          setLiveBuffer([...last10History]);
 
-          const lastItem = points[points.length - 1];
-          if (lastItem && nodoSeleccionado?.lecturas) {
+          // La lectura verdaderamente más reciente es el último elemento del arreglo ASC
+          const lastItem = last10History[last10History.length - 1];
+          if (lastItem) {
             const map = {};
-            nodoSeleccionado.lecturas.forEach(l => {
-              if (lastItem[l.data_type] !== undefined && lastItem[l.data_type] !== null) {
-                map[l.data_type] = {
-                  valor: parseFloat(lastItem[l.data_type]),
-                  fecha: lastItem.dateTime
-                };
+            Object.keys(lastItem).forEach(k => {
+              if (k !== 'time' && k !== 'dateTime' && k !== 'shortTime' && k !== 'id' && k !== 'node_id' && k !== 'serial_number' && k !== 'created_at' && k !== 'updated_at' && k !== 'timestamp') {
+                if (lastItem[k] !== null && lastItem[k] !== undefined) {
+                  map[k] = {
+                    valor: lastItem[k],
+                    fecha: lastItem.dateTime
+                  };
+                }
               }
             });
             setValoresUltimos(map);
           }
+        } else {
+          setHistory([]);
+          setLiveBuffer([]);
+          setValoresUltimos({});
         }
       } catch (err) {
         console.error("Error al cargar historial inicial público:", err);
+      } finally {
+        setPageLoading(false);
       }
     };
 
     fetchInitialHistory();
+    const dbInterval = setInterval(fetchInitialHistory, 30000);
+    return () => clearInterval(dbInterval);
   }, [nodoSeleccionado?.serial_number]);
 
   // Estados del Modal de Descarga CSV
@@ -773,90 +781,118 @@ export default function VisualizarMapa() {
   // Trigger para simulación de telemetría dinámica en tiempo real
   const [liveTrigger, setLiveTrigger] = useState(0);
 
+  // Monitorear periódicamente la señal en vivo (si no llega data en 15s, pasa a inactivo/BD)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (lastLivePacketTime.current > 0) {
+        const elapsed = Date.now() - lastLivePacketTime.current;
+        if (elapsed >= 15000) {
+          setIsReceivingLive(false);
+        }
+      } else {
+        setIsReceivingLive(false);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+
   // Estado para el modo de selección: false (Individual por defecto), true (Multiselección mediante Marcar Todas)
-  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  // Estado para el modo de selección: false (Navegación Individual por defecto), true (Multiselección por Unidad)
+  const [isByUnitMode, setIsByUnitMode] = useState(false);
   const [activeVariables, setActiveVariables] = useState({});
 
-  // Resetear modo de selección al cambiar de nodo / dispositivo
+  // Resetear al cambiar de nodo / dispositivo: por defecto 1 sola variable activa (la primera)
   useEffect(() => {
-    setIsMultiSelectMode(false);
+    setIsByUnitMode(false);
     if (nodoSeleccionado && nodoSeleccionado.lecturas && nodoSeleccionado.lecturas.length > 0) {
       const firstDataType = nodoSeleccionado.lecturas[0].data_type;
       setActiveVariables({ [firstDataType]: true });
+      setLecturaSeleccionada(nodoSeleccionado.lecturas[0]);
     } else {
       setActiveVariables({});
+      setLecturaSeleccionada(null);
     }
   }, [nodoSeleccionado?.id]);
 
-  // Actualizar variables activas cuando el usuario altera isMultiSelectMode manualmente
-  useEffect(() => {
-    if (!nodoSeleccionado || !nodoSeleccionado.lecturas || nodoSeleccionado.lecturas.length === 0) return;
-    if (isMultiSelectMode) {
-      const initialMap = {};
-      nodoSeleccionado.lecturas.forEach(l => {
-        initialMap[l.data_type] = true;
-      });
-      setActiveVariables(initialMap);
-    }
-  }, [isMultiSelectMode]);
+  // Unidad activa derivada de la primera variable seleccionada
+  const activeSelectedUnit = useMemo(() => {
+    if (!nodoSeleccionado?.lecturas) return null;
+    const checkedKey = Object.keys(activeVariables).find(k => activeVariables[k]);
+    if (!checkedKey) return null;
+    const found = nodoSeleccionado.lecturas.find(l => l.data_type === checkedKey);
+    return found ? found.unidad : null;
+  }, [nodoSeleccionado, activeVariables]);
 
   const toggleVariable = (dataType) => {
-    if (!isMultiSelectMode) {
-      // Modo Individual: solo la variable clickeada está activa (en ROJO)
-      setActiveVariables({ [dataType]: true });
-      if (nodoSeleccionado && nodoSeleccionado.lecturas) {
-        const found = nodoSeleccionado.lecturas.find(l => l.data_type === dataType);
-        if (found) setLecturaSeleccionada(found);
-      }
-    } else {
-      // Modo Multiselección: alternar casilla de verificación
-      setActiveVariables(prev => {
-        const nextState = {
-          ...prev,
-          [dataType]: !prev[dataType]
-        };
+    if (!nodoSeleccionado?.lecturas) return;
+    const targetLectura = nodoSeleccionado.lecturas.find(l => l.data_type === dataType);
+    if (!targetLectura) return;
 
-        // Si el usuario desmarcó todas las variables manualmente (0 activas), volver automáticamente a modo individual (primera variable en rojo)
-        const hasAnyActive = nodoSeleccionado?.lecturas?.some(l => Boolean(nextState[l.data_type]));
+    if (!isByUnitMode) {
+      // Modo Navegación Individual: solo la variable clickeada está activa (en rojo/destacada al centro)
+      setActiveVariables({ [dataType]: true });
+      setLecturaSeleccionada(targetLectura);
+      setSearchParams(prev => {
+        const p = new URLSearchParams(prev);
+        p.set('lectura', dataType);
+        return p;
+      }, { replace: true });
+    } else {
+      // Modo Multiselección por Unidad
+      setActiveVariables(prev => {
+        const isCurrentlyChecked = Boolean(prev[dataType]);
+        // Si intenta marcar una variable de unidad diferente a la activa, bloquear
+        if (!isCurrentlyChecked && activeSelectedUnit && targetLectura.unidad !== activeSelectedUnit) {
+          return prev;
+        }
+
+        const next = { ...prev, [dataType]: !isCurrentlyChecked };
+        const hasAnyActive = nodoSeleccionado.lecturas.some(l => Boolean(next[l.data_type]));
+
         if (!hasAnyActive) {
-          setIsMultiSelectMode(false);
+          setIsByUnitMode(false);
           const firstDataType = nodoSeleccionado.lecturas[0].data_type;
+          setLecturaSeleccionada(nodoSeleccionado.lecturas[0]);
           return { [firstDataType]: true };
         }
 
-        return nextState;
+        return next;
       });
     }
   };
 
-  const handleToggleAllVariables = () => {
-    if (!nodoSeleccionado?.lecturas) return;
-    if (!isMultiSelectMode) {
-      // Activar modo multiselección y marcar todas las variables
-      setIsMultiSelectMode(true);
-      const newMap = {};
-      nodoSeleccionado.lecturas.forEach(l => {
-        newMap[l.data_type] = true;
-      });
-      setActiveVariables(newMap);
-    } else {
-      // Desactivar modo multiselección y volver a navegación individual (solo la primera variable)
-      setIsMultiSelectMode(false);
-      const firstDataType = nodoSeleccionado.lecturas[0].data_type;
-      setActiveVariables({ [firstDataType]: true });
-    }
+  const handleToggleByUnitMode = () => {
+    setIsByUnitMode(prev => {
+      const nextMode = !prev;
+      if (!nextMode) {
+        // Desactivar multiselección y volver a variable única (primera variable)
+        if (nodoSeleccionado?.lecturas?.length > 0) {
+          const firstDataType = nodoSeleccionado.lecturas[0].data_type;
+          setActiveVariables({ [firstDataType]: true });
+          setLecturaSeleccionada(nodoSeleccionado.lecturas[0]);
+        }
+      }
+      return nextMode;
+    });
   };
 
   const catParam = searchParams.get('categoria');
   const nodeParam = searchParams.get('nodo');
   const lecturaParam = searchParams.get('lectura');
 
-  // Cargar categorías y nodos
+  // Cargar categorías y nodos de forma directa y bajo demanda desde la BD
   useEffect(() => {
-    Promise.all([
-      fetch(`${API_BASE_URL}/categorias`).then(res => res.json()),
-      fetch(`${API_BASE_URL}/nodos`).then(res => res.json())
-    ])
+    setPageLoading(true);
+
+    const fetches = [fetchDeduplicated(`${API_BASE_URL}/categorias?lang=${language}`).then(res => res.json())];
+    if (catParam) {
+      fetches.push(fetchDeduplicated(`${API_BASE_URL}/nodos?categoria=${encodeURIComponent(catParam)}&lang=${language}`).then(res => res.json()));
+    } else {
+      fetches.push(Promise.resolve([]));
+    }
+
+    Promise.all(fetches)
       .then(([catData, nodosData]) => {
         setCategorias(Array.isArray(catData) ? catData : []);
         const nodeList = Array.isArray(nodosData) ? nodosData : [];
@@ -864,47 +900,91 @@ export default function VisualizarMapa() {
 
         if (catParam) {
           setCategoriaSeleccionada(catParam);
-          const filtered = nodeList.filter(
-            n => n.categoria && n.categoria.toLowerCase() === catParam.toLowerCase()
+          const catList = Array.isArray(catData) ? catData : [];
+          const targetParamNorm = catParam.toLowerCase().trim();
+          const targetCat = catList.find(c =>
+            (c.nombre && c.nombre.toLowerCase().trim() === targetParamNorm) ||
+            (c.nombre_es && c.nombre_es.toLowerCase().trim() === targetParamNorm) ||
+            (c.nombre_en && c.nombre_en.toLowerCase().trim() === targetParamNorm)
           );
 
-          if (filtered.length > 0) {
-            if (nodeParam) {
-              const found = filtered.find(n => n.id.toString() === nodeParam.toString());
-              if (found) {
-                setNodoSeleccionado(prev => (prev?.id === found.id ? prev : found));
-                if (found.lecturas && found.lecturas.length > 0) {
-                  let activeLect = found.lecturas[0];
-                  if (lecturaParam) {
-                    const foundLect = found.lecturas.find(l => l.data_type === lecturaParam);
-                    if (foundLect) activeLect = foundLect;
-                  }
-                  setLecturaSeleccionada(activeLect);
-                }
-                return;
-              }
+          const filtered = nodeList.filter(n => {
+            if (!n.categoria) return false;
+            const nCatNorm = n.categoria.toLowerCase().trim();
+            if (nCatNorm === targetParamNorm) return true;
+            if (targetCat) {
+              const catNombre = (targetCat.nombre || '').toLowerCase().trim();
+              const catEs = (targetCat.nombre_es || '').toLowerCase().trim();
+              const catEn = (targetCat.nombre_en || '').toLowerCase().trim();
+              return nCatNorm === catNombre || (catEs && nCatNorm === catEs) || (catEn && nCatNorm === catEn);
             }
+            return false;
+          });
+
+          if (filtered.length > 0) {
+            let targetNode = null;
+            if (nodeParam) {
+              const found = filtered.find(n => n.id.toString() === nodeParam.toString() || n.serial_number === nodeParam.toString());
+              if (found) targetNode = found;
+            }
+
+            if (targetNode) {
+              setNodoSeleccionado(prev => (prev?.id === targetNode.id ? prev : targetNode));
+              if (targetNode.lecturas && targetNode.lecturas.length > 0) {
+                let activeLect = targetNode.lecturas[0];
+                if (lecturaParam) {
+                  const foundLect = targetNode.lecturas.find(l => l.data_type === lecturaParam);
+                  if (foundLect) activeLect = foundLect;
+                }
+                setLecturaSeleccionada(activeLect);
+              }
+            } else {
+              setNodoSeleccionado(null);
+              setLecturaSeleccionada(null);
+              setPageLoading(false);
+            }
+          } else {
+            setNodoSeleccionado(null);
+            setLecturaSeleccionada(null);
+            setPageLoading(false);
           }
-          setNodoSeleccionado(null);
-          setLecturaSeleccionada(null);
         } else {
           setCategoriaSeleccionada(null);
           setNodoSeleccionado(null);
           setLecturaSeleccionada(null);
+          setPageLoading(false);
         }
       })
       .catch(err => {
         console.error("Error loading categories and telemetry data:", err);
+        setPageLoading(false);
       });
-  }, [catParam, nodeParam, lecturaParam]);
+  }, [catParam, nodeParam, language]);
+
+  // Sincronizar parámetro de lectura activa en URL sin recargar categorías ni activar pageLoading
+  useEffect(() => {
+    if (nodoSeleccionado && nodoSeleccionado.lecturas && lecturaParam) {
+      const foundLect = nodoSeleccionado.lecturas.find(l => l.data_type === lecturaParam);
+      if (foundLect) {
+        setLecturaSeleccionada(foundLect);
+      }
+    }
+  }, [lecturaParam, nodoSeleccionado]);
 
   // Cargar lecturas reales registradas en la BD y escuchar eventos en tiempo real cada 5s via WebSockets
   useEffect(() => {
     const serial = nodoSeleccionado?.serial_number;
     if (!serial) return;
 
-    const processTelemetryPacket = (newData) => {
+    // Timestamp de la última recepción via WebSocket (ref para no re-disparar el effect)
+    const lastWsTs = { current: 0 };
+
+    const processTelemetryPacket = (newData, source = 'ws') => {
       if (!newData) return;
+
+      // Registrar recepción de datos en tiempo real
+      lastLivePacketTime.current = Date.now();
+      setIsReceivingLive(true);
 
       let shortT = newData.shortTime;
       let fullT = newData.dateTime;
@@ -914,9 +994,12 @@ export default function VisualizarMapa() {
       } else if (shortT && !fullT) {
         fullT = `${new Date().toLocaleDateString('es-ES')}, ${shortT}`;
       } else if (!shortT && !fullT) {
-        shortT = new Date().toLocaleTimeString('es-ES', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+        shortT = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
         fullT = `${new Date().toLocaleDateString('es-ES')}, ${shortT}`;
       }
+
+      if (shortT) shortT = shortT.replace(/\s*([ap]\.?m\.?|AM|PM)/gi, '').trim();
+      if (fullT) fullT = fullT.replace(/\s*([ap]\.?m\.?|AM|PM)/gi, '').trim();
 
       const parsedData = {
         ...newData,
@@ -924,29 +1007,53 @@ export default function VisualizarMapa() {
         dateTime: fullT
       };
 
-      if (nodoSeleccionado?.lecturas) {
+      // 1. SIEMPRE actualizar el buffer en vivo en memoria (máximo 10 lecturas deslizantes en memoria)
+      setLiveBuffer(prev => {
+        if (prev.length > 0) {
+          const last = prev[prev.length - 1];
+          if (last.dateTime === fullT && last.time === shortT) return prev;
+        }
+        const nextBuffer = [...prev, parsedData];
+        return nextBuffer.length > 10 ? nextBuffer.slice(-10) : nextBuffer;
+      });
+
+      // 2. ÚNICAMENTE actualizar el historial de Base de Datos y los últimos valores de BD si es un registro guardado en la BD
+      const isSavedInDB = Boolean(newData.id || newData.is_saved || source === 'db');
+      if (isSavedInDB) {
+        setHistory(prev => {
+          if (prev.length > 0) {
+            if (newData.id && prev.some(p => p.id === newData.id)) {
+              return prev;
+            }
+            const last = prev[prev.length - 1];
+            if (last.dateTime === fullT && last.time === shortT) {
+              return prev;
+            }
+          }
+          const updated = [...prev, parsedData];
+          // Mantener estrictamente MÁXIMO 10 puntos en el gráfico en modo BD (elimina 1 viejo y desplaza)
+          return updated.length > 10 ? updated.slice(-10) : updated;
+        });
+
         setValoresUltimos(prev => {
           const updated = { ...prev };
-          nodoSeleccionado.lecturas.forEach(l => {
-            if (newData[l.data_type] !== undefined && newData[l.data_type] !== null) {
-              updated[l.data_type] = {
-                valor: parseFloat(newData[l.data_type]),
-                fecha: fullT
-              };
+          Object.keys(newData).forEach(k => {
+            if (k !== 'time' && k !== 'dateTime' && k !== 'shortTime' && k !== 'id' && k !== 'node_id' && k !== 'serial_number' && k !== 'created_at' && k !== 'updated_at' && k !== 'timestamp') {
+              if (newData[k] !== null && newData[k] !== undefined) {
+                updated[k] = {
+                  valor: newData[k],
+                  fecha: fullT,
+                  _created_at: newData.created_at || null
+                };
+              }
             }
           });
           return updated;
         });
       }
-
-      setHistory(prev => {
-        const updated = [...prev, parsedData];
-        if (updated.length > 200) updated.shift();
-        return updated;
-      });
     };
 
-    // Escuchar canal WebSocket de Laravel Reverb en vivo (emitido cada 5s por el listener MQTT)
+    // ── Escuchar canal WebSocket de Laravel Reverb en vivo
     let channel;
     try {
       const channelName = `telemetry.${serial}`;
@@ -954,7 +1061,7 @@ export default function VisualizarMapa() {
       channel.listen('.LecturaRecibida', (e) => {
         const newData = e.data || e;
         if (newData) {
-          processTelemetryPacket(newData);
+          processTelemetryPacket(newData, 'ws');
         }
       });
     } catch (e) {
@@ -966,9 +1073,10 @@ export default function VisualizarMapa() {
         echo.leaveChannel(`telemetry.${serial}`);
       }
     };
-  }, [nodoSeleccionado?.serial_number]);
+  }, [nodoSeleccionado?.serial_number, liveMode]);
 
   const handleCategoryClick = (catName) => {
+    setPageLoading(true);
     setSearchParams({ categoria: catName });
     setCategoriaSeleccionada(catName);
     setNodoSeleccionado(null);
@@ -983,31 +1091,38 @@ export default function VisualizarMapa() {
       setNodoSeleccionado(null);
       setLecturaSeleccionada(null);
       setModoMapa('categoria');
+      setPageLoading(false);
       return;
     }
 
     const nodeObj = nodos.find(n => n.id.toString() === nodeId.toString());
     if (nodeObj) {
+      setPageLoading(true);
       const firstLectura = nodeObj.lecturas && nodeObj.lecturas.length > 0 ? nodeObj.lecturas[0].data_type : '';
       setSearchParams({
         categoria: categoriaSeleccionada,
         nodo: nodeId,
         lectura: firstLectura
       });
-      setNodoSeleccionado(prev => (prev?.id === nodeObj.id ? prev : nodeObj));
+      setNodoSeleccionado(nodeObj);
       setModoMapa('nodo');
+    } else {
+      setPageLoading(false);
     }
   };
 
   const handleLecturaChange = (lecturaKey) => {
-    setSearchParams({
-      categoria: categoriaSeleccionada,
-      nodo: nodoSeleccionado?.id,
-      lectura: lecturaKey
-    });
+    setSearchParams(prev => {
+      const p = new URLSearchParams(prev);
+      p.set('lectura', lecturaKey);
+      return p;
+    }, { replace: true });
     if (nodoSeleccionado && nodoSeleccionado.lecturas) {
       const found = nodoSeleccionado.lecturas.find(l => l.data_type === lecturaKey);
-      if (found) setLecturaSeleccionada(found);
+      if (found) {
+        setLecturaSeleccionada(found);
+        setActiveVariables({ [lecturaKey]: true });
+      }
     }
   };
 
@@ -1021,6 +1136,7 @@ export default function VisualizarMapa() {
   };
 
   const handleOpenMapFromHeader = () => {
+    if (nodosFiltrados.length === 0) return;
     if (!nodoSeleccionado) {
       setModoMapa('categoria');
       if (nodosFiltrados.length > 0) {
@@ -1039,7 +1155,6 @@ export default function VisualizarMapa() {
       if (nodeObj.lecturas && nodeObj.lecturas.length > 0) {
         setLecturaSeleccionada(nodeObj.lecturas[0]);
       }
-      setModoMapa('categoria');
     }
   };
 
@@ -1048,254 +1163,254 @@ export default function VisualizarMapa() {
     setShowModalDescarga(true);
   };
 
-  // Obtener valor live preferentemente de BD o fallback simulador
+  // Obtener valor live preferentemente de BD o historial en tiempo real (manteniendo precisión exacta recibida)
+  // Retorna '--' si el nodo nunca ha enviado datos (sin valores en BD ni en tiempo real)
   const generarValorLive = (dataType) => {
-    if (!dataType) return '0.0';
+    if (!dataType) return '--';
 
-    if (valoresUltimos[dataType]) {
-      return parseFloat(valoresUltimos[dataType].valor).toFixed(1);
+    // 0. Si el modo En Vivo está activo (reloj encendido), buscar PRIMERO en el paquete más reciente del buffer en vivo
+    if (liveMode && liveBuffer && liveBuffer.length > 0) {
+      const lastLive = liveBuffer[liveBuffer.length - 1];
+      if (lastLive && lastLive[dataType] !== undefined && lastLive[dataType] !== null) {
+        const v = lastLive[dataType];
+        return typeof v === 'number' ? v.toString() : String(v);
+      }
+      const norm = String(dataType).toLowerCase().replace(/[^a-z0-9]/g, '');
+      const liveKey = Object.keys(lastLive).find(k => {
+        const kNorm = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return kNorm === norm || kNorm.includes(norm) || norm.includes(kNorm);
+      });
+      if (liveKey && lastLive[liveKey] !== undefined && lastLive[liveKey] !== null) {
+        const v = lastLive[liveKey];
+        return typeof v === 'number' ? v.toString() : String(v);
+      }
     }
 
-    // Fallback de simulación
-    const baseHash = (dataType.charCodeAt(0) || 10) + liveTrigger;
-    if (dataType.includes('temp')) {
-      return (24 + (baseHash % 5) + (Math.sin(liveTrigger) * 0.3)).toFixed(1);
+    // 1. Coincidencia directa en valoresUltimos (Base de Datos)
+    if (valoresUltimos[dataType] !== undefined && valoresUltimos[dataType] !== null && valoresUltimos[dataType].valor !== undefined && valoresUltimos[dataType].valor !== null) {
+      const v = valoresUltimos[dataType].valor;
+      return typeof v === 'number' ? v.toString() : String(v);
     }
-    if (dataType.includes('hum') || dataType.includes('water')) {
-      return (56.3 + Math.sin(liveTrigger * 0.4) * 0.6 + ((baseHash) % 2) * 0.1).toFixed(1);
+
+    // 2. Búsqueda insensible a mayúsculas/minúsculas/guiones en valoresUltimos
+    const norm = String(dataType).toLowerCase().replace(/[^a-z0-9]/g, '');
+    const foundKey = Object.keys(valoresUltimos).find(k => {
+      const kNorm = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return kNorm === norm || kNorm.includes(norm) || norm.includes(kNorm);
+    });
+
+    if (foundKey && valoresUltimos[foundKey] && valoresUltimos[foundKey].valor !== undefined && valoresUltimos[foundKey].valor !== null) {
+      const v = valoresUltimos[foundKey].valor;
+      return typeof v === 'number' ? v.toString() : String(v);
     }
-    if (dataType.includes('pm') || dataType.includes('co2')) {
-      return (14 + (baseHash % 20)).toFixed(1);
+
+    // 3. Coincidencia en historial reciente
+    if (history && history.length > 0) {
+      const lastPoint = history[history.length - 1];
+      if (lastPoint) {
+        if (lastPoint[dataType] !== undefined && lastPoint[dataType] !== null) {
+          const v = lastPoint[dataType];
+          return typeof v === 'number' ? v.toString() : String(v);
+        }
+        const histKey = Object.keys(lastPoint).find(k => {
+          const kNorm = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return kNorm === norm || kNorm.includes(norm) || norm.includes(kNorm);
+        });
+        if (histKey && lastPoint[histKey] !== undefined && lastPoint[histKey] !== null) {
+          const v = lastPoint[histKey];
+          return typeof v === 'number' ? v.toString() : String(v);
+        }
+      }
     }
-    if (dataType.includes('vel') || dataType.includes('wind')) {
-      return (2.1 + Math.sin(liveTrigger * 0.5) * 0.3 + ((baseHash) % 3) * 0.1).toFixed(1);
+
+    // 4. Si el nodo tiene un valor registrado en sus lecturas configuradas, usarlo
+    if (nodoSeleccionado && Array.isArray(nodoSeleccionado.lecturas)) {
+      const lFound = nodoSeleccionado.lecturas.find(l => {
+        const lNorm = (l.data_type || l.tipo || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        return lNorm === norm || lNorm.includes(norm) || norm.includes(lNorm);
+      });
+      if (lFound && lFound.valor !== undefined && lFound.valor !== null && lFound.valor !== '') {
+        const v = lFound.valor;
+        return typeof v === 'number' ? v.toString() : String(v);
+      }
     }
-    return (5 + (baseHash % 8)).toFixed(0);
+
+    // Sin datos disponibles — nodo creado pero que nunca ha enviado lecturas
+    return '--';
   };
 
-  // Formatear estados y percentiles de barra para gauges de la vista RegistrarNodo
+  // Formatear estados y percentiles de barra para gauges del mapa público con escala estandarizada Bajo / Óptimo / Alto
   const getVariableIndexStatus = (variable, valueRaw) => {
     if (!variable) return null;
+
+    const isEn = language === 'en';
+    const varTitle = isEn
+      ? (variable.tipo_en || variable.nombre_en || variable.tipo || variable.nombre || 'Variable')
+      : (variable.tipo_es || variable.tipo || variable.nombre || 'Variable');
+
+    // Sin datos — nodo nuevo sin lecturas registradas
+    if (valueRaw === '--' || valueRaw === undefined || valueRaw === null || valueRaw === '') {
+      return {
+        title: varTitle,
+        value: '--',
+        label: isEn ? 'NO DATA' : 'SIN DATOS',
+        color: '#94a3b8',
+        percent: 0,
+        type: 'custom_range',
+        range: isEn ? ['Low', 'Optimal', 'High'] : ['Bajo', 'Óptimo', 'Alto'],
+        isOutOfRange: false,
+        outWarningMsg: null,
+        noData: true
+      };
+    }
+
     const val = parseFloat(valueRaw);
     if (isNaN(val)) return null;
 
     // Extraer mínimo y máximo configurados en la métrica (si existen)
-    const minExp = (variable.minExpected !== undefined && variable.minExpected !== null && variable.minExpected !== '')
+    let minExp = (variable.minExpected !== undefined && variable.minExpected !== null && variable.minExpected !== '')
       ? parseFloat(variable.minExpected)
       : (variable.min_expected !== undefined && variable.min_expected !== null && variable.min_expected !== '')
         ? parseFloat(variable.min_expected)
         : null;
 
-    const maxExp = (variable.maxExpected !== undefined && variable.maxExpected !== null && variable.maxExpected !== '')
+    let maxExp = (variable.maxExpected !== undefined && variable.maxExpected !== null && variable.maxExpected !== '')
       ? parseFloat(variable.maxExpected)
       : (variable.max_expected !== undefined && variable.max_expected !== null && variable.max_expected !== '')
         ? parseFloat(variable.max_expected)
         : null;
 
-    // Si la métrica tiene configurados Mínimo o Máximo esperados válidos
-    if (minExp !== null || maxExp !== null) {
-      let label = 'Medio';
-      let color = '#10b981'; // Verde para dentro del rango (Medio / Óptimo)
-      let percent = 50;
-      let isOutOfRange = false;
-      let outWarningMsg = null;
+    // Fallbacks si la métrica no tiene min/max definidos manualmente en la BD
+    if (minExp === null || isNaN(minExp)) {
+      const key = (variable.data_type || variable.claveMqtt || variable.tipo || '').toLowerCase();
+      if (key.includes('temp')) minExp = 10;
+      else if (key.includes('hum') || key.includes('soil')) minExp = 20;
+      else if (key.includes('aqi')) minExp = 0;
+      else if (key.includes('co2')) minExp = 400;
+      else if (key.includes('pres')) minExp = 950;
+      else minExp = 0;
+    }
 
-      if (minExp !== null && val < minExp) {
-        label = 'Bajo';
-        color = '#3b82f6'; // Azul para nivel bajo por debajo del mínimo
-        percent = 2; // Filo izquierdo de la barra indicadora
-        isOutOfRange = true;
-        outWarningMsg = `El valor registrado (${val} ${variable.unidad || ''}) está por debajo del mínimo esperado (${minExp} ${variable.unidad || ''})`;
-      } else if (maxExp !== null && val > maxExp) {
-        label = 'Alto';
-        color = '#ef4444'; // Rojo para nivel alto por encima del máximo
-        percent = 98; // Filo derecho de la barra indicadora
-        isOutOfRange = true;
-        outWarningMsg = `El valor registrado (${val} ${variable.unidad || ''}) sobrepasa el máximo esperado (${maxExp} ${variable.unidad || ''})`;
+    if (maxExp === null || isNaN(maxExp)) {
+      const key = (variable.data_type || variable.claveMqtt || variable.tipo || '').toLowerCase();
+      if (key.includes('temp')) maxExp = 35;
+      else if (key.includes('hum') || key.includes('soil')) maxExp = 80;
+      else if (key.includes('aqi')) maxExp = 150;
+      else if (key.includes('co2')) maxExp = 1000;
+      else if (key.includes('pres')) maxExp = 1050;
+      else maxExp = 100;
+    }
+
+    let label = isEn ? 'Optimal' : 'Óptimo';
+    let color = '#10b981'; // Verde para dentro del rango
+    let percent = 50;
+    let isOutOfRange = false;
+    let outWarningMsg = null;
+
+    if (val < minExp) {
+      label = isEn ? 'Low' : 'Bajo';
+      color = '#3b82f6'; // Azul en el filo izquierdo (Bajo)
+      percent = 2;
+      isOutOfRange = true;
+      outWarningMsg = isEn
+        ? `Value (${val} ${variable.unidad || ''}) is below expected minimum (${minExp} ${variable.unidad || ''})`
+        : `El valor registrado (${val} ${variable.unidad || ''}) está por debajo del mínimo esperado (${minExp} ${variable.unidad || ''})`;
+    } else if (val > maxExp) {
+      label = isEn ? 'High' : 'Alto';
+      color = '#ef4444'; // Rojo en el filo derecho (Alto)
+      percent = 98;
+      isOutOfRange = true;
+      outWarningMsg = isEn
+        ? `Value (${val} ${variable.unidad || ''}) exceeds expected maximum (${maxExp} ${variable.unidad || ''})`
+        : `El valor registrado (${val} ${variable.unidad || ''}) sobrepasa el máximo esperado (${maxExp} ${variable.unidad || ''})`;
+    } else {
+      label = isEn ? 'Optimal' : 'Óptimo';
+      color = '#10b981';
+      if (maxExp > minExp) {
+        const ratio = (val - minExp) / (maxExp - minExp);
+        percent = 15 + ratio * 70; // Movimiento proporcional entre 15% y 85% en la zona central
       } else {
-        label = 'Medio';
-        color = '#10b981'; // Verde para el rango medio / normal
-        if (minExp !== null && maxExp !== null && maxExp > minExp) {
-          const ratio = (val - minExp) / (maxExp - minExp);
-          percent = 15 + ratio * 70; // Centrado dentro del rango óptimo
-        } else {
-          percent = 50;
-        }
+        percent = 50;
       }
-
-      return {
-        title: variable.tipo || variable.nombre || 'Variable',
-        value: `${val} ${variable.unidad || ''}`.trim(),
-        label,
-        color,
-        percent: Math.min(Math.max(percent, 2), 98),
-        type: 'custom_range',
-        range: ['Bajo', 'Medio', 'Alto'],
-        isOutOfRange,
-        outWarningMsg
-      };
-    }
-
-    const key = (variable.data_type || variable.claveMqtt || '').toLowerCase();
-    const nombre = (variable.tipo || variable.nombre || '').toLowerCase();
-
-    // 1. AQI
-    if (key.includes('aqi')) {
-      let label = 'Buena';
-      let color = '#10b981';
-      let percent = Math.min((val / 500) * 100, 100);
-      if (val > 300) {
-        label = 'Peligroso';
-        color = '#7f1d1d';
-      } else if (val > 200) {
-        label = 'Muy Dañina';
-        color = '#a855f7';
-      } else if (val > 150) {
-        label = 'Dañina';
-        color = '#ef4444';
-      } else if (val > 100) {
-        label = 'Mala';
-        color = '#f97316';
-      } else if (val > 50) {
-        label = 'Moderada';
-        color = '#eab308';
-      }
-      return {
-        title: 'Índice de Calidad del Aire (AQI)',
-        value: val.toString(),
-        label,
-        color,
-        percent,
-        type: 'air',
-        range: ['Buena', 'Moderada', 'Mala', 'Dañina', 'Muy Dañina', 'Peligroso']
-      };
-    }
-
-    // 2. CO2
-    if (key.includes('co2')) {
-      let label = 'Excelente';
-      let color = '#10b981';
-      let percent = Math.min((val / 2000) * 100, 100);
-      if (val > 2000) {
-        label = 'Malo';
-        color = '#ef4444';
-      } else if (val > 1000) {
-        label = 'Regular';
-        color = '#f59e0b';
-      } else if (val > 400) {
-        label = 'Bueno';
-        color = '#10b981';
-      }
-      return {
-        title: 'Concentración de CO2',
-        value: `${val} ppm`,
-        label,
-        color,
-        percent,
-        type: 'co2',
-        range: ['Excelente', 'Bueno', 'Regular', 'Malo']
-      };
-    }
-
-    // 3. HUMEDAD
-    if (key.includes('hum') || key.includes('soil') || key.includes('water')) {
-      let label = 'Óptimo';
-      let color = '#10b981';
-      let percent = val;
-      if (val > 80) {
-        label = 'Saturado';
-        color = '#2563eb';
-      } else if (val > 50) {
-        label = 'Óptimo';
-        color = '#10b981';
-      } else if (val > 30) {
-        label = 'Moderado';
-        color = '#eab308';
-      } else {
-        label = 'Seco';
-        color = '#f97316';
-      }
-      return {
-        title: nombre.includes('suelo') ? 'Humedad del Suelo' : 'Humedad Relativa',
-        value: `${val}%`,
-        label,
-        color,
-        percent,
-        type: 'soil',
-        range: ['Seco', 'Moderado', 'Óptimo', 'Saturado']
-      };
-    }
-
-    // 4. TEMPERATURA
-    if (key.includes('temp')) {
-      let label = 'Confortable';
-      let color = '#10b981';
-      let percent = Math.min(Math.max(((val - 10) / 30) * 100, 0), 100);
-      if (val > 30) {
-        label = 'Caliente';
-        color = '#ef4444';
-      } else if (val > 25) {
-        label = 'Cálido';
-        color = '#f59e0b';
-      } else if (val > 18) {
-        label = 'Confortable';
-        color = '#10b981';
-      } else if (val > 12) {
-        label = 'Fresco';
-        color = '#60a5fa';
-      } else {
-        label = 'Frío';
-        color = '#3b82f6';
-      }
-      return {
-        title: 'Sensación Térmica',
-        value: `${val} °C`,
-        label,
-        color,
-        percent,
-        type: 'thermal',
-        range: ['Frío', 'Fresco', 'Confortable', 'Cálido', 'Caliente']
-      };
-    }
-
-    // 5. PRESIÓN
-    if (key.includes('press') || key.includes('pres')) {
-      let label = 'Normal';
-      let color = '#10b981';
-      let percent = Math.min(Math.max(((val - 990) / 40) * 100, 0), 100);
-      if (val > 1015) {
-        label = 'Alta';
-        color = '#2563eb';
-      } else if (val < 1009) {
-        label = 'Baja';
-        color = '#f59e0b';
-      }
-      return {
-        title: 'Presión Barométrica',
-        value: `${val} hPa`,
-        label,
-        color,
-        percent,
-        type: 'pressure',
-        range: ['Baja', 'Normal', 'Alta']
-      };
     }
 
     return {
-      title: variable.tipo || variable.nombre || 'Variable',
+      title: varTitle,
       value: `${val} ${variable.unidad || ''}`.trim(),
-      label: 'Medio',
-      color: '#10b981',
-      percent: 50,
-      type: 'default',
-      range: ['Bajo', 'Medio', 'Alto']
+      label,
+      color,
+      percent: Math.min(Math.max(percent, 2), 98),
+      type: 'custom_range',
+      range: isEn ? ['Low', 'Optimal', 'High'] : ['Bajo', 'Óptimo', 'Alto'],
+      isOutOfRange,
+      outWarningMsg
     };
   };
 
-  // Filtrar los nodos pertenecientes a la categoría activa
-  const nodosFiltrados = nodos.filter(
-    nodo => nodo.categoria && nodo.categoria.toLowerCase() === (categoriaSeleccionada || '').toLowerCase()
-  );
+  // Buscar la categoría activa en el listado de categorías (soporta coincidencia en español e inglés)
+  const targetCategoryObj = useMemo(() => {
+    if (!categoriaSeleccionada) return null;
+    const targetNorm = categoriaSeleccionada.toLowerCase().trim();
+    return categorias.find(c =>
+      (c.nombre && c.nombre.toLowerCase().trim() === targetNorm) ||
+      (c.nombre_es && c.nombre_es.toLowerCase().trim() === targetNorm) ||
+      (c.nombre_en && c.nombre_en.toLowerCase().trim() === targetNorm)
+    );
+  }, [categorias, categoriaSeleccionada]);
+
+  // Nombre de categoría a mostrar según el idioma seleccionado
+  const displayCategoryName = useMemo(() => {
+    if (!targetCategoryObj) return categoriaSeleccionada || '';
+    if (isEn) {
+      return targetCategoryObj.nombre_en || targetCategoryObj.nombre_es || targetCategoryObj.nombre || categoriaSeleccionada;
+    }
+    return targetCategoryObj.nombre_es || targetCategoryObj.nombre || targetCategoryObj.nombre_en || categoriaSeleccionada;
+  }, [targetCategoryObj, isEn, categoriaSeleccionada]);
+
+  // Sincronizar la categoría activa y la URL al cambiar de idioma
+  useEffect(() => {
+    if (categoriaSeleccionada && targetCategoryObj) {
+      const canonicalName = isEn
+        ? (targetCategoryObj.nombre_en || targetCategoryObj.nombre_es || targetCategoryObj.nombre)
+        : (targetCategoryObj.nombre_es || targetCategoryObj.nombre || targetCategoryObj.nombre_en);
+
+      if (canonicalName && canonicalName !== categoriaSeleccionada) {
+        setCategoriaSeleccionada(canonicalName);
+        setSearchParams(prev => {
+          const p = new URLSearchParams(prev);
+          p.set('categoria', canonicalName);
+          return p;
+        }, { replace: true });
+      }
+    }
+  }, [language, isEn, targetCategoryObj, categoriaSeleccionada, setSearchParams]);
+
+  // Filtrar los nodos pertenecientes a la categoría activa (coincidencia por nombre español, inglés o nombre localizado)
+  const nodosFiltrados = useMemo(() => {
+    if (!categoriaSeleccionada) return [];
+    const targetNorm = categoriaSeleccionada.toLowerCase().trim();
+
+    return nodos.filter(nodo => {
+      if (!nodo.categoria) return false;
+      const nodeCatNorm = nodo.categoria.toLowerCase().trim();
+
+      if (nodeCatNorm === targetNorm) return true;
+
+      if (targetCategoryObj) {
+        const catNombre = (targetCategoryObj.nombre || '').toLowerCase().trim();
+        const catEs = (targetCategoryObj.nombre_es || '').toLowerCase().trim();
+        const catEn = (targetCategoryObj.nombre_en || '').toLowerCase().trim();
+
+        return (
+          nodeCatNorm === catNombre ||
+          (catEs && nodeCatNorm === catEs) ||
+          (catEn && nodeCatNorm === catEn)
+        );
+      }
+
+      return false;
+    });
+  }, [nodos, categoriaSeleccionada, targetCategoryObj]);
 
   // Obtener todas las ubicaciones únicas de los nodos en esta categoría para la barra inferior del mapa
   const ubicacionesDeCategoria = [];
@@ -1324,15 +1439,6 @@ export default function VisualizarMapa() {
     if (document.documentElement) document.documentElement.scrollTop = 0;
     if (document.body) document.body.scrollTop = 0;
   }, [categoriaSeleccionada, nodoSeleccionado?.id, tabActiva]);
-
-  // Auto-seleccionar primer nodo (#1) SOLO cuando se abre el mapa y no hay nodo seleccionado previamente
-  useEffect(() => {
-    if (tabActiva === 'mapa' && modoMapa === 'categoria' && nodosFiltrados.length > 0) {
-      if (!nodoSeleccionado || !nodosFiltrados.some(n => n.id === nodoSeleccionado.id)) {
-        setNodoSeleccionado(nodosFiltrados[0]);
-      }
-    }
-  }, [tabActiva, modoMapa, categoriaSeleccionada, nodosFiltrados]);
 
   // Seleccionar automáticamente la primera lectura/métrica del nodo seleccionado para mostrar el gauge por defecto
   useEffect(() => {
@@ -1390,7 +1496,7 @@ export default function VisualizarMapa() {
       }
 
       // Crear mapa satelital/híbrido idéntico a la vista previa de RegistrarNodo
-      const map = window.L.map('leaflet-public-map-preview').setView([lat, lng], 17);
+      const map = window.L.map('leaflet-public-map-preview', { zoomControl: false }).setView([lat, lng], 17);
       window.leafletPublicMapInstance = map;
 
       // Google Maps Híbrido Satelital (mismo tile que RegistrarNodo)
@@ -1431,10 +1537,14 @@ export default function VisualizarMapa() {
         marker.on('click', () => {
           handleCategoryMapNodeSwitch(n.id);
           map.setView([nLat, nLng], 18);
+          setShowInfoPanel(true);
         });
       });
 
-      // Botón de centrado en el mapa (🏠 Home Icon idéntico a RegistrarNodo)
+      // 1. Control de Zoom de Leaflet (+ y -)
+      window.L.control.zoom({ position: 'topleft' }).addTo(map);
+
+      // 2. Botón de centrado en el mapa (🏠 Home Icon)
       const CenterControl = window.L.Control.extend({
         onAdd: function () {
           const btn = window.L.DomUtil.create('button', 'leaflet-bar leaflet-control leaflet-center-btn');
@@ -1483,6 +1593,45 @@ export default function VisualizarMapa() {
     };
   }, [tabActiva, mapLatitud, mapLongitud]);
 
+  if (pageLoading) {
+    return (
+      <div style={{
+        minHeight: '70vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '2rem'
+      }}>
+        <style dangerouslySetInnerHTML={{ __html: `
+          @keyframes map-custom-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}} />
+        <div style={{
+          width: '56px',
+          height: '56px',
+          borderRadius: '50%',
+          border: '4px solid #e2e8f0',
+          borderTopColor: '#b91c1c',
+          borderBottomColor: '#b91c1c',
+          animation: 'map-custom-spin 0.8s linear infinite',
+          marginBottom: '1.25rem'
+        }}></div>
+        <p style={{
+          color: '#334155',
+          fontWeight: 700,
+          fontFamily: 'sans-serif',
+          letterSpacing: '0.08em',
+          fontSize: '1.1rem'
+        }}>
+          {language === 'en' ? 'LOADING...' : 'CARGANDO...'}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="map-public-container">
 
@@ -1491,13 +1640,13 @@ export default function VisualizarMapa() {
         <div className="pub-news-header-row" style={{ marginBottom: '3rem' }}>
           <div className="pub-news-header" style={{ margin: 0, textAlign: 'left', display: 'inline-block', width: 'fit-content' }}>
             <h1 className="pub-news-main-title">
-              <EditableText textKey="map_main_title" defaultText="Monitoreo por Categorías" />
+              <EditableText textKey="map_main_title" defaultText={t("map.main_title", "Monitoreo por Categorías")} />
             </h1>
             <div className="pub-news-title-underline" />
           </div>
           <p className="map-public-subtitle" style={{ marginTop: '0.85rem' }}>
             <span className="live-indicator"></span>
-            <EditableText textKey="map_subtitle" defaultText="Visualización en tiempo real y exploración analítica de variables de hardware en los campus ULEAM." isTextArea={true} />
+            <EditableText textKey="map_subtitle" defaultText={t("map.map_subtitle_categories", "Visualización en tiempo real y exploración analítica de variables de hardware en los campus ULEAM.")} isTextArea={true} />
           </p>
         </div>
       )}
@@ -1505,9 +1654,9 @@ export default function VisualizarMapa() {
       {/* ── BREADCRUMBS MÓVIL/DESKTOP (Ruta solicitada: Categorías / Categoria / Nodo) ── */}
       {categoriaSeleccionada && tabActiva !== 'mapa' && (
         <div className="breadcrumb-nav">
-          <span onClick={handleReset} className="breadcrumb-link">Categorías</span>
+          <span onClick={handleReset} className="breadcrumb-link"><EditableText textKey="map_breadcrumb_categories" defaultText={t("map.breadcrumb_categories", "Categorías")} /></span>
           <span className="breadcrumb-separator">/</span>
-          <span onClick={() => handleNodeChange(null)} className="breadcrumb-link">{categoriaSeleccionada}</span>
+          <span onClick={() => handleNodeChange(null)} className="breadcrumb-link">{displayCategoryName}</span>
           {nodoSeleccionado && (
             <>
               <span className="breadcrumb-separator">/</span>
@@ -1520,11 +1669,13 @@ export default function VisualizarMapa() {
       {/* ── VISTA 1: LISTADO DE CATEGORÍAS DISPONIBLES (Estilos Premium con SVG e Iconos dinámicos) ── */}
       {!categoriaSeleccionada && (
         <div className="categories-selection-view">
-          <h3 className="section-heading">Elige una categoría de investigación</h3>
+          <h3 className="section-heading">
+            <EditableText textKey="map_choose_category" defaultText={t("map.choose_category", "Elige una categoría de investigación")} />
+          </h3>
           <div className="categories-grid">
             {categorias.length === 0 ? (
               <div className="empty-state-card">
-                <span>No hay categorías registradas en el sistema.</span>
+                <span>{t("common.no_results", "No hay categorías registradas en el sistema.")}</span>
               </div>
             ) : (
               categorias.map(cat => (
@@ -1539,10 +1690,10 @@ export default function VisualizarMapa() {
                   </div>
                   <h4 className="category-card-title">{cat.nombre}</h4>
                   <p className="category-card-desc">
-                    {cat.descripcion || 'Explorar los nodos inteligentes y la telemetría asociada a este grupo.'}
+                    {cat.descripcion || (language === 'en' ? 'Explore smart nodes and telemetry associated with this group.' : 'Explorar los nodos inteligentes y la telemetría asociada a este grupo.')}
                   </p>
                   <span className="category-action-link">
-                    Ver Nodos de Red
+                    <EditableText textKey="map_view_network_nodes" defaultText={t("map.view_network_nodes", "Ver Nodos de Red")} />
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14" style={{ marginLeft: '4px' }}>
                       <line x1="5" y1="12" x2="19" y2="12" />
                       <polyline points="12 5 19 12 12 19" />
@@ -1565,7 +1716,7 @@ export default function VisualizarMapa() {
                 ‹
               </button>
               <h2 className="dashboard-location-title-main">
-                Categoría: {categoriaSeleccionada}
+                <EditableText textKey="map_category_label" defaultText={t("map.category_label", "Categoría")} />: {displayCategoryName}
               </h2>
             </div>
 
@@ -1573,18 +1724,26 @@ export default function VisualizarMapa() {
               <button
                 type="button"
                 onClick={handleOpenMapFromHeader}
-                className={`dashboard-tab-pill ${tabActiva === 'mapa' ? 'active' : ''}`}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                disabled={nodosFiltrados.length === 0}
+                className={`dashboard-tab-pill ${tabActiva === 'mapa' ? 'active' : ''} ${nodosFiltrados.length === 0 ? 'disabled' : ''}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: nodosFiltrados.length === 0 ? 'not-allowed' : 'pointer',
+                  opacity: nodosFiltrados.length === 0 ? 0.55 : 1
+                }}
+                title={nodosFiltrados.length === 0 ? "Esta categoría no posee nodos registrados para mostrar en el mapa" : "Ver en el mapa"}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="15" height="15">
                   <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
                   <line x1="8" y1="2" x2="8" y2="18" />
                   <line x1="16" y1="6" x2="16" y2="22" />
                 </svg>
-                <span>Mapa</span>
+                <span><EditableText textKey="map_tab_map" defaultText={t("map.map_tab", "Mapa")} /></span>
               </button>
               <Link
-                to={nodoSeleccionado ? `/analisis-historico?nodo=${nodoSeleccionado.id}&categoria=${encodeURIComponent(categoriaSeleccionada)}` : `/analisis-historico?categoria=${encodeURIComponent(categoriaSeleccionada)}`}
+                to={nodoSeleccionado ? `/${language}/${language === 'en' ? 'historical-analysis' : 'analisis-historico'}?nodo=${nodoSeleccionado.id}&categoria=${encodeURIComponent(categoriaSeleccionada)}` : `/${language}/${language === 'en' ? 'historical-analysis' : 'analisis-historico'}?categoria=${encodeURIComponent(categoriaSeleccionada)}`}
                 className="dashboard-tab-pill-link"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
               >
@@ -1592,7 +1751,7 @@ export default function VisualizarMapa() {
                   <path d="M3 3v18h18" />
                   <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" />
                 </svg>
-                <span>Histórico</span>
+                <span><EditableText textKey="map_tab_history" defaultText={t("map.history_tab", "Histórico")} /></span>
               </Link>
             </div>
           </div>
@@ -1602,16 +1761,33 @@ export default function VisualizarMapa() {
             <div className="dashboard-content-card">
 
               <div className="dashboard-panel-inner-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
-                <h4 className="dashboard-panel-inner-title" style={{ margin: 0 }}>Datos en Tiempo Real</h4>
+                <h4 className="dashboard-panel-inner-title" style={{ margin: 0 }}><EditableText textKey="map_realtime_data" defaultText={t("map.realtime_data", "Datos en Tiempo Real")} /></h4>
 
-                {/* Selector de tipo de gráfico en la cabecera (Línea / Barras) */}
+                {/* Selector de tipo de gráfico y modo En Vivo/BD en la cabecera */}
                 {nodoSeleccionado && (
-                  <div className="hist-chart-type-toggle" style={{ margin: 0 }}>
+                  <div className="hist-chart-type-toggle" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {/* Botón Reloj (En vivo / BD) - Libre toggle sin bloqueo */}
+                    <button
+                      type="button"
+                      onClick={() => setLiveMode(prev => !prev)}
+                      className={`toggle-icon-btn ${liveMode ? 'active' : ''}`}
+                      title={
+                        liveMode
+                          ? (language === 'en' ? 'Showing Live Data (Click for DB data)' : 'Mostrando Datos en Vivo (Clic para ver Base de Datos)')
+                          : (language === 'en' ? 'Showing DB Data (Click for Live data)' : 'Mostrando Base de Datos (Clic para ver Datos en Vivo)')
+                      }
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                      </svg>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => setTipoGrafico('line')}
                       className={`toggle-icon-btn ${tipoGrafico === 'line' ? 'active' : ''}`}
-                      title="Gráfico de línea"
+                      title={language === 'en' ? 'Line chart' : 'Gráfico de línea'}
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
                         <path d="M3 3v18h18" />
@@ -1622,7 +1798,7 @@ export default function VisualizarMapa() {
                       type="button"
                       onClick={() => setTipoGrafico('bar')}
                       className={`toggle-icon-btn ${tipoGrafico === 'bar' ? 'active' : ''}`}
-                      title="Gráfico de barras"
+                      title={language === 'en' ? 'Bar chart' : 'Gráfico de barras'}
                     >
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
                         <rect x="3" y="3" width="4" height="18" />
@@ -1643,82 +1819,54 @@ export default function VisualizarMapa() {
                     onSelect={(nodeId) => handleNodeChange(nodeId)}
                   />
 
-                  {nodoSeleccionado && nodoSeleccionado.lecturas && nodoSeleccionado.lecturas.length > 0 && (() => {
-                    const lecturas = nodoSeleccionado.lecturas;
-                    const totalCount = lecturas.length;
-                    const checkedCount = lecturas.filter(l => Boolean(activeVariables && activeVariables[l.data_type])).length;
-                    const isSomeChecked = isMultiSelectMode && checkedCount > 0 && checkedCount < totalCount;
+                  {nodoSeleccionado && nodoSeleccionado.lecturas && nodoSeleccionado.lecturas.length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={handleToggleByUnitMode}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: '8px',
+                          border: isByUnitMode ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
+                          background: isByUnitMode ? '#2563eb' : '#ffffff',
+                          color: isByUnitMode ? '#ffffff' : '#475569',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: isByUnitMode ? '0 2px 8px rgba(37, 99, 235, 0.25)' : 'none',
+                          transition: 'all 0.2s ease',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title={isByUnitMode ? "Desactivar multiselección por unidad" : "Marcar variables por misma unidad de medida"}
+                      >
+                        <span style={{
+                          width: '14px',
+                          height: '14px',
+                          borderRadius: '3px',
+                          border: isByUnitMode ? '1.5px solid #ffffff' : '1.5px solid #64748b',
+                          background: isByUnitMode ? '#2563eb' : '#ffffff',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#ffffff',
+                          fontSize: '10px',
+                          fontWeight: 900
+                        }}>
+                          {isByUnitMode ? '✓' : ''}
+                        </span>
+                        {isByUnitMode ? t('map.check_unit_active', 'Marcar por unidad (Activo)') : t('map.check_unit', 'Marcar por unidad')}
+                      </button>
 
-                    if (!isMultiSelectMode) {
-                      return (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsMultiSelectMode(true);
-                            const newMap = {};
-                            lecturas.forEach(l => { newMap[l.data_type] = true; });
-                            setActiveVariables(newMap);
-                          }}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            padding: '7px 16px',
-                            borderRadius: '10px',
-                            border: '1.5px solid #cbd5e1',
-                            backgroundColor: '#ffffff',
-                            color: '#475569',
-                            fontWeight: 700,
-                            fontSize: '0.83rem',
-                            cursor: 'pointer',
-                            boxShadow: '0 2px 5px rgba(0,0,0,0.04)',
-                            transition: 'all 0.2s ease',
-                            userSelect: 'none',
-                            whiteSpace: 'nowrap'
-                          }}
-                          title="Marcar todas las variables para comparación"
-                        >
-                          <span style={{
-                            width: '16px',
-                            height: '16px',
-                            borderRadius: '4px',
-                            border: '1.5px solid #94a3b8',
-                            backgroundColor: '#ffffff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#ffffff',
-                            fontSize: '11px',
-                            fontWeight: 900
-                          }}></span>
-                          <span>Marcar Todas</span>
-                        </button>
-                      );
-                    }
-
-                    return (
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        {isSomeChecked && (
-                          <MarcarTodasBtnPartial
-                            onClick={() => {
-                              const newMap = {};
-                              lecturas.forEach(l => { newMap[l.data_type] = true; });
-                              setActiveVariables(newMap);
-                            }}
-                          />
-                        )}
-
-                        <DesmarcarTodasBtn
-                          onClick={() => {
-                            setIsMultiSelectMode(false);
-                            const firstDataType = lecturas[0].data_type;
-                            setActiveVariables({ [firstDataType]: true });
-                            setLecturaSeleccionada(lecturas[0]);
-                          }}
-                        />
-                      </div>
-                    );
-                  })()}
+                      {isByUnitMode && activeSelectedUnit && (
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#047857', background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '3px 10px', borderRadius: '8px', whiteSpace: 'nowrap' }}>
+                          {t('map.active_unit', 'Unidad activa')}: {activeSelectedUnit}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Lista de Botones Horizontales de Variables */}
@@ -1727,60 +1875,65 @@ export default function VisualizarMapa() {
                     <div className="dashboard-variables-list">
                       {nodoSeleccionado.lecturas && nodoSeleccionado.lecturas.map((l, index) => {
                         const isChecked = Boolean(activeVariables && activeVariables[l.data_type]);
-                        const theme = getTheme(l.data_type, l.icono, isMultiSelectMode ? index : null);
-                        const isRedSingleActive = !isMultiSelectMode && isChecked;
+                        const isSameUnit = !activeSelectedUnit || l.unidad === activeSelectedUnit;
+                        const palette = ['#10b981', '#3b82f6', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308', '#6366f1'];
+                        const mainColor = palette[index % palette.length];
+
+                        const isBlocked = isByUnitMode && !isChecked && !isSameUnit;
+                        const isRedSingleActive = !isByUnitMode && isChecked;
+
+                        const varNombre = language === 'en' ? (l.tipo_en || l.tipo) : (l.tipo_es || l.tipo);
+
+                        const tooltipText = isBlocked
+                          ? `${t('map.different_units', 'Unidades de medida diferentes')} (${l.unidad} vs ${activeSelectedUnit})`
+                          : isByUnitMode
+                            ? (isChecked ? t('map.click_uncheck', 'Click para desmarcar variable') : t('map.click_select', 'Click para seleccionar y comparar variable'))
+                            : `${t('map.show', 'Mostrar')} ${varNombre} (${l.unidad})`;
 
                         return (
                           <button
-                            key={index}
+                            key={l.data_type || index}
                             type="button"
-                            onClick={() => toggleVariable(l.data_type)}
-                            className={`dashboard-variable-btn public-var-checkbox-chip ${isChecked ? 'active' : 'inactive'}`}
+                            disabled={isBlocked}
+                            onClick={() => !isBlocked && toggleVariable(l.data_type)}
+                            title={tooltipText}
                             style={{
-                              borderColor: isRedSingleActive ? '#b91c1c' : (isChecked ? theme.hex : '#cbd5e1'),
-                              backgroundColor: isRedSingleActive ? '#b91c1c' : (isChecked ? theme.bg : '#ffffff'),
-                              color: isRedSingleActive ? '#ffffff' : (isChecked ? '#0f2c59' : '#0f172a'),
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '6px',
-                              padding: '6px 16px',
-                              borderRadius: '8px',
-                              border: `1.5px solid ${isRedSingleActive ? '#b91c1c' : (isChecked ? theme.hex : '#cbd5e1')}`,
-                              fontWeight: 700,
-                              fontSize: '0.84rem',
-                              cursor: 'pointer',
+                              gap: '8px',
+                              padding: '6px 14px',
+                              borderRadius: '20px',
+                              border: `1.5px solid ${isBlocked ? '#cbd5e1' : (isRedSingleActive ? '#b91c1c' : (isChecked ? mainColor : '#cbd5e1'))}`,
+                              background: isBlocked ? '#f8fafc' : (isRedSingleActive ? '#b91c1c' : (isChecked ? `${mainColor}14` : '#ffffff')),
+                              color: isBlocked ? '#94a3b8' : (isRedSingleActive ? '#ffffff' : (isChecked ? '#0f2c59' : '#475569')),
+                              fontSize: '0.83rem',
+                              fontWeight: isChecked ? 800 : 600,
+                              cursor: isBlocked ? 'not-allowed' : 'pointer',
+                              opacity: isBlocked ? 0.6 : 1,
+                              boxShadow: isRedSingleActive ? '0 3px 10px rgba(185, 28, 28, 0.35)' : (isChecked ? `0 2px 6px ${mainColor}25` : 'none'),
                               transition: 'all 0.2s ease',
-                              boxShadow: isRedSingleActive ? '0 3px 10px rgba(185, 28, 28, 0.35)' : 'none'
+                              flexShrink: 0,
+                              whiteSpace: 'nowrap'
                             }}
                           >
-                            {isMultiSelectMode && (
-                              <span
-                                className="checkbox-custom-box"
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '15px',
-                                  height: '15px',
-                                  borderRadius: '4px',
-                                  background: isChecked ? theme.hex : '#ffffff',
-                                  border: `1.5px solid ${isChecked ? theme.hex : '#cbd5e1'}`,
-                                  transition: 'all 0.15s ease'
-                                }}
-                              >
-                                {isChecked && (
-                                  <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="3.5" width="10" height="10">
-                                    <polyline points="20 6 9 17 4 12" />
-                                  </svg>
-                                )}
+                            {isByUnitMode && (
+                              <span style={{
+                                width: '15px',
+                                height: '15px',
+                                borderRadius: '4px',
+                                border: `1.5px solid ${isBlocked ? '#cbd5e1' : (isChecked ? mainColor : '#94a3b8')}`,
+                                background: isBlocked ? '#f1f5f9' : (isChecked ? mainColor : '#ffffff'),
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#ffffff',
+                                fontSize: '10px',
+                                fontWeight: 900
+                              }}>
+                                {isChecked ? '✓' : (isBlocked ? '✕' : '')}
                               </span>
                             )}
-                            <span style={{ display: 'inline-flex', alignItems: 'center', color: isRedSingleActive ? '#ffffff' : theme.hex }}>
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-                                {theme.icon}
-                              </svg>
-                            </span>
-                            <span>{l.tipo} ({l.unidad})</span>
+                            <span>{varNombre} <small style={{ opacity: 0.85, fontWeight: 700 }}>({l.unidad})</small></span>
                           </button>
                         );
                       })}
@@ -1802,17 +1955,21 @@ export default function VisualizarMapa() {
                     <line x1="3" y1="10" x2="21" y2="10" />
                   </svg>
                   <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', fontWeight: '800', color: '#0f172a' }}>
-                    Selecciona un dispositivo para iniciar la visualización
+                    <EditableText textKey="map_select_device_title" defaultText={t("map.select_device_title", "Selecciona un dispositivo para iniciar la visualización")} />
                   </h4>
                   <p style={{ margin: 0, fontSize: '0.88rem', color: '#64748b', maxWidth: '420px', marginLeft: 'auto', marginRight: 'auto', lineHeight: '1.5' }}>
-                    Elige uno de los nodos de hardware de la categoría "{categoriaSeleccionada}" en el selector para cargar la telemetría y gráficos históricos.
+                    <EditableText textKey="map_select_device_desc" defaultText={t("map.select_device_desc", "Elige uno de los nodos de hardware de la categoría en el selector para cargar la telemetría y gráficos históricos.").replace('{{categoria}}', categoriaSeleccionada)} isTextArea={true} />
                   </p>
                 </div>
               ) : (
                 <>
                   {/* Grid de Tarjetas de Lecturas en Tiempo Real para Variables Activas */}
                   {nodoSeleccionado && nodoSeleccionado.lecturas && (() => {
-                    const activeLecturasList = nodoSeleccionado.lecturas.filter(l => Boolean(activeVariables && activeVariables[l.data_type]));
+                    const isVariableActive = (dataType) => {
+                      return Boolean(activeVariables && activeVariables[dataType]);
+                    };
+
+                    const activeLecturasList = nodoSeleccionado.lecturas.filter(l => isVariableActive(l.data_type));
                     const isSingleCard = activeLecturasList.length === 1;
 
                     return (
@@ -1826,20 +1983,11 @@ export default function VisualizarMapa() {
                         {activeLecturasList.map((l) => {
                           const theme = getTheme(l.data_type, l.icono);
                           const liveVal = generarValorLive(l.data_type);
-                          const rawFecha = valoresUltimos[l.data_type]?.fecha;
-                          const timestamp = (() => {
-                            if (!rawFecha) return `${new Date().toLocaleDateString('es-ES')}, ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`;
-                            if (typeof rawFecha === 'string' && (rawFecha.includes('/') || rawFecha.includes('a. m.') || rawFecha.includes('p. m.') || rawFecha.includes('AM') || rawFecha.includes('PM'))) {
-                              return rawFecha;
-                            }
-                            try {
-                              const parsed = new Date(rawFecha);
-                              if (!isNaN(parsed.getTime())) {
-                                return parsed.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'medium', hour12: true });
-                              }
-                            } catch (e) { }
-                            return rawFecha;
-                          })();
+                          const lastLivePacket = (liveMode && liveBuffer && liveBuffer.length > 0) ? liveBuffer[liveBuffer.length - 1] : null;
+                          const rawFecha = lastLivePacket
+                            ? (lastLivePacket.dateTime || lastLivePacket.created_at)
+                            : (valoresUltimos[l.data_type]?.fecha || (history && history.length > 0 ? history[history.length - 1].dateTime : null));
+                          const timestamp = formatTimestampCard(rawFecha);
 
                           const minExp = (l.minExpected !== undefined && l.minExpected !== null && l.minExpected !== '')
                             ? parseFloat(l.minExpected)
@@ -1926,7 +2074,7 @@ export default function VisualizarMapa() {
                                     </svg>
                                   </span>
                                   <span style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.03em', color: '#475569' }}>
-                                    {l.tipo}
+                                    {language === 'en' ? (l.tipo_en || l.nombre_en || l.tipo) : (l.tipo_es || l.tipo)}
                                   </span>
                                 </div>
 
@@ -1950,23 +2098,56 @@ export default function VisualizarMapa() {
                                     <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">
                                       <path d="M12 2L1 21h22L12 2zm0 3.99L20.53 19H3.47L12 5.99zM11 10h2v4h-2zm0 5h2v2h-2z" />
                                     </svg>
-                                    {outWarning.type === 'min' ? 'Bajo mín.' : 'Sobrepasó máx.'}
+                                    {outWarning.type === 'min'
+                                      ? (language === 'en' ? 'Below min.' : 'Bajo mín.')
+                                      : (language === 'en' ? 'Exceeded max.' : 'Sobrepasó máx.')}
                                   </span>
                                 )}
                               </div>
 
                               {/* Valor Grande en Real-Time */}
-                              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#0f2c59', lineHeight: 1.15, margin: '4px 0 8px 0' }}>
-                                {liveVal} <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f2c59' }}>{l.unidad}</span>
+                              <div className="notranslate" translate="no" style={{ fontSize: '1.9rem', fontWeight: 900, color: liveVal === '--' ? '#94a3b8' : '#0f2c59', lineHeight: 1.15, margin: '4px 0 8px 0' }}>
+                                <span className="notranslate" translate="no">{liveVal}</span>
+                                {liveVal !== '--' && <span className="notranslate" translate="no" style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f2c59' }}> {l.unidad}</span>}
                               </div>
 
-                              {/* Timestamp Exacto con Hora, Minuto y Segundo */}
+                              {/* Timestamp / Estado vivo o sin datos */}
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: isSingleCard ? 'center' : 'flex-start', gap: '5px', fontSize: '0.74rem', color: '#1e293b', fontWeight: 700 }}>
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12">
-                                  <circle cx="12" cy="12" r="10" />
-                                  <polyline points="12 6 12 12 16 14" />
-                                </svg>
-                                <span>{timestamp}</span>
+                                {liveVal === '--' ? (
+                                  <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>
+                                    {language === 'en' ? 'No data received yet' : 'Aún sin datos recibidos'}
+                                  </span>
+                                ) : (
+                                  <>
+                                    {/* Badge EN VIVO / ÚLT. LECTURA */}
+                                    {(() => {
+                                      return (
+                                        <span style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '3px',
+                                          fontSize: '0.68rem',
+                                          fontWeight: 800,
+                                          color: liveMode ? '#10b981' : '#64748b',
+                                          backgroundColor: liveMode ? '#ecfdf5' : '#f1f5f9',
+                                          border: `1px solid ${liveMode ? '#6ee7b7' : '#cbd5e1'}`,
+                                          borderRadius: '20px',
+                                          padding: '1px 6px',
+                                          textTransform: 'uppercase',
+                                          letterSpacing: '0.04em'
+                                        }}>
+                                          <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: liveMode ? '#10b981' : '#64748b', display: 'inline-block' }}></span>
+                                          {liveMode ? (language === 'en' ? 'LIVE' : 'EN VIVO') : (language === 'en' ? 'Last reading' : 'Últ. lectura')}
+                                        </span>
+                                      );
+                                    })()}
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12">
+                                      <circle cx="12" cy="12" r="10" />
+                                      <polyline points="12 6 12 12 16 14" />
+                                    </svg>
+                                    <span>{timestamp}</span>
+                                  </>
+                                )}
                               </div>
                             </div>
                           );
@@ -1978,13 +2159,14 @@ export default function VisualizarMapa() {
                   {/* Lienzo del Gráfico Analítico Recharts en Tiempo Real */}
                   {nodoSeleccionado && nodoSeleccionado.lecturas && nodoSeleccionado.lecturas.length > 0 && (
                     <PublicRechartsChart
-                      history={history}
+                      history={liveMode ? liveBuffer : history}
                       nodoSeleccionado={nodoSeleccionado}
                       activeVariables={activeVariables}
                       liveTrigger={liveTrigger}
                       tipoGrafico={tipoGrafico}
                       onDescargarClick={handleOpenDescargaModal}
                       onAmpliarClick={() => setShowModalAmpliado(true)}
+                      liveMode={liveMode}
                     />
                   )}
                 </>
@@ -1999,87 +2181,93 @@ export default function VisualizarMapa() {
               {/* Lienzo del mapa Leaflet a pantalla completa */}
               <div id="leaflet-public-map-preview" className="node-fullscreen-map"></div>
 
-              {/* BARRA SUPERIOR FLOTANTE: CATEGORÍA Y UBICACIÓN (SOLO EN MODO CATEGORÍA) */}
-              {modoMapa === 'categoria' && (
-                <div
-                  className="node-fullscreen-top-bar"
+              {/* BARRA SUPERIOR FLOTANTE: CATEGORÍA Y UBICACIÓN */}
+              <div
+                className="node-fullscreen-top-bar"
+                style={{
+                  position: 'absolute',
+                  top: '24px',
+                  left: '24px',
+                  zIndex: 1000,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  backgroundColor: 'rgba(15, 23, 42, 0.92)',
+                  backdropFilter: 'blur(12px)',
+                  border: '1.5px solid rgba(255, 255, 255, 0.18)',
+                  borderRadius: '30px',
+                  padding: '8px 20px',
+                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.45)',
+                  color: '#ffffff'
+                }}
+              >
+                <button
+                  onClick={() => {
+                    if (modoMapa === 'categoria') {
+                      setNodoSeleccionado(null);
+                      setLecturaSeleccionada(null);
+                      setSearchParams(prev => {
+                        const p = new URLSearchParams(prev);
+                        p.delete('nodo');
+                        p.delete('lectura');
+                        return p;
+                      }, { replace: true });
+                    }
+                    setTabActiva('realtime');
+                  }}
                   style={{
-                    position: 'absolute',
-                    top: '24px',
-                    left: '24px',
-                    zIndex: 1000,
+                    background: 'none',
+                    border: 'none',
+                    color: '#38bdf8',
+                    fontSize: '1.4rem',
+                    cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '12px',
-                    backgroundColor: 'rgba(15, 23, 42, 0.92)',
-                    backdropFilter: 'blur(12px)',
-                    border: '1.5px solid rgba(255, 255, 255, 0.18)',
-                    borderRadius: '30px',
-                    padding: '8px 20px',
-                    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.45)',
-                    color: '#ffffff'
+                    lineHeight: 1,
+                    padding: 0
                   }}
+                  title={language === 'en' ? 'Back to real-time view' : 'Volver a la vista en tiempo real'}
                 >
-                  <button
-                    onClick={() => {
-                      setTabActiva('realtime');
-                      setNodoSeleccionado(null);
-                    }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#38bdf8',
-                      fontSize: '1.4rem',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      lineHeight: 1,
-                      padding: 0
-                    }}
-                    title="Volver a la vista de categoría"
-                  >
-                    ‹
-                  </button>
-                  <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#ffffff' }}>
-                    Categoría: <span style={{ color: '#38bdf8' }}>{categoriaSeleccionada}</span>
-                  </span>
-                  <span style={{ opacity: 0.4 }}>•</span>
-                  <span style={{ fontSize: '0.82rem', color: '#cbd5e1', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    📍 {mapUbicacionNombre}
-                  </span>
-                </div>
-              )}
+                  ‹
+                </button>
+                <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#ffffff' }}>
+                  {language === 'en' ? 'Category' : 'Categoría'}: <span style={{ color: '#38bdf8' }}>{displayCategoryName}</span>
+                </span>
+                <span style={{ opacity: 0.4 }}>•</span>
+                <span style={{ fontSize: '0.82rem', color: '#cbd5e1', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  📍 {mapUbicacionNombre}
+                </span>
+              </div>
 
-              {/* Tarjeta flotante de información si hay un nodo seleccionado */}
-              {nodoSeleccionado && (
+              {/* Tarjeta flotante de información si hay un nodo seleccionado y panel abierto */}
+              {nodoSeleccionado && showInfoPanel && (
                 <div className="node-fullscreen-card">
                   <div className="node-fullscreen-header">
                     <div className="node-fullscreen-header-main" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span className="node-fullscreen-info-label">INFORMACIÓN</span>
-                      {modoMapa === 'nodo' && (
-                        <button
-                          type="button"
-                          className="node-fullscreen-close-btn"
-                          onClick={() => setTabActiva('realtime')}
-                          title="Cerrar vista de mapa"
-                          style={{
-                            background: 'rgba(255, 255, 255, 0.1)',
-                            border: 'none',
-                            color: '#ffffff',
-                            borderRadius: '50%',
-                            width: '26px',
-                            height: '26px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            fontSize: '0.9rem',
-                            fontWeight: 800
-                          }}
-                        >
-                          ✕
-                        </button>
-                      )}
+                      <span className="node-fullscreen-info-label">{language === 'en' ? 'INFORMATION' : 'INFORMACIÓN'}</span>
+                      <button
+                        type="button"
+                        className="node-fullscreen-close-btn"
+                        onClick={() => setShowInfoPanel(false)}
+                        title={language === 'en' ? 'Close panel' : 'Cerrar panel'}
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.1)',
+                          border: 'none',
+                          color: '#ffffff',
+                          borderRadius: '50%',
+                          width: '26px',
+                          height: '26px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
                     </div>
 
                     <h3 className="node-fullscreen-node-name">
@@ -2111,15 +2299,15 @@ export default function VisualizarMapa() {
                           <span className="node-fullscreen-index-value" style={{ color: status.color }}>
                             {status.value}
                           </span>
-                          <span 
-                            className="node-fullscreen-index-badge" 
-                            style={{ 
+                          <span
+                            className="node-fullscreen-index-badge"
+                            style={{
                               backgroundColor: status.color,
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '4px',
                               cursor: status.outWarningMsg ? 'help' : 'default'
-                            }} 
+                            }}
                             title={status.outWarningMsg || ''}
                           >
                             {status.label}
@@ -2156,7 +2344,7 @@ export default function VisualizarMapa() {
                   {/* Sensor Readings List */}
                   <div className="node-fullscreen-readings-section">
                     <span className="node-fullscreen-section-label">
-                      Lecturas del Dispositivo (Haz clic para ver índice)
+                      {language === 'en' ? 'DEVICE READINGS (CLICK TO VIEW INDEX)' : 'LECTURAS DEL DISPOSITIVO (HAZ CLIC PARA VER ÍNDICE)'}
                     </span>
 
                     <div className="node-fullscreen-readings-list">
@@ -2182,13 +2370,18 @@ export default function VisualizarMapa() {
                         const numVal = parseFloat(valStr);
                         let outWarningMsg = null;
                         let outWarningColor = null;
+                        const isEn = language === 'en';
 
-                        if (!isNaN(numVal)) {
+                        if (valStr !== '--' && !isNaN(numVal)) {
                           if (minExp !== null && !isNaN(minExp) && numVal < minExp) {
-                            outWarningMsg = `El valor registrado (${numVal} ${l.unidad || ''}) está por debajo del mínimo esperado (${minExp} ${l.unidad || ''})`;
+                            outWarningMsg = isEn
+                              ? `Value (${numVal} ${l.unidad || ''}) is below expected minimum (${minExp} ${l.unidad || ''})`
+                              : `El valor registrado (${numVal} ${l.unidad || ''}) está por debajo del mínimo esperado (${minExp} ${l.unidad || ''})`;
                             outWarningColor = '#3b82f6';
                           } else if (maxExp !== null && !isNaN(maxExp) && numVal > maxExp) {
-                            outWarningMsg = `El valor registrado (${numVal} ${l.unidad || ''}) sobrepasa el máximo esperado (${maxExp} ${l.unidad || ''})`;
+                            outWarningMsg = isEn
+                              ? `Value (${numVal} ${l.unidad || ''}) exceeds expected maximum (${maxExp} ${l.unidad || ''})`
+                              : `El valor registrado (${numVal} ${l.unidad || ''}) sobrepasa el máximo esperado (${maxExp} ${l.unidad || ''})`;
                             outWarningColor = '#ef4444';
                           }
                         }
@@ -2223,10 +2416,10 @@ export default function VisualizarMapa() {
                                   </svg>
                                 )}
                               </span>
-                              <span className="node-fullscreen-reading-name">{l.tipo}</span>
+                              <span className="node-fullscreen-reading-name">{language === 'en' ? (l.tipo_en || l.nombre_en || l.tipo) : (l.tipo_es || l.tipo)}</span>
                             </div>
                             <span className="node-fullscreen-reading-value font-mono" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                              {valStr} <span className="node-fullscreen-reading-unit">{l.unidad}</span>
+                              {valStr} {valStr !== '--' && <span className="node-fullscreen-reading-unit">{l.unidad}</span>}
                               {outWarningMsg && (
                                 <span
                                   title={outWarningMsg}
@@ -2331,80 +2524,62 @@ export default function VisualizarMapa() {
       {/* ── MODAL FULLSCREEN: GRÁFICO AMPLIADO ── */}
       {showModalAmpliado && nodoSeleccionado && lecturaSeleccionada && (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 9999,
-            background: 'rgba(0,0,0,0.55)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
+          className="ampliado-modal-overlay"
           onClick={() => setShowModalAmpliado(false)}
         >
           <div
-            style={{
-              position: 'relative',
-              margin: '16px',
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              background: '#ffffff',
-              borderRadius: '20px',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.35)',
-              overflow: 'hidden',
-            }}
+            className="ampliado-modal-card"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
+            <div className="ampliado-modal-header">
+              <div className="ampliado-modal-info">
+                <h3 className="ampliado-modal-title">
                   📊 Gráfico Ampliado — {nodoSeleccionado.nombre}
                 </h3>
-                <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>
+                <span className="ampliado-modal-sub">
                   Ubicación: {mapUbicacionNombre}
                 </span>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                {/* Toggle línea / barras */}
-                <div className="hist-chart-type-toggle" style={{ margin: 0 }}>
+              <div className="ampliado-modal-actions">
+                {/* Toggle línea / barras / Reloj */}
+                <div className="hist-chart-type-toggle" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setLiveMode(prev => !prev)}
+                    className={`toggle-icon-btn ${liveMode ? 'active' : ''}`}
+                    title={
+                      liveMode
+                        ? (language === 'en' ? 'Showing Live Data (Click for DB data)' : 'Mostrando Datos en Vivo (Clic para ver Base de Datos)')
+                        : (language === 'en' ? 'Showing DB Data (Click for Live data)' : 'Mostrando Base de Datos (Clic para ver Datos en Vivo)')
+                    }
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                  </button>
                   <button
                     type="button"
                     onClick={() => setTipoGrafico('line')}
                     className={`toggle-icon-btn ${tipoGrafico === 'line' ? 'active' : ''}`}
                   >
-                    Línea
+                    {language === 'en' ? 'Line' : 'Línea'}
                   </button>
                   <button
                     type="button"
                     onClick={() => setTipoGrafico('bar')}
                     className={`toggle-icon-btn ${tipoGrafico === 'bar' ? 'active' : ''}`}
                   >
-                    Barras
+                    {language === 'en' ? 'Bars' : 'Barras'}
                   </button>
                 </div>
 
                 {/* Botón cerrar */}
                 <button
                   onClick={() => setShowModalAmpliado(false)}
-                  style={{
-                    background: '#fef2f2',
-                    border: '1px solid #fecaca',
-                    borderRadius: '10px',
-                    padding: '0.35rem 0.8rem',
-                    cursor: 'pointer',
-                    color: '#b91c1c',
-                    fontWeight: 800,
-                    fontSize: '0.85rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    transition: 'all 0.18s ease',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#fee2e2'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = '#fef2f2'; }}
+                  className="ampliado-modal-close-btn"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
                     <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -2415,14 +2590,15 @@ export default function VisualizarMapa() {
             </div>
 
             {/* Chart canvas — fills remaining height */}
-            <div style={{ flex: 1, overflow: 'hidden', padding: '0.5rem 0' }}>
+            <div className="ampliado-modal-body">
               <PublicRechartsChart
-                history={history}
+                history={liveMode ? liveBuffer : history}
                 nodoSeleccionado={nodoSeleccionado}
                 activeVariables={activeVariables}
                 liveTrigger={liveTrigger}
                 tipoGrafico={tipoGrafico}
                 isAmpliado={true}
+                liveMode={liveMode}
               />
             </div>
           </div>

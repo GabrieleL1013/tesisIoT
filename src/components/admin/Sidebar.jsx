@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { NavLink, useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import logoImagen from '../../assets/LOGO.png'; 
+import { useLanguage } from '../../context/LanguageContext';
+import { checkUserInterfaceAccess } from '../../utils/rbac';
+import logoImagen from '../../assets/LOGO.png';
 import '../../styles/components/admin/Sidebar.css';
 
-// Custom Inline SVG Icons (no external icon package required)
 const DashboardIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="18" height="18" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
     <rect x="3" y="3" width="7" height="9" rx="1" />
@@ -81,7 +82,7 @@ const ActivityIcon = () => (
 
 const HistoryIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', width: '18px', height: '18px' }}>
-    <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
+    <path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" />
   </svg>
 );
 
@@ -138,75 +139,46 @@ const Sidebar = ({ isOpen, cerrarMenu, appInterfaces = [], dbUser, userSession }
   const navigate = useNavigate();
   const location = useLocation();
   const { logout } = useAuth();
+  const { language, t } = useLanguage();
 
-  const canAccess = (path) => {
-    const userRoleId = dbUser?.role_id || dbUser?.role?.id || userSession?.role_id || userSession?.role?.id;
-    const userRoleName = dbUser?.role?.name || userSession?.role?.name || userSession?.rol;
-    const userLevel = dbUser?.role?.level_permission ?? userSession?.role?.level_permission ?? 1;
+  const baseAdmin = `/${language}/admin`;
 
-    if (userRoleName === 'Superusuario' || userRoleId === 1) return true;
-    if (!appInterfaces || appInterfaces.length === 0) return true;
-
-    const iface = appInterfaces.find(i => path.startsWith(i.path));
-    if (!iface) return true;
-
-    let allowed = [];
-    try {
-      allowed = typeof iface.allowed_roles === 'string' ? JSON.parse(iface.allowed_roles) : iface.allowed_roles;
-    } catch(e) {}
-    
-    if (!Array.isArray(allowed)) allowed = [];
-
-    const isRoleAdmitted = allowed.some(item => 
-      item === userRoleId || 
-      item === String(userRoleId) || 
-      item === userRoleName
-    );
-
-    const isLevelSufficient = iface.min_level === null || userLevel >= iface.min_level;
-    
-    return isRoleAdmitted && isLevelSufficient;
+  const canAccess = (subpath) => {
+    const activeUser = dbUser || userSession;
+    return checkUserInterfaceAccess(subpath, activeUser, appInterfaces);
   };
 
+  const isTelemetriaPageActive = location.pathname.includes('/monitor-en-vivo') || location.pathname.includes('/live-monitor') ||
+    location.pathname.includes('/historico') || location.pathname.includes('/history');
+
+  const [telemetriaSubmenuOpen, setTelemetriaSubmenuOpen] = useState(isTelemetriaPageActive);
+
   const [nodosSubmenuOpen, setNodosSubmenuOpen] = useState(
-    location.pathname.includes('/admin/nodos') || 
-    location.pathname.includes('/admin/categorias') ||
-    location.pathname.includes('/admin/metricas')
+    location.pathname.includes('/nodos') || location.pathname.includes('/nodes') ||
+    location.pathname.includes('/categorias') || location.pathname.includes('/categories') ||
+    location.pathname.includes('/metricas') || location.pathname.includes('/metrics')
   );
 
   const [seguridadSubmenuOpen, setSeguridadSubmenuOpen] = useState(
-    location.pathname.includes('/admin/usuarios') || 
-    location.pathname.includes('/admin/roles') ||
-    location.pathname.includes('/admin/interfaces')
+    location.pathname.includes('/usuarios') || location.pathname.includes('/users') ||
+    location.pathname.includes('/roles') || location.pathname.includes('/interfaces')
   );
 
   const manejarCerrarSesion = () => {
-    // Clear credentials and authentication cookies/localStorage keys
     localStorage.removeItem('iot_token_seguro');
     localStorage.removeItem('iot_sesion_activa');
     localStorage.removeItem('app_user');
-    
-    // Reset React Context auth state
     logout();
-    
-    if (cerrarMenu) cerrarMenu(); 
-    navigate('/');
+    if (cerrarMenu) cerrarMenu();
+    navigate(`/${language}/login`);
   };
 
-  const isNodosPageActive = location.pathname === '/admin/nodos' || 
-                            location.pathname === '/admin/categorias' ||
-                            location.pathname === '/admin/metricas';
+  const isNodosPageActive = location.pathname.includes('/nodos') || location.pathname.includes('/nodes') ||
+    location.pathname.includes('/categorias') || location.pathname.includes('/categories') ||
+    location.pathname.includes('/metricas') || location.pathname.includes('/metrics');
 
-  const isSeguridadPageActive = location.pathname === '/admin/usuarios' || 
-                                location.pathname === '/admin/roles' ||
-                                location.pathname === '/admin/interfaces';
-
-
-  const toggleSubmenu = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setNodosSubmenuOpen(!nodosSubmenuOpen);
-  };
+  const isSeguridadPageActive = location.pathname.includes('/usuarios') || location.pathname.includes('/users') ||
+    location.pathname.includes('/roles') || location.pathname.includes('/interfaces');
 
   const userRoleId = dbUser?.role_id || dbUser?.role?.id || userSession?.role_id || userSession?.role?.id;
   const userRoleName = dbUser?.role?.name || userSession?.role?.name || userSession?.rol;
@@ -215,15 +187,21 @@ const Sidebar = ({ isOpen, cerrarMenu, appInterfaces = [], dbUser, userSession }
 
   return (
     <>
-      {/* Overlay para cerrar al tocar fuera en móvil */}
       {isOpen && <div className="sidebar-overlay" onClick={cerrarMenu}></div>}
 
       <aside className={`admin-sidebar ${isOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          <Link to="/admin/dashboard" className="logo-admin-flex" onClick={cerrarMenu}>
+          <button type="button" className="sidebar-mobile-toggle-close" onClick={cerrarMenu} title={t("common.close", "Cerrar menú")}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="22" height="22">
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+          <Link to={`${baseAdmin}/dashboard`} className="logo-admin-flex" onClick={cerrarMenu}>
             <img src={logoImagen} alt="Uleam Logo" />
           </Link>
-          <span className="role-badge">Panel Administrativo</span>
+          <span className="role-badge">{t("admin.dashboard", "Panel Administrativo")}</span>
         </div>
 
         <nav className="sidebar-nav">
@@ -239,165 +217,158 @@ const Sidebar = ({ isOpen, cerrarMenu, appInterfaces = [], dbUser, userSession }
           ) : (
             <>
               {canAccess('/admin/dashboard') && (
-              <NavLink to="/admin/dashboard" className="side-item" onClick={cerrarMenu}>
-                <DashboardIcon /> <span>Dashboard</span>
-              </NavLink>
+                <NavLink to={`${baseAdmin}/dashboard`} className="side-item" onClick={cerrarMenu}>
+                  <DashboardIcon /> <span>{t("admin.dashboard", "Dashboard")}</span>
+                </NavLink>
               )}
 
-          {/* Expandable parent menu item for Telemetria */}
-          {(canAccess('/admin/monitor-en-vivo') || canAccess('/admin/historico')) && (
-          <div className={`side-menu-parent ${location.pathname.includes('/admin/monitor-en-vivo') || location.pathname.includes('/admin/historico') ? 'expanded' : ''}`}>
-            <button 
-              type="button" 
-              className={`side-item-btn ${location.pathname.includes('/admin/monitor-en-vivo') || location.pathname.includes('/admin/historico') ? 'active' : ''}`}
-              onClick={(e) => {
-                const parent = e.currentTarget.parentElement;
-                parent.classList.toggle('expanded');
-              }}
-            >
-              <MqttIcon /> <span>Telemetría</span>
-              <span className={`submenu-arrow ${location.pathname.includes('/admin/monitor-en-vivo') || location.pathname.includes('/admin/historico') ? 'rotated' : ''}`}>▾</span>
-            </button>
+              {(canAccess('/admin/monitor-en-vivo') || canAccess('/admin/historico')) && (
+                <div className={`side-menu-parent ${telemetriaSubmenuOpen ? 'expanded' : ''}`}>
+                  <button
+                    type="button"
+                    className={`side-item-btn ${isTelemetriaPageActive ? 'active' : ''}`}
+                    onClick={() => setTelemetriaSubmenuOpen(!telemetriaSubmenuOpen)}
+                  >
+                    <MqttIcon /> <span>{t("sidebar.telemetry", "Telemetría")}</span>
+                    <span className={`submenu-arrow ${telemetriaSubmenuOpen ? 'rotated' : ''}`}>▾</span>
+                  </button>
 
-            <div className="submenu-nav">
-              {canAccess('/admin/monitor-en-vivo') && (<NavLink 
-                to="/admin/monitor-en-vivo" 
-                className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`} 
-                onClick={cerrarMenu}
-              >
-                <ActivityIcon /> <span>En Vivo</span>
-              </NavLink>)}
-              
-              {canAccess('/admin/historico') && (<NavLink 
-                to="/admin/historico" 
-                className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`} 
-                onClick={cerrarMenu}
-              >
-                <HistoryIcon /> <span>Histórico Agregado</span>
-              </NavLink>)}
-            </div>
-          </div>)}
+                  {telemetriaSubmenuOpen && (
+                    <div className="submenu-nav">
+                      {canAccess('/admin/monitor-en-vivo') && (<NavLink
+                        to={`${baseAdmin}/${language === 'en' ? 'live-monitor' : 'monitor-en-vivo'}`}
+                        className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
+                        onClick={cerrarMenu}
+                      >
+                        <ActivityIcon /> <span>{t("admin.live_monitor", "En Vivo")}</span>
+                      </NavLink>)}
 
-          {/* Expandable parent menu item for Nodos Sensores */}
-          {(canAccess('/admin/nodos') || canAccess('/admin/categorias') || canAccess('/admin/metricas')) && (
-          <div className={`side-menu-parent ${nodosSubmenuOpen ? 'expanded' : ''}`}>
-            <button 
-              type="button" 
-              className={`side-item-btn ${isNodosPageActive ? 'active' : ''}`}
-              onClick={() => setNodosSubmenuOpen(!nodosSubmenuOpen)}
-            >
-              <NodesIcon /> <span>Nodos Sensores</span>
-              <span className={`submenu-arrow ${nodosSubmenuOpen ? 'rotated' : ''}`}>▾</span>
-            </button>
+                      {canAccess('/admin/historico') && (<NavLink
+                        to={`${baseAdmin}/${language === 'en' ? 'history' : 'historico'}`}
+                        className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
+                        onClick={cerrarMenu}
+                      >
+                        <HistoryIcon /> <span>{t("admin.aggregated_history", "Histórico Agregado")}</span>
+                      </NavLink>)}
+                    </div>
+                  )}
+                </div>)}
 
-            {nodosSubmenuOpen && (
-              <div className="submenu-nav">
-                {canAccess('/admin/nodos') && (<NavLink 
-                  to="/admin/nodos" 
-                  end 
-                  className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`} 
-                  onClick={cerrarMenu}
-                >
-                  <AddIcon /> <span>Registrar Nodo</span>
-                </NavLink>)}
-                
-                {canAccess('/admin/categorias') && (<NavLink 
-                  to="/admin/categorias" 
-                  className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`} 
-                  onClick={cerrarMenu}
-                >
-                  <TagIcon /> <span>Categorías de Nodos</span>
-                </NavLink>)}
+              {(canAccess('/admin/nodos') || canAccess('/admin/categorias') || canAccess('/admin/metricas')) && (
+                <div className={`side-menu-parent ${nodosSubmenuOpen ? 'expanded' : ''}`}>
+                  <button
+                    type="button"
+                    className={`side-item-btn ${isNodosPageActive ? 'active' : ''}`}
+                    onClick={() => setNodosSubmenuOpen(!nodosSubmenuOpen)}
+                  >
+                    <NodesIcon /> <span>{t("admin.nodes", "Nodos Sensores")}</span>
+                    <span className={`submenu-arrow ${nodosSubmenuOpen ? 'rotated' : ''}`}>▾</span>
+                  </button>
 
-                {canAccess('/admin/metricas') && (<NavLink 
-                  to="/admin/metricas" 
-                  className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`} 
-                  onClick={cerrarMenu}
-                >
-                  <MetricIcon /> <span>Métricas de Nodos</span>
-                </NavLink>)}
-              </div>
-            )}
+                  {nodosSubmenuOpen && (
+                    <div className="submenu-nav">
+                      {canAccess('/admin/nodos') && (<NavLink
+                        to={`${baseAdmin}/${language === 'en' ? 'nodes' : 'nodos'}`}
+                        end
+                        className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
+                        onClick={cerrarMenu}
+                      >
+                        <AddIcon /> <span>{t("admin.register_node", "Registrar Nodo")}</span>
+                      </NavLink>)}
 
-          </div>)}
-          
-          {canAccess('/admin/ubicaciones') && (
-          <NavLink to="/admin/ubicaciones" className="side-item" onClick={cerrarMenu}>
-            <LocationsIcon /> <span>Ubicaciones</span>
-          </NavLink>
-          )}
+                      {canAccess('/admin/categorias') && (<NavLink
+                        to={`${baseAdmin}/${language === 'en' ? 'categories' : 'categorias'}`}
+                        className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
+                        onClick={cerrarMenu}
+                      >
+                        <TagIcon /> <span>{t("admin.categories", "Categorías de Nodos")}</span>
+                      </NavLink>)}
 
-          {/* Expandable parent menu item for Seguridad */}
-          {(canAccess('/admin/usuarios') || canAccess('/admin/roles') || canAccess('/admin/interfaces')) && (
-          <div className={`side-menu-parent ${seguridadSubmenuOpen ? 'expanded' : ''}`}>
-            <button 
-              type="button" 
-              className={`side-item-btn ${isSeguridadPageActive ? 'active' : ''}`}
-              onClick={() => setSeguridadSubmenuOpen(!seguridadSubmenuOpen)}
-            >
-              <ShieldIcon /> <span>Seguridad</span>
-              <span className={`submenu-arrow ${seguridadSubmenuOpen ? 'rotated' : ''}`}>▾</span>
-            </button>
+                      {canAccess('/admin/metricas') && (<NavLink
+                        to={`${baseAdmin}/${language === 'en' ? 'metrics' : 'metricas'}`}
+                        className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
+                        onClick={cerrarMenu}
+                      >
+                        <MetricIcon /> <span>{t("admin.metrics", "Métricas de Nodos")}</span>
+                      </NavLink>)}
+                    </div>
+                  )}
+                </div>)}
 
-            {seguridadSubmenuOpen && (
-              <div className="submenu-nav">
-                {canAccess('/admin/usuarios') && (<NavLink 
-                  to="/admin/usuarios" 
-                  className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`} 
-                  onClick={cerrarMenu}
-                >
-                  <UsersIcon /> <span>Usuarios</span>
-                </NavLink>)}
-                
-                {canAccess('/admin/roles') && (<NavLink 
-                  to="/admin/roles" 
-                  className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`} 
-                  onClick={cerrarMenu}
-                >
-                  <BadgeIcon /> <span>Roles</span>
-                </NavLink>)}
+              {canAccess('/admin/ubicaciones') && (
+                <NavLink to={`${baseAdmin}/${language === 'en' ? 'locations' : 'ubicaciones'}`} className="side-item" onClick={cerrarMenu}>
+                  <LocationsIcon /> <span>{t("admin.locations", "Ubicaciones")}</span>
+                </NavLink>
+              )}
 
-                {canAccess('/admin/interfaces') && (<NavLink 
-                  to="/admin/interfaces" 
-                  className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`} 
-                  onClick={cerrarMenu}
-                >
-                  <LayoutIcon /> <span>Interfaces</span>
-                </NavLink>)}
-              </div>
-            )}
-          </div>)}
+              {(canAccess('/admin/usuarios') || canAccess('/admin/roles') || canAccess('/admin/interfaces')) && (
+                <div className={`side-menu-parent ${seguridadSubmenuOpen ? 'expanded' : ''}`}>
+                  <button
+                    type="button"
+                    className={`side-item-btn ${isSeguridadPageActive ? 'active' : ''}`}
+                    onClick={() => setSeguridadSubmenuOpen(!seguridadSubmenuOpen)}
+                  >
+                    <ShieldIcon /> <span>{t("sidebar.security", "Seguridad")}</span>
+                    <span className={`submenu-arrow ${seguridadSubmenuOpen ? 'rotated' : ''}`}>▾</span>
+                  </button>
 
-          {canAccess('/admin/noticias') && (
-          <NavLink to="/admin/noticias" className="side-item" onClick={cerrarMenu}>
-            <NewsIcon /> <span>Noticias</span>
-          </NavLink>
-          )}
+                  {seguridadSubmenuOpen && (
+                    <div className="submenu-nav">
+                      {canAccess('/admin/usuarios') && (<NavLink
+                        to={`${baseAdmin}/${language === 'en' ? 'users' : 'usuarios'}`}
+                        className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
+                        onClick={cerrarMenu}
+                      >
+                        <UsersIcon /> <span>{t("admin.users", "Usuarios")}</span>
+                      </NavLink>)}
 
-          {canAccess('/admin/articulos') && (
-          <NavLink to="/admin/articulos" className="side-item" onClick={cerrarMenu}>
-            <ArticlesIcon /> <span>Artículos</span>
-          </NavLink>
-          )}
+                      {canAccess('/admin/roles') && (<NavLink
+                        to={`${baseAdmin}/roles`}
+                        className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
+                        onClick={cerrarMenu}
+                      >
+                        <BadgeIcon /> <span>{t("admin.roles", "Roles")}</span>
+                      </NavLink>)}
 
-          {canAccess('/admin/notificaciones') && (
-          <NavLink to="/admin/notificaciones" className="side-item" onClick={cerrarMenu}>
-            <BellIcon /> <span>Notificaciones</span>
-          </NavLink>
-          )}
+                      {canAccess('/admin/interfaces') && (<NavLink
+                        to={`${baseAdmin}/interfaces`}
+                        className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
+                        onClick={cerrarMenu}
+                      >
+                        <LayoutIcon /> <span>{t("admin.interfaces", "Permisos")}</span>
+                      </NavLink>)}
+                    </div>
+                  )}
+                </div>)}
 
+              {canAccess('/admin/noticias') && (
+                <NavLink to={`${baseAdmin}/${language === 'en' ? 'news' : 'noticias'}`} className="side-item" onClick={cerrarMenu}>
+                  <NewsIcon /> <span>{t("admin.manage_news", "Noticias")}</span>
+                </NavLink>
+              )}
 
-          <NavLink to="/" className="side-item" onClick={cerrarMenu}>
-            <DashboardIcon /> <span>Inicio</span>
-          </NavLink>
+              {canAccess('/admin/articulos') && (
+                <NavLink to={`${baseAdmin}/${language === 'en' ? 'articles' : 'articulos'}`} className="side-item" onClick={cerrarMenu}>
+                  <ArticlesIcon /> <span>{t("admin.manage_articles", "Artículos")}</span>
+                </NavLink>
+              )}
 
+              {canAccess('/admin/notificaciones') && (
+                <NavLink to={`${baseAdmin}/${language === 'en' ? 'notifications' : 'notificaciones'}`} className="side-item" onClick={cerrarMenu}>
+                  <BellIcon /> <span>{t("admin.notifications", "Notificaciones")}</span>
+                </NavLink>
+              )}
+
+              <Link to={`/${language}`} className="side-item" onClick={cerrarMenu}>
+                <DashboardIcon /> <span>{t("sidebar.public_portal", "Ir al Portal Público")}</span>
+              </Link>
             </>
           )}
         </nav>
 
         <div className="sidebar-footer">
           <button className="btn-logout" onClick={manejarCerrarSesion}>
-            <LogoutIcon /> <span>Cerrar Sesión</span>
+            <LogoutIcon /> <span>{t("nav.logout", "Cerrar Sesión")}</span>
           </button>
         </div>
       </aside>

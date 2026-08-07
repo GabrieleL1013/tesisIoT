@@ -1,21 +1,17 @@
-import { API_BASE_URL } from "../config/api";
+import { API_BASE_URL, fetchWithAuth, fetchDeduplicated } from "../config/api";
 import { useState, useEffect } from "react";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import { useInterfaceText } from "../context/InterfaceTextContext";
 import { checkEditPermission } from "../utils/checkEditPermission";
-import { Link, useNavigate, useLocation } from "react-router-dom"; // ── USAMOS LINK PARA CONECTAR LAS VISTAS ──
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import LogoImg from "../assets/LOGO.png";
+import LogoImg2 from "../assets/LOGO2.png";
 import IotLogoImg from "../assets/IOT-LOGO.png";
-import EditableImage from "./EditableImage";
-import EditableText from "./EditableText";
 import "../styles/components/Navbar.css"; 
 
-
-
-// ── Iconos SVG originales como componentes locales ──
 const ChevronDownIcon = ({ className }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ marginLeft: "4px", display: "inline-block", verticalAlign: "middle" }}><polyline points="6 9 12 15 18 9"/></svg>
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ marginLeft: "4px", display: "inline-block", verticalAlign: "middle" }}><polyline points="6 9 12 15 18 9"/></svg>
 );
 const MenuIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -24,10 +20,7 @@ const CloseIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 );
 const GlobeIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ display: "inline-block", verticalAlign: "middle" }}><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-);
-const UserIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ display: "inline-block", verticalAlign: "middle" }}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ display: "inline-block", verticalAlign: "middle" }}><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z"></path></svg>
 );
 const LoginIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" className="icon-login" style={{ display: "inline-block", verticalAlign: "middle" }}><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
@@ -46,17 +39,12 @@ const DashboardIcon = () => (
 
 const LANGUAGES = [
   { code: "es", name: "Español (ES)" },
-  { code: "en", name: "English (EN)" },
-  { code: "fr", name: "Français (FR)" },
-  { code: "pt", name: "Português (PT)" },
-  { code: "it", name: "Italiano (IT)" },
-  { code: "de", name: "Deutsch (DE)" },
-  { code: "zh-CN", name: "Chino (ZH)" }
+  { code: "en", name: "English (EN)" }
 ];
 
 export default function Navbar() {
-  const { language, setLanguage } = useLanguage();
-  const { user, login, logout, isLoggedIn } = useAuth();
+  const { language, setLanguage, t } = useLanguage();
+  const { logout, isLoggedIn } = useAuth();
   const { editMode, toggleEditMode } = useInterfaceText();
   const navigate = useNavigate();
   const location = useLocation();
@@ -82,7 +70,7 @@ export default function Navbar() {
           setSessionUser(parsed);
 
           if (parsed.id) {
-            fetch(`${API_BASE_URL}/users/${parsed.id}`)
+            fetchWithAuth(`${API_BASE_URL}/users/${parsed.id}`)
               .then(res => res.json())
               .then(dbUser => {
                 if (dbUser && dbUser.name) {
@@ -125,20 +113,22 @@ export default function Navbar() {
       window.removeEventListener('appInterfacesUpdated', handleInterfacesUpdate);
     };
   }, [isLoggedIn]);
+
   const [categoriasDinamicas, setCategoriasDinamicas] = useState([]);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/categorias`)
+    const mapSlug = language === "en" ? "categories" : "categorias";
+    fetchDeduplicated(`${API_BASE_URL}/categorias?lang=${language}`)
       .then(res => res.json())
       .then(catData => {
         const catList = Array.isArray(catData) ? catData : [];
         if (catList.length > 0) {
           const menuCategorias = {
-            label: "Categorías",
-            path: "/mapa-tiempo-real",
+            label: t("nav.categories", "Categorías"),
+            path: `/${language}/${mapSlug}`,
             children: catList.map(cat => ({
               label: cat.nombre,
-              path: `/mapa-tiempo-real?categoria=${encodeURIComponent(cat.nombre)}`
+              path: `/${language}/${mapSlug}?categoria=${encodeURIComponent(cat.nombre)}`
             }))
           };
           setCategoriasDinamicas([menuCategorias]);
@@ -150,19 +140,25 @@ export default function Navbar() {
         console.error("Error fetching categories in Navbar:", err);
         setCategoriasDinamicas([]);
       });
-  }, [isLoggedIn]);
+  }, [isLoggedIn, language]);
+
+  const mapSlug = language === "en" ? "categories" : "categorias";
+  const newsSlug = language === "en" ? "news" : "noticias";
+  const articlesSlug = language === "en" ? "articles" : "articulos";
+  const aboutSlug = language === "en" ? "software" : "software";
+  const contactSlug = language === "en" ? "contact" : "contacto";
 
   const NAV_ITEMS = [
-    { label: "Inicio", path: "/" },
-    ...(categoriasDinamicas.length > 0 ? categoriasDinamicas : [{ label: "Categorías", path: "/mapa-tiempo-real" }]),
-    { label: "Noticias", path: "/noticias" },
-    { label: "Artículos", path: "/articulos" }, 
+    { label: t("nav.home", "Inicio"), path: `/${language}` },
+    ...(categoriasDinamicas.length > 0 ? categoriasDinamicas : [{ label: t("nav.categories", "Categorías"), path: `/${language}/${mapSlug}` }]),
+    { label: t("nav.news", "Noticias"), path: `/${language}/${newsSlug}` },
+    { label: t("nav.articles", "Artículos"), path: `/${language}/${articlesSlug}` }, 
     { 
-      label: "Acerca de", 
-      path: "/acerca-de",
+      label: t("nav.about", "Acerca de"), 
+      path: `/${language}/${aboutSlug}`,
       children: [
-        { label: "¿Quiénes somos?", path: "/acerca-de" },
-        { label: "Contacto", path: "/contacto" }
+        { label: t("about.title", "¿Quiénes somos?"), path: `/${language}/${aboutSlug}` },
+        { label: t("nav.contact", "Contacto"), path: `/${language}/${contactSlug}` }
       ] 
     },
   ];
@@ -177,102 +173,107 @@ export default function Navbar() {
     const handleOutsideClick = () => {
       setShowLangDropdown(false);
       setShowProfileMenu(false);
+      setOpenDropdown(null);
     };
     document.addEventListener("click", handleOutsideClick);
     return () => document.removeEventListener("click", handleOutsideClick);
   }, []);
 
-
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, [mobileOpen]);
 
   const handleLogoutClick = () => {
     localStorage.removeItem('iot_sesion_activa');
     logout();
-    navigate("/");
+    navigate(`/${language}`);
     window.location.reload();
   };
 
   const isItemActive = (item) => {
     const currentPath = location.pathname;
-
-    if (item.path === "/") {
-      return currentPath === "/";
+    const currentSearch = location.search;
+    const currentUrl = currentPath + currentSearch;
+    
+    if (item.path === `/${language}`) {
+      return currentPath === `/${language}` || currentPath === `/${language}/`;
     }
-
     if (item.children && item.children.length > 0) {
-      const isChildMatch = item.children.some((child) => {
-        const [childBase, childQuery] = child.path.split("?");
-        if (childQuery) {
-          return currentPath === childBase && location.search === `?${childQuery}`;
+      return item.children.some((child) => {
+        try {
+          return decodeURIComponent(currentUrl) === decodeURIComponent(child.path);
+        } catch(e) {
+          return currentUrl === child.path;
         }
-        return currentPath === childBase || (childBase !== "/" && currentPath.startsWith(childBase));
       });
-      if (isChildMatch) return true;
     }
-
-    if (item.path) {
-      const [basePath, query] = item.path.split("?");
-      if (basePath === "/") return currentPath === "/";
-      if (query) {
-        return currentPath === basePath && location.search === `?${query}`;
-      }
-      return currentPath === basePath || (basePath !== "/" && currentPath.startsWith(basePath));
-    }
-
-    return false;
+    return currentUrl === item.path;
   };
 
   const isChildActive = (childPath) => {
-    const [basePath, queryString] = childPath.split("?");
-    if (queryString) {
-      return location.pathname === basePath && location.search === `?${queryString}`;
+    const currentUrl = location.pathname + location.search;
+    try {
+      return decodeURIComponent(currentUrl) === decodeURIComponent(childPath);
+    } catch(e) {
+      return currentUrl === childPath;
     }
-    return location.pathname === basePath || (basePath !== "/" && location.pathname.startsWith(basePath));
   };
 
   return (
     <>
       <nav className={`nav-main ${scrolled ? "nav-scrolled" : ""}`}>
         <div className="nav-container">
-          {/* Brand/Logo */}
-          <Link to="/" className="nav-logo" style={{ display: "inline-flex", alignItems: "center", gap: "10px" }}>
-            <EditableImage
-              imageKey="nav_logo_primary"
-              defaultSrc={LogoImg}
+          {/* Mobile Hamburger Button (Left Side) */}
+          <button 
+            onClick={() => setMobileOpen(!mobileOpen)} 
+            className="nav-hamburger mobile-only"
+            aria-label="Toggle menu"
+          >
+            {mobileOpen ? <CloseIcon /> : <MenuIcon />}
+          </button>
+
+          <Link to={`/${language}`} className="nav-logo">
+            <img
+              src={LogoImg}
               alt="Universidad Logo"
               className="nav-logo-img"
-              recommendedWidth={240}
-              recommendedHeight={80}
-              hint="Logo principal de la universidad en el menú superior."
             />
-            <EditableImage
-              imageKey="nav_logo_secondary"
-              defaultSrc={IotLogoImg}
+            <img
+              src={IotLogoImg}
               alt="IOT Logo"
               className="nav-logo-img-secondary"
-              recommendedWidth={120}
-              recommendedHeight={80}
-              hint="Logo secundario de IoT en el menú superior."
             />
           </Link>
 
-          {/* Desktop Links */}
           <div className="nav-desktop-links">
             {NAV_ITEMS.map((item) => (
               <div
                 key={item.label}
                 className="nav-item-wrapper"
-                onMouseEnter={() => item.children && setOpenDropdown(item.label)}
-                onMouseLeave={() => setOpenDropdown(null)}
+                onClick={(e) => {
+                  if (item.children) {
+                    e.stopPropagation();
+                    setOpenDropdown(openDropdown === item.label ? null : item.label);
+                  }
+                }}
               >
                 {item.children ? (
-                  <Link
-                    to={item.path || "#"}
-                    onClick={() => setOpenDropdown(null)}
-                    className={`nav-link ${isItemActive(item) ? "active" : ""}`}
-                    style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
+                  <button
+                    className={`nav-link ${isItemActive(item) ? "active" : ""} ${openDropdown === item.label ? "dropdown-open" : ""}`}
+                    style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', background: 'none', border: 'none', fontFamily: 'inherit', cursor: 'pointer', padding: '0 0.8rem' }}
                   >
-                    {item.label} <ChevronDownIcon />
-                  </Link>
+                    {item.label} <ChevronDownIcon className={openDropdown === item.label ? "rotated" : ""} />
+                  </button>
                 ) : (
                   <Link
                     to={item.path}
@@ -300,12 +301,17 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* Actions / Hamburger */}
           <div className="nav-actions">
-            
-            {/* Language Selector Dropdown */}
-            <div className="nav-lang-selector" onClick={(e) => e.stopPropagation()}>
-              <button onClick={() => setShowLangDropdown(!showLangDropdown)} className="nav-btn-lang">
+            {/* Desktop Lang Selector */}
+            <div className="nav-lang-selector desktop-only" onClick={(e) => e.stopPropagation()}>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowProfileMenu(false);
+                  setShowLangDropdown((prev) => !prev);
+                }} 
+                className="nav-btn-lang"
+              >
                 <GlobeIcon />
                 <span className="nav-btn-text" style={{ marginLeft: "6px" }}>
                   {LANGUAGES.find((l) => l.code === language)?.name || "Español"}
@@ -330,15 +336,17 @@ export default function Navbar() {
               )}
             </div>
 
-
-            {/* Perfil de Usuario con Menú Desplegable o Botón de Acceso */}
             {isLoggedIn && sessionUser ? (
-              <div className="nav-profile-container" onClick={(e) => e.stopPropagation()}>
+              <div className="nav-profile-container desktop-only" onClick={(e) => e.stopPropagation()}>
                 <button
-                  onClick={() => setShowProfileMenu(!showProfileMenu)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowLangDropdown(false);
+                    setShowProfileMenu((prev) => !prev);
+                  }}
                   className="nav-profile-badge"
                 >
-                  <div className="nav-profile-avatar">
+                  <div className="nav-profile-avatar notranslate" translate="no">
                     {sessionUser.name.charAt(0).toUpperCase()}
                   </div>
                   <ChevronDownIcon className={`nav-profile-chevron ${showProfileMenu ? 'open' : ''}`} />
@@ -347,43 +355,18 @@ export default function Navbar() {
                 {showProfileMenu && (
                   <div className="nav-profile-dropdown-menu">
                     <div className="nav-profile-dropdown-header">
-                      <span className="nav-profile-dropdown-title">Mi Cuenta</span>
-                      <span className="nav-profile-dropdown-name">{sessionUser.name}</span>
-                      <span className="nav-profile-dropdown-email">{sessionUser.email}</span>
-                      {(() => {
-                        const roleName = typeof sessionUser.role === 'object' ? sessionUser.role?.name : (sessionUser.role || sessionUser.rol || 'Usuario');
-                        const roleColor = sessionUser.role?.color || (roleName === 'Superusuario' ? '#f50000' : '#2563eb');
-                        return (
-                          <div style={{ marginTop: '6px' }}>
-                            <span
-                              className="nav-profile-dropdown-role-badge"
-                              style={{
-                                display: 'inline-block',
-                                padding: '3px 10px',
-                                borderRadius: '12px',
-                                fontSize: '0.72rem',
-                                fontWeight: '800',
-                                color: '#ffffff',
-                                backgroundColor: roleColor,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.04em',
-                                boxShadow: `0 2px 6px ${roleColor}44`
-                              }}
-                            >
-                              {roleName}
-                            </span>
-                          </div>
-                        );
-                      })()}
+                      <span className="nav-profile-dropdown-title">{t("nav.my_account", "Mi Cuenta")}</span>
+                      <span className="nav-profile-dropdown-name notranslate" translate="no">{sessionUser.name}</span>
+                      <span className="nav-profile-dropdown-email notranslate" translate="no">{sessionUser.email}</span>
                     </div>
                     
                     <Link
-                      to="/admin/dashboard"
+                      to={`/${language}/admin/dashboard`}
                       onClick={() => setShowProfileMenu(false)}
                       className="nav-profile-dropdown-item"
                     >
                       <DashboardIcon />
-                      Ir al Panel
+                      {t("nav.admin", "Panel Admin")}
                     </Link>
 
                     <button
@@ -394,25 +377,24 @@ export default function Navbar() {
                       className="nav-profile-dropdown-item logout"
                     >
                       <LogoutIcon />
-                      Cerrar Sesión
+                      {t("nav.logout", "Cerrar Sesión")}
                     </button>
                   </div>
                 )}
               </div>
             ) : (
-              <button onClick={() => navigate("/login")} className="nav-btn-access">
+              <button onClick={() => navigate(`/${language}/login`)} className="nav-btn-access desktop-only">
                 <LoginIcon />
                 <span className="nav-btn-text" style={{ marginLeft: "6px" }}>
-                  Acceso
+                  {t("nav.login", "Acceso")}
                 </span>
               </button>
             )}
 
-            {/* Botón de alternancia de Modo Edición (Configurable mediante Gestión de Interfaces) */}
             {canEditMode && (
               <button 
                 onClick={toggleEditMode}
-                className="nav-edit-mode-text-only-btn"
+                className="nav-edit-mode-text-only-btn desktop-only"
                 style={{
                   marginLeft: '20px',
                   marginRight: '0px',
@@ -430,14 +412,8 @@ export default function Navbar() {
                   fontFamily: "'Plus Jakarta Sans', sans-serif",
                   outline: 'none'
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = editMode ? '#62ffb1' : '#ffffff';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = editMode ? '#62ffb1' : 'rgba(255, 255, 255, 0.75)';
-                }}
               >
-                <span>Modo Edición</span>
+                <span>{t("nav.edit_mode", "Modo Edición")}</span>
                 <svg viewBox="0 0 38 22" width="28" height="16" fill="none" style={{ verticalAlign: 'middle' }}>
                   <rect 
                     x="1" 
@@ -448,82 +424,194 @@ export default function Navbar() {
                     fill={editMode ? '#62ffb1' : 'rgba(255, 255, 255, 0.15)'} 
                     stroke={editMode ? '#62ffb1' : 'rgba(255, 255, 255, 0.4)'} 
                     strokeWidth="1.5" 
-                    style={{ transition: 'all 0.25s ease' }}
                   />
                   <circle 
                     cx={editMode ? '27' : '11'} 
                     cy="11" 
                     r="6" 
                     fill="#ffffff" 
-                    style={{ transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)' }}
                   />
                 </svg>
               </button>
             )}
-
-            <button onClick={() => setMobileOpen(!mobileOpen)} className="nav-hamburger">
-              {mobileOpen ? <CloseIcon /> : <MenuIcon />}
-            </button>
           </div>
         </div>
 
-        {/* Mobile Menu */}
-        {mobileOpen && (
-          <div className="nav-mobile-menu">
-            {NAV_ITEMS.map((item) => (
-              <div key={item.label} className="nav-mobile-item">
-                {item.children ? (
-                  <>
-                    <button
-                      onClick={() => setOpenDropdown(openDropdown === item.label ? null : item.label)}
+        {/* ── MOBILE SIDEBAR DRAWER (SLIDE ANIMATED FROM LEFT TO RIGHT) ── */}
+        <div 
+          className={`nav-mobile-overlay ${mobileOpen ? "open" : ""}`}
+          onClick={() => setMobileOpen(false)}
+        >
+          <div 
+            className="nav-mobile-drawer" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header del Sidebar */}
+            <div className="nav-mobile-drawer-header">
+              <span className="nav-mobile-drawer-title">IoT ULEAM</span>
+              <button 
+                type="button" 
+                className="nav-mobile-close-btn"
+                onClick={() => setMobileOpen(false)}
+              >
+                <CloseIcon />
+              </button>
+            </div>
+
+            {/* Ítems del Menú Navegación */}
+            <div className="nav-mobile-scrollable">
+              {NAV_ITEMS.map((item) => (
+                <div key={item.label} className="nav-mobile-item">
+                  {item.children ? (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenDropdown(openDropdown === item.label ? null : item.label);
+                        }}
+                        className={`nav-mobile-btn ${isItemActive(item) ? "active" : ""} ${openDropdown === item.label ? "dropdown-open" : ""}`}
+                      >
+                        {item.label} <ChevronDownIcon className={openDropdown === item.label ? "rotated" : ""} />
+                      </button>
+                      {openDropdown === item.label && (
+                        <div className="nav-mobile-dropdown">
+                          {item.children.map((child) => (
+                            <Link 
+                              key={child.label} 
+                              to={child.path} 
+                              onClick={() => {
+                                setMobileOpen(false);
+                                setOpenDropdown(null);
+                              }}
+                              className={`nav-mobile-dropdown-link ${isChildActive(child.path) ? "active" : ""}`}
+                            >
+                              {child.label}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <Link
+                      to={item.path}
+                      onClick={() => setMobileOpen(false)}
                       className={`nav-mobile-btn ${isItemActive(item) ? "active" : ""}`}
                     >
-                      {item.label} <ChevronDownIcon />
-                    </button>
-                    {openDropdown === item.label && (
-                      <div className="nav-mobile-dropdown">
-                        {item.path && (
-                          <Link 
-                            to={item.path} 
-                            onClick={() => {
-                              setMobileOpen(false);
-                              setOpenDropdown(null);
-                            }}
-                            className={`nav-mobile-dropdown-link ${isChildActive(item.path) ? "active" : ""}`}
-                            style={{ fontWeight: '800', borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px', marginBottom: '4px' }}
-                          >
-                            Ver Todo ({item.label})
-                          </Link>
-                        )}
-                        {item.children.map((child) => (
-                          <Link 
-                            key={child.label} 
-                            to={child.path} 
-                            onClick={() => {
-                              setMobileOpen(false);
-                              setOpenDropdown(null);
-                            }}
-                            className={`nav-mobile-dropdown-link ${isChildActive(child.path) ? "active" : ""}`}
-                          >
-                            {child.label}
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                ) : (
+                      {item.label}
+                    </Link>
+                  )}
+                </div>
+              ))}
+
+              {/* Panel Admin debajo de "Acerca de" con Avatar inicial (A) */}
+              {isLoggedIn && sessionUser && (
+                <div className="nav-mobile-item">
                   <Link
-                    to={item.path}
+                    to={`/${language}/admin/dashboard`}
                     onClick={() => setMobileOpen(false)}
-                    className={`nav-mobile-btn ${isItemActive(item) ? "active" : ""}`}
+                    className="nav-mobile-btn nav-mobile-admin-btn"
                   >
-                    {item.label}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                      <div className="nav-profile-avatar notranslate" translate="no" style={{ width: '22px', height: '22px', fontSize: '0.72rem' }}>
+                        {sessionUser.name ? sessionUser.name.charAt(0).toUpperCase() : 'A'}
+                      </div>
+                      {t("nav.admin", "Panel Admin")}
+                    </span>
+                    <DashboardIcon />
                   </Link>
-                )}
+                </div>
+              )}
+
+              {/* Modo Edición debajo de Panel Admin */}
+              {canEditMode && (
+                <div className="nav-mobile-item">
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      if (!editMode) {
+                        toggleEditMode();
+                        setMobileOpen(false);
+                      } else {
+                        toggleEditMode();
+                      }
+                    }}
+                    className="nav-mobile-btn"
+                    style={{ justifyContent: 'space-between' }}
+                  >
+                    <span>{t("nav.edit_mode", "Modo edición")}</span>
+                    <svg viewBox="0 0 38 22" width="26" height="15" fill="none">
+                      <rect 
+                        x="1" 
+                        y="1" 
+                        width="36" 
+                        height="20" 
+                        rx="10" 
+                        fill={editMode ? '#62ffb1' : 'rgba(255, 255, 255, 0.15)'} 
+                        stroke={editMode ? '#62ffb1' : 'rgba(255, 255, 255, 0.4)'} 
+                        strokeWidth="1.5" 
+                      />
+                      <circle 
+                        cx={editMode ? '27' : '11'} 
+                        cy="11" 
+                        r="6" 
+                        fill="#ffffff" 
+                      />
+                    </svg>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Footer del Sidebar con Selector de Idioma y Cerrar Sesión */}
+            <div className="nav-mobile-fixed-bottom">
+              {/* Selector Español / Inglés arriba de Cerrar Sesión */}
+              <div className="nav-mobile-lang-selector">
+                <button
+                  type="button"
+                  className={`nav-mobile-lang-opt ${language === 'es' ? 'active' : ''}`}
+                  onClick={() => setLanguage('es')}
+                >
+                  Español
+                </button>
+                <span className="nav-mobile-lang-sep">|</span>
+                <button
+                  type="button"
+                  className={`nav-mobile-lang-opt ${language === 'en' ? 'active' : ''}`}
+                  onClick={() => setLanguage('en')}
+                >
+                  English
+                </button>
               </div>
-            ))}
+
+              {/* Cerrar Sesión con Texto e Ícono */}
+              {isLoggedIn ? (
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    handleLogoutClick();
+                  }} 
+                  className="nav-mobile-logout-btn"
+                >
+                  <span>{t("nav.logout", "Cerrar sesión")}</span>
+                  <LogoutIcon />
+                </button>
+              ) : (
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    navigate(`/${language}/login`);
+                  }} 
+                  className="nav-mobile-logout-btn"
+                >
+                  <span>{t("nav.login", "Acceso")}</span>
+                  <LoginIcon />
+                </button>
+              )}
+            </div>
           </div>
-        )}
+        </div>
       </nav>
     </>
   );

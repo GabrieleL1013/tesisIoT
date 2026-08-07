@@ -1,7 +1,9 @@
 import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
-import '../../styles/components/admin/GestionarUsuarios.css';
+import { useLanguage } from '../../context/LanguageContext';
+import { usePageTitle } from '../../hooks/usePageTitle';
+import '../../styles/components/admin/GestionarInterfaces.css';
 
 const CustomRoleSelect = ({ value, onChange, options, disabled, placeholder = "-- Seleccionar Rol --" }) => {
   const [open, setOpen] = useState(false);
@@ -100,9 +102,17 @@ const CustomRoleSelect = ({ value, onChange, options, disabled, placeholder = "-
 };
 
 export default function GestionarInterfaces() {
+  const { t, language } = useLanguage();
+  usePageTitle({ es: 'Gestionar Permisos', en: 'Manage Permissions' }, 'Admin · IoT ULEAM');
   const [interfaces, setInterfaces] = useState([]);
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const getRoleDisplayName = (rName) => {
+    if (!rName) return '';
+    const key = `roles.${rName.toLowerCase().replace(/\s+/g, '_')}`;
+    return t(key, rName);
+  };
   
   // Usuario autenticado
   const [currentUser, setCurrentUser] = useState(null);
@@ -281,43 +291,28 @@ export default function GestionarInterfaces() {
     return { id: roleIdOrName, name: roleIdOrName, color: '#64748b' };
   };
 
-  const interfacesFiltradas = interfaces.filter(iface => {
-    const query = searchQuery.toLowerCase();
-    return (
-      iface.name.toLowerCase().includes(query) || 
-      iface.path.toLowerCase().includes(query) ||
-      (iface.description && iface.description.toLowerCase().includes(query))
-    );
-  });
+  const isAdministrativePath = (p) => {
+    if (!p) return false;
+    return p.includes('/admin') || p.includes('/modo-edicion') || p.includes('/edit-mode');
+  };
+
+  const interfacesFiltradas = interfaces
+    .filter(iface => isAdministrativePath(iface.path) || isAdministrativePath(iface.path_es) || isAdministrativePath(iface.path_en))
+    .filter(iface => {
+      const query = searchQuery.toLowerCase();
+      return (
+        iface.name.toLowerCase().includes(query) || 
+        iface.path.toLowerCase().includes(query) ||
+        (iface.description && iface.description.toLowerCase().includes(query))
+      );
+    });
 
   return (
-    <div className="users-page-container">
+    <div className="interfaces-page-container">
       
-      {/* HEADER DE LA SECCIÓN */}
-      <div className="users-header">
-        <div className="users-header-info">
-          <h2 className="users-page-title">
-            <svg className="title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-              <line x1="3" y1="9" x2="21" y2="9" />
-              <line x1="9" y1="21" x2="9" y2="9" />
-            </svg>
-            Gestión de Interfaces y Permisos de Acceso
-          </h2>
-          <p className="users-page-subtitle">
-            Controla los permisos requeridos (Nivel Mínimo y Roles Admitidos) para acceder a cada interfaz administrativa.
-          </p>
-        </div>
-
-        {/* INDICADOR DE ROL ACTUAL */}
-        <div className={`role-badge-indicator ${isSuperadmin ? 'is-admin' : 'is-user'}`}>
-          <span className="role-dot"></span>
-          <span>Rol: {userRoleName || 'Visitante (Solo Lectura)'}</span>
-        </div>
-      </div>
 
       {/* CONTROLES DE BÚSQUEDA */}
-      <div className="users-controls-row">
+      <div className="interfaces-controls-row">
         <div className="search-box-wrapper">
           <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
             <circle cx="11" cy="11" r="8" />
@@ -326,7 +321,7 @@ export default function GestionarInterfaces() {
           <input
             type="text"
             className="search-input-field"
-            placeholder="Buscar por nombre, ruta o descripción..."
+            placeholder={t("manage_interfaces.search_ph", "Buscar por nombre, ruta o descripción...")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -341,37 +336,37 @@ export default function GestionarInterfaces() {
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
           </svg>
           <p className="restricted-notice-text">
-            <strong>Modo de Solo Lectura:</strong> Tu rol actual es <strong>{userRoleName || 'Visitante'}</strong>. No dispones de permisos de Superusuario para modificar la seguridad de las interfaces.
+            <strong>{language === 'en' ? 'Read-Only Mode:' : 'Modo de Solo Lectura:'}</strong> {t("users.readonly_banner", "Tu rol actual es {{role}}. No dispones de permisos de Superusuario para modificar la seguridad de las interfaces.", { role: getRoleDisplayName(userRoleName) || 'Visitante' })}
           </p>
         </div>
       )}
 
       {/* TABLA DE INTERFACES */}
-      <div className="users-list-wrapper">
+      <div className="interfaces-list-wrapper">
         <h3 className="list-section-title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16" style={{ display: 'inline-block', marginRight: '6px' }}>
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
             <line x1="3" y1="9" x2="21" y2="9" />
             <line x1="9" y1="21" x2="9" y2="9" />
           </svg>
-          Catálogo de Interfaces Administrativas
+          {t("manage_interfaces.catalog_title", "Catálogo de Permisos e Interfaces Administrativas")}
         </h3>
 
         {loading ? (
-          <div className="users-loading-spinner">
+          <div className="interfaces-loading-spinner">
             <span className="spinner-dot"></span>
-            <span>Cargando interfaces administrativas...</span>
+            <span>{t("manage_interfaces.loading", "Cargando interfaces administrativas...")}</span>
           </div>
         ) : (
           <div className="table-responsive">
-            <table className="custom-users-table">
+            <table className="custom-interfaces-table">
               <thead>
                 <tr>
-                  <th>Interfaz (Ruta)</th>
-                  <th>Descripción</th>
-                  <th>Nivel Mínimo</th>
-                  <th>Roles Admitidos</th>
-                  {isSuperadmin && <th className="text-right-align">Operaciones</th>}
+                  <th>{t("manage_interfaces.col_interface", "Interfaz (Ruta)")}</th>
+                  <th>{t("manage_interfaces.col_desc", "Descripción")}</th>
+                  <th>{t("manage_interfaces.col_min_level", "Nivel Mínimo")}</th>
+                  <th>{t("manage_interfaces.col_allowed_roles", "Roles Admitidos")}</th>
+                  {isSuperadmin && <th className="text-right-align">{t("manage_interfaces.col_ops", "Operaciones")}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -386,18 +381,18 @@ export default function GestionarInterfaces() {
                     return (
                       <tr key={iface.id}>
                         <td>
-                          <div className="user-avatar-row">
+                          <div className="interface-avatar-row">
                             <div className="avatar-circle" style={{ backgroundColor: '#2563eb' }}>
                               {iface.name.charAt(0).toUpperCase()}
                             </div>
                             <div>
-                              <span className="user-fullname">{iface.name}</span>
-                              <span className="user-nickname" style={{ fontFamily: 'monospace', color: '#2563eb' }}>{iface.path}</span>
+                              <span className="interface-fullname">{iface.name}</span>
+                              <span className="interface-nickname" style={{ fontFamily: 'monospace', color: '#2563eb' }}>{iface.path}</span>
                             </div>
                           </div>
                         </td>
                         <td style={{ color: '#475569', fontSize: '13.5px', maxWidth: '240px' }}>
-                          {iface.description || <em>Sin descripción</em>}
+                          {iface.description || <em>{t("manage_roles.no_desc", "Sin descripción")}</em>}
                         </td>
                         <td>
                           <span className="role-badge-indicator" style={{ 
@@ -413,13 +408,14 @@ export default function GestionarInterfaces() {
                             fontSize: '12px'
                           }}>
                             <span className="role-dot" style={{ backgroundColor: '#2563eb' }}></span>
-                            Nivel {iface.min_level ?? 0}
+                            {t("manage_roles.level_prefix", "Nivel")} {iface.min_level ?? 0}
                           </span>
                         </td>
                         <td>
                           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                             {allowedList.map((item, idx) => {
                               const roleInfo = getRoleInfo(item);
+                              const displayRoleName = getRoleDisplayName(roleInfo.name);
                               return (
                                 <span 
                                   key={idx} 
@@ -437,7 +433,7 @@ export default function GestionarInterfaces() {
                                   }}
                                 >
                                   <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: roleInfo.color || '#3b82f6' }}></span>
-                                  {roleInfo.name}
+                                  {displayRoleName}
                                 </span>
                               );
                             })}
@@ -449,13 +445,13 @@ export default function GestionarInterfaces() {
                               <button
                                 onClick={() => abrirEditarModal(iface)}
                                 className="table-btn-edit"
-                                title="Editar Permisos y Descripción"
+                                title={t("manage_interfaces.edit_permissions", "Editar Permisos")}
                               >
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
                                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                                   <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z" />
                                 </svg>
-                                Editar Permisos
+                                {t("manage_interfaces.edit_permissions", "Editar Permisos")}
                               </button>
                             </div>
                           </td>
@@ -466,7 +462,7 @@ export default function GestionarInterfaces() {
                 ) : (
                   <tr>
                     <td colSpan={isSuperadmin ? 5 : 4} className="table-empty-message">
-                      No se encontraron interfaces registradas.
+                      {t("manage_roles.empty", "No se encontraron interfaces administrativas.")}
                     </td>
                   </tr>
                 )}
@@ -476,31 +472,34 @@ export default function GestionarInterfaces() {
         )}
       </div>
 
-      {/* MODAL EDITAR PERMISOS */}
+      {/* MODAL OVERLAY PARA CONFIGURACIÓN DE PERMISOS */}
       {showModal && (
         <div 
-          className="user-modal-overlay"
+          className="interface-modal-overlay"
           onClick={(e) => {
-            if (e.target.classList.contains('user-modal-overlay')) {
+            if (e.target.classList.contains('interface-modal-overlay')) {
               setShowModal(false);
             }
           }}
         >
-          <div className="user-modal-card" style={{ maxWidth: '700px' }}>
+          <div className="interface-modal-card">
             <div className="modal-top-accent-bar" />
+            
+            {/* Header del Modal */}
             <div className="modal-card-header">
               <h3 className="modal-title-main">
                 <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" width="20" height="20" style={{ display: 'inline-block', marginRight: '8px' }}>
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                  <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z" />
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                  <line x1="3" y1="9" x2="21" y2="9" />
+                  <line x1="9" y1="21" x2="9" y2="9" />
                 </svg>
-                Editar Permisos de Interfaz
+                {t("manage_interfaces.edit_modal_title", "Configurar Permisos de Interfaz")}
               </h3>
               <button 
                 type="button" 
                 className="modal-close-btn"
                 onClick={() => setShowModal(false)}
-                title="Cerrar modal (ESC)"
+                title={t("common.close", "Cerrar modal")}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="18" height="18">
                   <line x1="18" y1="6" x2="6" y2="18" />
@@ -510,10 +509,10 @@ export default function GestionarInterfaces() {
             </div>
             
             <form className="modal-form-body" onSubmit={handleSubmit}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div className="interface-modal-grid">
 
                 <div className="modal-input-group">
-                  <label className="modal-label">Nombre de la Interfaz (Bloqueado)</label>
+                  <label className="modal-label">{t("manage_roles.col_name", "Nombre del Rol")}</label>
                   <input 
                     type="text" 
                     value={nombre} 
@@ -524,7 +523,7 @@ export default function GestionarInterfaces() {
                 </div>
 
                 <div className="modal-input-group">
-                  <label className="modal-label">Ruta / URL (Bloqueado)</label>
+                  <label className="modal-label">{t("manage_interfaces.path_label", "Ruta / URL")}</label>
                   <input 
                     type="text" 
                     value={path} 
@@ -535,11 +534,11 @@ export default function GestionarInterfaces() {
                 </div>
                 
                 <div className="modal-input-group">
-                  <label className="modal-label">Descripción de la Interfaz</label>
+                  <label className="modal-label">{t("manage_roles.desc_label", "Descripción de la Interfaz")}</label>
                   <textarea 
                     value={description} 
                     onChange={(e) => setDescription(e.target.value)} 
-                    placeholder="Describe la función o propósito de esta interfaz..."
+                    placeholder={t("manage_roles.desc_ph", "Describe la función o propósito de esta interfaz...")}
                     className="modal-text-input"
                     rows="3"
                     style={{ resize: 'vertical' }}
@@ -547,7 +546,7 @@ export default function GestionarInterfaces() {
                 </div>
 
                 <div className="modal-input-group">
-                  <label className="modal-label">Nivel de Permiso Mínimo Requerido</label>
+                  <label className="modal-label">{t("manage_interfaces.min_level_label", "Nivel de Permiso Mínimo Requerido")}</label>
                   <input 
                     type="number" 
                     min="0"
@@ -558,16 +557,17 @@ export default function GestionarInterfaces() {
                     required 
                   />
                   <small style={{ color: '#64748b', fontSize: '0.72rem', marginTop: '2px' }}>
-                    El usuario debe tener un nivel de permiso igual o mayor a este número para acceder.
+                    {t("manage_roles.level_hint", "El usuario debe tener un nivel de permiso igual o mayor a este número para acceder.")}
                   </small>
                 </div>
 
                 <div className="modal-input-group">
-                  <label className="modal-label">Roles Admitidos</label>
+                  <label className="modal-label">{t("manage_interfaces.allowed_roles_label", "Roles Admitidos")}</label>
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', minHeight: '42px', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '10px', background: '#f8fafc', alignItems: 'center' }}>
                     {allowedRoleIds.map(roleId => {
                       const rInfo = getRoleInfo(roleId);
                       const isSuperRole = roleId === 1 || rInfo.name === 'Superusuario';
+                      const displayRName = getRoleDisplayName(rInfo.name);
                       return (
                         <span 
                           key={roleId} 
@@ -586,13 +586,13 @@ export default function GestionarInterfaces() {
                           }}
                         >
                           <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: rInfo.color || '#3b82f6' }}></span>
-                          {rInfo.name}
+                          {displayRName}
                           {!isSuperRole && (
                             <button 
                               type="button" 
                               onClick={() => handleRemoveRole(roleId)} 
                               style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#ef4444', fontWeight: 800, padding: '0 2px', marginLeft: '4px', fontSize: '14px' }}
-                              title="Quitar Rol"
+                              title={t("admin.delete", "Quitar Rol")}
                             >
                               ×
                             </button>
@@ -604,13 +604,13 @@ export default function GestionarInterfaces() {
                 </div>
 
                 <div className="modal-input-group">
-                  <label className="modal-label">Añadir Rol</label>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <label className="modal-label">{t("manage_interfaces.add_role_btn", "Añadir Rol")}</label>
+                  <div className="add-role-input-row">
                     <CustomRoleSelect
                       value={selectedRoleIdToAdd}
                       onChange={(val) => setSelectedRoleIdToAdd(val)}
-                      options={roles.filter(r => !allowedRoleIds.includes(r.id))}
-                      placeholder="-- Seleccionar Rol para Admitir --"
+                      options={roles.filter(r => !allowedRoleIds.includes(r.id)).map(r => ({ ...r, translatedName: getRoleDisplayName(r.name) }))}
+                      placeholder={t("manage_interfaces.select_role_add", "-- Seleccionar Rol para Admitir --")}
                     />
                     <button 
                       type="button" 
@@ -619,7 +619,7 @@ export default function GestionarInterfaces() {
                       className="btn-modal-save" 
                       style={{ padding: '0 14px', height: '42px', fontSize: '12.5px', whiteSpace: 'nowrap', backgroundColor: selectedRoleIdToAdd ? '#2563eb' : '#94a3b8', cursor: selectedRoleIdToAdd ? 'pointer' : 'not-allowed' }}
                     >
-                      Añadir Rol
+                      {t("manage_interfaces.add_role_btn", "Añadir Rol")}
                     </button>
                   </div>
                 </div>
@@ -635,7 +635,7 @@ export default function GestionarInterfaces() {
                     <line x1="18" y1="6" x2="6" y2="18" />
                     <line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
-                  Cancelar <small style={{ opacity: 0.7, marginLeft: '4px' }}></small>
+                  {t("admin.cancel", "Cancelar")}
                 </button>
                 <button type="submit" className="btn-modal-save">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14" style={{ marginRight: '6px' }}>
@@ -643,7 +643,7 @@ export default function GestionarInterfaces() {
                     <polyline points="17 21 17 13 7 13 7 21" />
                     <polyline points="7 3 7 8 15 8" />
                   </svg>
-                  Guardar Configuración
+                  {t("manage_interfaces.save_permissions", "Guardar Configuración")}
                 </button>
               </div>
             </form>

@@ -4,6 +4,7 @@ import "../styles/components/IotTicker.css";
 import EditableText from "./EditableText";
 import { useInterfaceText } from "../context/InterfaceTextContext";
 import { useInterfaceImage } from "../context/InterfaceImageContext";
+import { useLanguage } from "../context/LanguageContext";
 import { checkEditPermission } from "../utils/checkEditPermission";
 import Swal from "sweetalert2";
 
@@ -132,30 +133,119 @@ const DEFAULT_ICONS = [
   <SignalWaveIcon key="9" />
 ];
 
-const DEFAULT_ITEMS = [
-  { id: "ticker-1", label: "Gateway LoRaWAN", iconIndex: 1, image_key: "ticker_img_1" },
-  { id: "ticker-2", label: "Base de Datos Histórica", iconIndex: 2, image_key: "ticker_img_2" },
-  { id: "ticker-3", label: "Monitoreo Agrícola", iconIndex: 3, image_key: "ticker_img_3" },
-  { id: "ticker-4", label: "Nivel de Reservorios", iconIndex: 4, image_key: "ticker_img_4" },
-  { id: "ticker-5", label: "Eficiencia Energética", iconIndex: 5, image_key: "ticker_img_5" },
-  { id: "ticker-6", label: "Nodo Sensor IoT", iconIndex: 0, image_key: "ticker_img_6" },
-  { id: "ticker-7", label: "Paneles de Control", iconIndex: 6, image_key: "ticker_img_7" },
-  { id: "ticker-8", label: "Variables Térmicas", iconIndex: 7, image_key: "ticker_img_8" },
-  { id: "ticker-9", label: "Criptografía & Seguridad", iconIndex: 8, image_key: "ticker_img_9" },
-  { id: "ticker-10", label: "Redes Inalámbricas", iconIndex: 9, image_key: "ticker_img_10" }
-];
-
 export default function IotTicker() {
   const { texts, updateText, editMode } = useInterfaceText();
   const { images, updateImage } = useInterfaceImage();
+  const { language } = useLanguage();
+  const isEn = language === 'en';
 
   const [hasPermission, setHasPermission] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [draftItems, setDraftItems] = useState([]);
   const [expandedIndex, setExpandedIndex] = useState(0);
   const [saving, setSaving] = useState(false);
-
   const fileInputRefs = useRef({});
+  const tickerContainerRef = useRef(null);
+  const isDown = useRef(false);
+  const startX = useRef(0);
+  const scrollL = useRef(0);
+  const isHovered = useRef(false);
+
+  // i18n Strings
+  const labels = {
+    editButton: isEn ? "Edit Carousel" : "Editar Carrusel",
+    editButtonTitle: isEn ? "Edit lower carousel" : "Editar carrusel inferior",
+    modalTitle: isEn ? "Edit carousel" : "Editar carrusel",
+    modalSubtitle: isEn 
+      ? "Manage, reorder, edit, and add items shown in the main carousel." 
+      : "Administra, reordena, edita y agrega los ítems que se muestran en el carrusel principal.",
+    moveUp: isEn ? "Move up" : "Mover arriba",
+    moveDown: isEn ? "Move down" : "Mover abajo",
+    deleteItem: isEn ? "Delete this item" : "Eliminar este ítem",
+    changeImage: isEn ? "📷 Change image" : "📷 Cambiar imagen",
+    itemTitle: isEn ? "Item Title" : "Título del Ítem",
+    titlePlaceholder: isEn ? "e.g. LoRaWAN Gateway" : "Ej. Gateway LoRaWAN",
+    newItemDefault: isEn ? "New Item" : "Nuevo Ítem",
+    addItemBtn: isEn ? "+ Add new item" : "+ Añadir nuevo ítem",
+    cancelBtn: isEn ? "Cancel" : "Cancelar",
+    saveBtn: isEn ? "Save changes" : "Guardar cambios",
+    savingBtn: isEn ? "Saving…" : "Guardando…",
+    
+    // Alerts
+    permDeniedTitle: isEn ? "Permission Denied" : "Permiso Denegado",
+    permDeniedText: isEn 
+      ? "You do not have the required permissions in Interface Management to edit the carousel." 
+      : "No cumples con los permisos requeridos en Gestión de Interfaces para editar el carrusel.",
+    minItemWarning: isEn ? "There must be at least 1 item in the carousel" : "Debe haber al menos 1 ítem en el carrusel",
+    successToast: isEn ? "Carousel updated successfully!" : "¡Carrusel actualizado con éxito!",
+    errorTitle: isEn ? "Error" : "Error",
+    errorText: isEn 
+      ? "Could not save carousel changes to the database." 
+      : "No se pudieron guardar los cambios del carrusel en la base de datos."
+  };
+
+  // Determinar la lista activa de ítems desde la BD o defaults
+  let activeItems = [];
+  if (texts["ticker_items"]) {
+    try {
+      const parsed = JSON.parse(texts["ticker_items"]);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        activeItems = parsed;
+      }
+    } catch (e) {
+      activeItems = [];
+    }
+  }
+
+  useEffect(() => {
+    const container = tickerContainerRef.current;
+    if (!container) return;
+
+    let animationId;
+    const playScroll = () => {
+      if (!isDown.current && !isHovered.current) {
+        container.scrollLeft += 1;
+        // Loop back seamlessly
+        if (container.scrollLeft >= container.scrollWidth / 2) {
+          container.scrollLeft -= container.scrollWidth / 2;
+        }
+      }
+      animationId = requestAnimationFrame(playScroll);
+    };
+
+    animationId = requestAnimationFrame(playScroll);
+    return () => cancelAnimationFrame(animationId);
+  }, [activeItems.length]);
+
+  const handleMouseDown = (e) => {
+    isDown.current = true;
+    startX.current = e.pageX - tickerContainerRef.current.offsetLeft;
+    scrollL.current = tickerContainerRef.current.scrollLeft;
+    tickerContainerRef.current.style.cursor = 'grabbing';
+  };
+  
+  const handleMouseLeaveTicker = () => {
+    isDown.current = false;
+    isHovered.current = false;
+    if(tickerContainerRef.current) tickerContainerRef.current.style.cursor = 'grab';
+  };
+
+  const handleMouseUp = () => {
+    isDown.current = false;
+    if(tickerContainerRef.current) tickerContainerRef.current.style.cursor = 'grab';
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDown.current) return;
+    e.preventDefault();
+    const x = e.pageX - tickerContainerRef.current.offsetLeft;
+    const walk = (x - startX.current) * 1.5; 
+    tickerContainerRef.current.scrollLeft = scrollL.current - walk;
+  };
+  
+  const handleMouseEnter = () => {
+    isHovered.current = true;
+  };
 
   // Verificar permisos RBAC de usuario
   useEffect(() => {
@@ -170,19 +260,6 @@ export default function IotTicker() {
       window.removeEventListener("appInterfacesUpdated", checkRole);
     };
   }, []);
-
-  // Determinar la lista activa de ítems desde la BD o defaults
-  let activeItems = DEFAULT_ITEMS;
-  if (texts["ticker_items"]) {
-    try {
-      const parsed = JSON.parse(texts["ticker_items"]);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        activeItems = parsed;
-      }
-    } catch (e) {
-      activeItems = DEFAULT_ITEMS;
-    }
-  }
 
   // Obtener src de imagen (Custom DB, transient data URL o SVG fallback)
   const getItemImageSrc = (item) => {
@@ -207,8 +284,8 @@ export default function IotTicker() {
     const permitted = await checkEditPermission();
     if (!permitted) {
       Swal.fire({
-        title: "Permiso Denegado",
-        text: "No cumples con los permisos requeridos en Gestión de Interfaces para editar el carrusel.",
+        title: labels.permDeniedTitle,
+        text: labels.permDeniedText,
         icon: "error",
         background: "#0b0f19",
         color: "#ffffff",
@@ -217,7 +294,11 @@ export default function IotTicker() {
       return;
     }
 
-    setDraftItems(JSON.parse(JSON.stringify(activeItems)));
+    const draft = JSON.parse(JSON.stringify(activeItems)).map(item => ({
+      ...item,
+      label: texts[`ticker_item_${item.id}_label`] || ""
+    }));
+    setDraftItems(draft);
     setExpandedIndex(0);
     setShowModal(true);
   };
@@ -242,7 +323,7 @@ export default function IotTicker() {
         toast: true,
         position: "top-end",
         icon: "warning",
-        title: "Debe haber al menos 1 ítem en el carrusel",
+        title: labels.minItemWarning,
         showConfirmButton: false,
         timer: 2000
       });
@@ -260,7 +341,7 @@ export default function IotTicker() {
     const newId = `ticker-${Date.now()}`;
     const newItem = {
       id: newId,
-      label: "Nuevo Ítem",
+      label: labels.newItemDefault,
       iconIndex: 0,
       image_key: `ticker_img_${Date.now()}`
     };
@@ -302,28 +383,36 @@ export default function IotTicker() {
         }
       }
 
-      // 2. Limpiar campos temporales y guardar array de ítems en interface_texts
+      // 2. Guardar etiquetas editadas en /global
+      for (const item of draftItems) {
+        const currentLabel = texts[`ticker_item_${item.id}_label`] || "";
+        if (item.label && item.label !== currentLabel) {
+            await updateText(`ticker_item_${item.id}_label`, item.label, "/global");
+        }
+      }
+
+      // 3. Limpiar campos temporales y guardar array estructural en /global
       const cleanItems = draftItems.map((item) => {
-        const { new_image_data, mime_type, ...rest } = item;
+        const { new_image_data, mime_type, label, ...rest } = item;
         return rest;
       });
 
-      await updateText("ticker_items", JSON.stringify(cleanItems));
+      await updateText("ticker_items", JSON.stringify(cleanItems), "/global");
 
       setShowModal(false);
       Swal.fire({
         toast: true,
         position: "top-end",
         icon: "success",
-        title: "¡Carrusel actualizado con éxito!",
+        title: labels.successToast,
         showConfirmButton: false,
         timer: 2500
       });
     } catch (err) {
       console.error("Error saving ticker items:", err);
       Swal.fire({
-        title: "Error",
-        text: "No se pudieron guardar los cambios del carrusel en la base de datos.",
+        title: labels.errorTitle,
+        text: labels.errorText,
         icon: "error",
         background: "#0b0f19",
         color: "#ffffff",
@@ -341,21 +430,29 @@ export default function IotTicker() {
     <section className="iot-ticker-section">
       <div className="iot-ticker-header-wrap">
         <h2 className="iot-ticker-section-title" style={{ margin: 0 }}>
-          <EditableText textKey="ticker_section_title" defaultText="TECNOLOGÍAS E INFRAESTRUCTURAS IOT" />
+          <EditableText textKey="ticker_section_title" />
         </h2>
         {editMode && hasPermission && (
           <button
             type="button"
             className="btn-edit-ticker"
             onClick={handleOpenModal}
-            title="Editar carrusel inferior"
+            title={labels.editButtonTitle}
           >
-            <PencilIcon /> Editar Carrusel
+            <PencilIcon /> {labels.editButton}
           </button>
         )}
       </div>
 
-      <div className="iot-ticker-container">
+      <div 
+        className="iot-ticker-container" 
+        ref={tickerContainerRef}
+        onMouseDown={handleMouseDown}
+        onMouseLeave={handleMouseLeaveTicker}
+        onMouseUp={handleMouseUp}
+        onMouseMove={handleMouseMove}
+        onMouseEnter={handleMouseEnter}
+      >
         <div className="iot-ticker-track">
           {doubleItems.map((item, index) => {
             const imgSrc = getItemImageSrc(item);
@@ -370,7 +467,7 @@ export default function IotTicker() {
                 ) : (
                   DEFAULT_ICONS[item.iconIndex ?? 0] || <SensorNodeIcon />
                 )}
-                <span className="iot-ticker-label">{item.label}</span>
+                <span className="iot-ticker-label"><EditableText textKey={`ticker_item_${item.id}_label`} /></span>
               </div>
             );
           })}
@@ -384,9 +481,9 @@ export default function IotTicker() {
             {/* Header del Modal */}
             <div className="ticker-modal-header">
               <div>
-                <h3 className="ticker-modal-title">Editar carrusel</h3>
+                <h3 className="ticker-modal-title">{labels.modalTitle}</h3>
                 <p className="ticker-modal-subtitle">
-                  Administra, reordena, edita y agrega los ítems que se muestran en el carrusel principal.
+                  {labels.modalSubtitle}
                 </p>
               </div>
               <button type="button" className="ticker-modal-close" onClick={() => setShowModal(false)}>
@@ -416,7 +513,7 @@ export default function IotTicker() {
                               className="ticker-reorder-btn"
                               disabled={idx === 0}
                               onClick={() => handleMoveItem(idx, -1)}
-                              title="Mover arriba"
+                              title={labels.moveUp}
                             >
                               ▲
                             </button>
@@ -425,7 +522,7 @@ export default function IotTicker() {
                               className="ticker-reorder-btn"
                               disabled={idx === draftItems.length - 1}
                               onClick={() => handleMoveItem(idx, 1)}
-                              title="Mover abajo"
+                              title={labels.moveDown}
                             >
                               ▼
                             </button>
@@ -443,7 +540,7 @@ export default function IotTicker() {
                           </div>
 
                           <span className="ticker-item-title-preview">
-                            {item.label || `Ítem ${idx + 1}`}
+                            {item.label || (isEn ? `Item ${idx + 1}` : `Ítem ${idx + 1}`)}
                           </span>
                         </div>
 
@@ -451,7 +548,7 @@ export default function IotTicker() {
                           <button
                             type="button"
                             className="ticker-trash-btn"
-                            title="Eliminar este ítem"
+                            title={labels.deleteItem}
                             onClick={() => handleDeleteItem(idx)}
                           >
                             <TrashIcon />
@@ -485,7 +582,7 @@ export default function IotTicker() {
                               className="btn-upload-ticker-img"
                               onClick={() => fileInputRefs.current[idx]?.click()}
                             >
-                              📷 Cambiar imagen
+                              {labels.changeImage}
                             </button>
                             <input
                               ref={(el) => (fileInputRefs.current[idx] = el)}
@@ -498,12 +595,12 @@ export default function IotTicker() {
 
                           {/* Campo editable de Título */}
                           <div className="ticker-field-group">
-                            <label className="ticker-field-label">Título del Ítem</label>
+                            <label className="ticker-field-label">{labels.itemTitle}</label>
                             <input
                               type="text"
                               className="ticker-field-input"
                               value={item.label || ""}
-                              placeholder="Ej. Gateway LoRaWAN"
+                              placeholder={labels.titlePlaceholder}
                               onChange={(e) => {
                                 const val = e.target.value;
                                 setDraftItems((prev) => {
@@ -528,7 +625,7 @@ export default function IotTicker() {
                   className="btn-add-ticker-item"
                   onClick={handleAddItem}
                 >
-                  + Añadir nuevo ítem
+                  {labels.addItemBtn}
                 </button>
               </div>
             </div>
@@ -540,7 +637,7 @@ export default function IotTicker() {
                 className="btn-ticker-cancel"
                 onClick={() => setShowModal(false)}
               >
-                Cancelar
+                {labels.cancelBtn}
               </button>
               <button
                 type="button"
@@ -548,7 +645,7 @@ export default function IotTicker() {
                 onClick={handleSaveChanges}
                 disabled={saving}
               >
-                {saving ? "Guardando…" : "Guardar cambios"}
+                {saving ? labels.savingBtn : labels.saveBtn}
               </button>
             </div>
           </div>

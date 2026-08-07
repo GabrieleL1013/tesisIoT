@@ -7,29 +7,19 @@
 .roles-page-container {
   font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
   max-width: 70rem;
-  margin: 2rem auto;
-  padding: 2.25rem;
-  background: #ffffff;
-  border-radius: 24px;
-  border: 1px solid #e2e8f0;
-  box-shadow:
-    0 0 0 1px rgba(15, 44, 89, 0.05),
-    0 8px 28px rgba(15, 44, 89, 0.05),
-    0 2px 6px rgba(15, 44, 89, 0.03);
+  margin: 0.25rem auto 2rem;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   color: #334155;
 }
 
 .roles-page-container::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 5px;
-  background: linear-gradient(90deg, #0f2c59 0%, #2563eb 55%, #ff9f1c 100%);
-  border-radius: 24px 24px 0 0;
+  display: none;
 }
 
 /* Header de la Sección */
@@ -247,30 +237,48 @@
 
 .search-icon {
   position: absolute;
-  left: 1rem;
+  left: 1.1rem;
   top: 50%;
   transform: translateY(-50%);
-  color: #64748b;
+  color: #2563eb;
   pointer-events: none;
+  transition: all 0.22s ease;
 }
 
 .search-input-field {
   width: 100%;
-  background: #f8fafc;
-  border: 1.5px solid #e2e8f0;
+  height: 44px;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
   border-radius: 9999px;
-  padding: 0.65rem 1rem 0.65rem 2.5rem;
+  padding: 0 1.25rem 0 2.75rem;
   color: #0f2c59;
   font-size: 0.875rem;
   outline: none;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(15, 44, 89, 0.04);
+  transition: all 0.22s ease;
+}
+
+.search-input-field::placeholder {
+  color: #94a3b8;
   font-weight: 500;
-  transition: all 0.2s ease;
+}
+
+.search-input-field:hover {
+  border-color: #94a3b8;
+  box-shadow: 0 4px 12px rgba(15, 44, 89, 0.07);
 }
 
 .search-input-field:focus {
   border-color: #2563eb;
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.14), 0 0 0 3.5px rgba(37, 99, 235, 0.12);
+}
+
+.search-box-wrapper:focus-within .search-icon {
+  color: #1d4ed8;
+  transform: translateY(-50%) scale(1.1);
 }
 
 .filter-and-add-actions {
@@ -584,12 +592,14 @@
   top: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(15, 44, 89, 0.3);
-  backdrop-filter: blur(6px);
+  background: rgba(15, 44, 89, 0.45);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 3000;
+  padding: 1.25rem;
+  box-sizing: border-box;
   animation: fadeIn 0.22s ease-out;
 }
 
@@ -597,7 +607,6 @@
   from {
     opacity: 0;
   }
-
   to {
     opacity: 1;
   }
@@ -606,10 +615,11 @@
 .role-modal-card {
   width: 100%;
   max-width: 520px;
+  max-height: min(90vh, 720px);
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 20px;
-  box-shadow: 0 20px 40px rgba(15, 44, 89, 0.15);
+  box-shadow: 0 20px 40px rgba(15, 44, 89, 0.2);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -645,6 +655,7 @@
   padding: 1.25rem 1.5rem;
   border-bottom: 1.5px solid #e2e8f0;
   background: linear-gradient(90deg, #f8fafc, #eff4ff);
+  flex-shrink: 0;
 }
 
 .modal-title-main {
@@ -678,6 +689,330 @@
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: 100%;
+  box-sizing: border-box;
+}
+
+/* Scrollbar elegante y contenido dentro del modal */
+.modal-form-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-form-body::-webkit-scrollbar-track {
+  background: rgba(241, 245, 249, 0.6);
+  border-radius: 8px;
+  margin: 6px 0;
+}
+
+.modal-form-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 8px;
+}
+
+.modal-form-body::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ==========================================
+   PRETTY COLOR PICKER STYLES
+   ========================================== */
+.pretty-color-picker-container {
+  position: relative;
+  width: 100%;
+}
+
+.pretty-color-input-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pretty-color-badge-preview {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  position: relative;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 2px solid #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+
+.pretty-color-badge-preview:hover {
+  transform: scale(1.08);
+}
+
+.pretty-color-edit-icon {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.pretty-hex-input-wrapper {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 0 12px;
+  flex: 1;
+  height: 42px;
+  transition: all 0.2s ease;
+}
+
+.pretty-hex-input-wrapper:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.pretty-hex-prefix {
+  font-family: monospace;
+  font-weight: 800;
+  color: #64748b;
+  font-size: 0.95rem;
+  margin-right: 4px;
+}
+
+.pretty-hex-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #0f172a;
+  width: 100%;
+  text-transform: uppercase;
+}
+
+.pretty-custom-picker-btn {
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 12px;
+  height: 42px;
+  padding: 0 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pretty-custom-picker-btn:hover {
+  background: #f1f5f9;
+  color: #2563eb;
+  border-color: #2563eb;
+}
+
+@keyframes dropdownExpandIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.pretty-color-popover-panel {
+  position: relative;
+  margin-top: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  padding: 14px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: dropdownExpandIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  user-select: none;
+}
+
+.pretty-sat-val-area {
+  width: 100%;
+  height: 125px;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+  cursor: crosshair;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+.pretty-sat-val-white {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, #fff, transparent);
+}
+
+.pretty-sat-val-black {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, #000, transparent);
+}
+
+.pretty-sat-val-pointer {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6), inset 0 0 2px rgba(0, 0, 0, 0.4);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.pretty-popover-controls-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pretty-pipeta-btn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.pretty-pipeta-btn:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  transform: scale(1.1);
+}
+
+.pretty-popover-color-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+  flex-shrink: 0;
+}
+
+.pretty-hue-slider-track {
+  position: relative;
+  flex: 1;
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%);
+  cursor: pointer;
+}
+
+.pretty-hue-slider-pointer {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* Inputs R G B */
+.pretty-rgb-inputs-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.pretty-rgb-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.pretty-rgb-field input {
+  width: 100%;
+  height: 34px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  text-align: center;
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #0f172a;
+  outline: none;
+  background: #f8fafc;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.pretty-rgb-field input:focus {
+  border-color: #2563eb;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.pretty-rgb-field span {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #64748b;
+}
+
+.pretty-swatches-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.pretty-swatch-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  outline: none;
+}
+
+.pretty-swatch-circle:hover {
+  transform: scale(1.22);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+  z-index: 2;
+}
+
+.pretty-swatch-circle.selected {
+  transform: scale(1.18);
+  box-shadow: 0 0 0 2.5px #2563eb, 0 4px 10px rgba(37, 99, 235, 0.3);
+  z-index: 2;
 }
 
 .modal-fields-stack {
@@ -815,4 +1150,102 @@
 .btn-modal-cancel:hover {
   background: #e2e8f0;
   color: #0f2c59;
+}
+
+/* ==========================================
+   RESPONSIVE DESIGN FOR MOBILE (< 768px)
+   ========================================== */
+@media (max-width: 768px) {
+  .roles-page-container {
+    padding: 1.15rem 0.85rem !important;
+    margin: 0.75rem 0.35rem !important;
+    border-radius: 16px !important;
+  }
+
+  .roles-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.75rem !important;
+    margin-bottom: 1.25rem !important;
+    padding-bottom: 1rem !important;
+  }
+
+  .roles-page-title {
+    font-size: 1.35rem !important;
+  }
+
+  .role-badge-indicator {
+    align-self: flex-start !important;
+    font-size: 0.75rem !important;
+    padding: 0.4rem 0.85rem !important;
+  }
+
+  .roles-controls-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.85rem !important;
+  }
+
+  .search-box-wrapper {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .filter-and-add-actions {
+    width: 100% !important;
+  }
+
+  .btn-add-role,
+  .btn-add-user {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .table-responsive {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    border-radius: 14px !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 4px 12px rgba(15, 44, 89, 0.03) !important;
+  }
+
+  .custom-roles-table {
+    min-width: 650px !important;
+  }
+
+  .custom-roles-table th {
+    padding: 0.75rem 0.85rem !important;
+    font-size: 0.68rem !important;
+  }
+
+  .custom-roles-table td {
+    padding: 0.85rem 0.85rem !important;
+    font-size: 0.82rem !important;
+  }
+
+  .role-modal-overlay {
+    padding-top: 85px !important;
+    padding-bottom: 15px !important;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    overflow-y: auto !important;
+  }
+
+  .role-modal-card {
+    width: 100% !important;
+    max-height: calc(100vh - 100px) !important;
+    margin: 0 !important;
+  }
+
+  .pretty-color-popover-panel {
+    position: relative !important;
+    top: 8px !important;
+    right: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12) !important;
+  }
 }

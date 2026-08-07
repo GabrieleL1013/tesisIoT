@@ -957,3 +957,258 @@
   color: #ffffff;
   box-shadow: 0 4px 10px rgba(16, 185, 129, 0.15);
 }
+
+/* ── Controles de Paginación ── */
+.news-pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+  gap: 1rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.news-pagination-info {
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.news-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.news-pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #1e293b;
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.news-pagination-btn:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.news-pagination-btn:hover:not(:disabled) {
+  border-color: #0f2c59;
+  color: #0f2c59;
+  background: #f8fafc;
+}
+
+.news-pagination-page-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-weight: 800;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.news-pagination-page-btn.active {
+  border: none;
+  background: #0f2c59;
+  color: #ffffff;
+}
+
+.news-pagination-page-btn:hover:not(.active) {
+  border-color: #0f2c59;
+  color: #0f2c59;
+  background: #f8fafc;
+}
+
+.news-pagination-arrow-svg {
+  display: none;
+}
+
+.news-pagination-btn-text {
+  display: inline;
+}
+
+/* ==========================================================================
+   RESPONSIVE DESIGN (MOBILE & TABLET ADJUSTMENTS)
+   ========================================================================== */
+@media (max-width: 768px) {
+  .news-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+  }
+
+  .news-heading {
+    font-size: 1.35rem;
+  }
+
+  .news-btn-back {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .news-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+  }
+
+  .news-search-box {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+  }
+
+  .news-search-input {
+    width: 100% !important;
+  }
+
+  .news-filter-popover-group {
+    width: 100% !important;
+  }
+
+  .news-container .pub-news-unified-filter-btn {
+    width: 100% !important;
+    justify-content: space-between;
+  }
+
+  .pub-news-unified-filter-panel {
+    width: 100% !important;
+    min-width: 100% !important;
+    left: 0 !important;
+    right: 0 !important;
+  }
+
+  .news-btn-add {
+    width: 100% !important;
+    justify-content: center;
+  }
+
+  .news-form-panel {
+    padding: 1.25rem 1rem;
+    border-radius: 14px;
+  }
+
+  .news-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1.25rem;
+  }
+
+  .news-dropzone {
+    height: 150px;
+    padding: 1rem;
+  }
+
+  .news-blocks-list {
+    max-height: 380px;
+    padding: 0.4rem;
+  }
+
+  .news-add-block-buttons {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .news-form-actions {
+    flex-direction: column-reverse;
+    gap: 10px;
+  }
+
+  .news-btn-save,
+  .news-btn-cancel {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .news-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 12px;
+  }
+
+  .news-table {
+    min-width: 620px;
+  }
+
+  .news-row td {
+    padding: 0.85rem 0.8rem;
+  }
+
+  .news-name {
+    font-size: 0.88rem;
+  }
+
+  .news-row-actions {
+    gap: 6px;
+  }
+
+  .news-btn-edit,
+  .news-btn-delete {
+    padding: 5px 10px;
+    font-size: 0.75rem;
+  }
+
+  /* Paginación Responsiva en Teléfonos */
+  .news-pagination-bar {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding-top: 0.85rem;
+  }
+
+  .news-pagination-info {
+    text-align: center;
+    font-size: 0.8rem;
+  }
+
+  .news-pagination-controls {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 5px;
+    max-width: 100%;
+  }
+
+  .news-pagination-arrow-svg {
+    display: inline-block;
+  }
+
+  .news-pagination-btn-text {
+    display: none;
+  }
+
+  .news-pagination-btn {
+    padding: 6px 10px;
+    min-width: 34px;
+    height: 32px;
+  }
+
+  .news-pagination-page-btn {
+    width: 30px;
+    height: 30px;
+    font-size: 0.78rem;
+  }
+}

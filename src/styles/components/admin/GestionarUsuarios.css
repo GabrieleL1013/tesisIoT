@@ -4,32 +4,24 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 /* Contenedor Principal de la Página */
-.users-page-container {
+.users-page-container,
+.gestionar-usuarios-container {
   font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
   max-width: 70rem;
-  margin: 2rem auto;
-  padding: 2.25rem;
-  background: #ffffff;
-  border-radius: 24px;
-  border: 1px solid #e2e8f0;
-  box-shadow:
-    0 0 0 1px rgba(15, 44, 89, 0.05),
-    0 8px 28px rgba(15, 44, 89, 0.05),
-    0 2px 6px rgba(15, 44, 89, 0.03);
+  margin: 0.25rem auto 2rem;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   color: #334155;
 }
 
-.users-page-container::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 5px;
-  background: linear-gradient(90deg, #0f2c59 0%, #2563eb 55%, #ff9f1c 100%);
-  border-radius: 24px 24px 0 0;
+.users-page-container::before,
+.gestionar-usuarios-container::before {
+  display: none;
 }
 
 /* Header de la Sección */
@@ -247,31 +239,48 @@
 
 .search-icon {
   position: absolute;
-  left: 1rem;
+  left: 1.1rem;
   top: 50%;
   transform: translateY(-50%);
-  color: #64748b;
+  color: #2563eb;
   pointer-events: none;
+  transition: all 0.22s ease;
 }
 
 .search-input-field {
   width: 100%;
-  height: 42px;
-  background: #f8fafc;
-  border: 1.5px solid #e2e8f0;
+  height: 44px;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
   border-radius: 9999px;
-  padding: 0 1rem 0 2.5rem;
+  padding: 0 1.25rem 0 2.75rem;
   color: #0f2c59;
   font-size: 0.875rem;
   outline: none;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(15, 44, 89, 0.04);
+  transition: all 0.22s ease;
+}
+
+.search-input-field::placeholder {
+  color: #94a3b8;
   font-weight: 500;
-  transition: all 0.2s ease;
+}
+
+.search-input-field:hover {
+  border-color: #94a3b8;
+  box-shadow: 0 4px 12px rgba(15, 44, 89, 0.07);
 }
 
 .search-input-field:focus {
   border-color: #2563eb;
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.14), 0 0 0 3.5px rgba(37, 99, 235, 0.12);
+}
+
+.search-box-wrapper:focus-within .search-icon {
+  color: #1d4ed8;
+  transform: translateY(-50%) scale(1.1);
 }
 
 .filter-and-add-actions {
@@ -1290,4 +1299,258 @@
   background: #f1f5f9;
   padding: 1px 6px;
   border-radius: 4px;
+}
+
+/* ==========================================
+   RESPONSIVE DESIGN FOR MOBILE (< 768px)
+   ========================================== */
+@media (max-width: 768px) {
+  .gestionar-usuarios-container {
+    padding: 1.15rem 0.85rem !important;
+    margin: 0.75rem 0.35rem !important;
+    border-radius: 16px !important;
+  }
+
+  .users-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.75rem !important;
+    margin-bottom: 1.25rem !important;
+    padding-bottom: 1rem !important;
+  }
+
+  .users-page-title {
+    font-size: 1.35rem !important;
+  }
+
+  .role-badge-indicator {
+    align-self: flex-start !important;
+    font-size: 0.75rem !important;
+    padding: 0.4rem 0.85rem !important;
+  }
+
+  .users-controls-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.85rem !important;
+  }
+
+  .search-box-wrapper {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .filter-and-add-actions {
+    flex-direction: column !important;
+    width: 100% !important;
+    align-items: stretch !important;
+    gap: 0.75rem !important;
+  }
+
+  .custom-role-select-container {
+    width: 100% !important;
+  }
+
+  .btn-add-user {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .table-responsive {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    border-radius: 14px !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 4px 12px rgba(15, 44, 89, 0.03) !important;
+  }
+
+  .custom-users-table {
+    min-width: 650px !important;
+  }
+
+  .custom-users-table th {
+    padding: 0.75rem 0.85rem !important;
+    font-size: 0.68rem !important;
+  }
+
+  .custom-users-table td {
+    padding: 0.85rem 0.85rem !important;
+    font-size: 0.82rem !important;
+  }
+
+  .user-modal-overlay {
+    padding-top: 85px !important;
+    padding-bottom: 15px !important;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    overflow-y: auto !important;
+    z-index: 3000 !important;
+  }
+
+  .user-modal-card {
+    width: 100% !important;
+    max-height: calc(100vh - 100px) !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .modal-form-body {
+    overflow-y: auto !important;
+    max-height: calc(100vh - 170px) !important;
+  }
+}
+
+/* ==========================================
+   ESTILOS DE PAGINACIÓN RESPONSIVA EN CELULAR
+   ========================================== */
+.users-pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+  gap: 1rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pagination-info-text {
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.pagination-controls-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.pagination-buttons-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.pagination-number-list {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.pagination-number-list::-webkit-scrollbar {
+  display: none;
+}
+
+.pagination-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #1e293b;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.pagination-nav-btn:hover:not(.disabled) {
+  border-color: #2563eb;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.pagination-nav-btn.disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.pagination-num-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-weight: 800;
+  font-size: 0.82rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.pagination-num-btn:hover:not(.active) {
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+.pagination-num-btn.active {
+  border: none;
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+/* RESPONSIVO EN TELÉFONOS (max-width: 640px) */
+@media (max-width: 640px) {
+  .users-pagination-bar {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.75rem;
+    padding: 0.85rem 0.5rem;
+    overflow-x: hidden;
+  }
+
+  .pagination-info-text {
+    font-size: 0.78rem;
+    width: 100%;
+  }
+
+  .pagination-controls-group {
+    flex-direction: column;
+    width: 100%;
+    gap: 0.75rem;
+  }
+
+  .pagination-buttons-wrapper {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  /* Ocultar texto "Anterior" y "Siguiente" en celular y mostrar ÚNICAMENTE los iconos SVG */
+  .pagination-btn-label {
+    display: none !important;
+  }
+
+  .pagination-nav-btn {
+    padding: 6px 8px;
+    justify-content: center;
+  }
+
+  .pagination-num-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 0.75rem;
+  }
 }

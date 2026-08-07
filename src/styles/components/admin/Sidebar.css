@@ -158,31 +158,83 @@
   transform: translateX(-2px);
 }
 
-/* OCULTAR DEFINITIVAMENTE LA "X" */
-.btn-close-sidebar-mobile {
-  display: none !important;
+.sidebar-mobile-toggle-close {
+  display: none;
 }
 
 /* =========================================
    CONFIGURACIÓN PARA CELULARES (RESPONSIVE)
    ========================================= */
 @media (max-width: 768px) {
-  /* PASO CLAVE: Ocultamos el logo del sidebar en móvil para no repetir */
+  /* Header del sidebar en móvil con logo y botón de 3 rayas */
   .admin-sidebar .sidebar-header {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background-color: #0b0f19;
+    flex-shrink: 0;
+  }
+
+  .admin-sidebar .logo-admin-flex img {
+    height: 32px;
+  }
+
+  .admin-sidebar .role-badge {
     display: none;
+  }
+
+  .sidebar-mobile-toggle-close {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    border-radius: 8px;
+    padding: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    outline: none;
+  }
+
+  .sidebar-mobile-toggle-close:active {
+    background: #d0182b;
+    border-color: #d0182b;
   }
 
   .admin-sidebar {
     transform: translateX(-100%); 
-    width: 280px;
-    /* Ajustamos el padding para que las opciones empiecen debajo del Navbar de 80px */
-    padding-top: 80px; 
+    width: 285px;
+    height: 100vh !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    padding-top: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
     box-shadow: 10px 0 30px rgba(0,0,0,0.5);
     background-color: #0b0f19;
+    z-index: 100000 !important;
   }
 
   .admin-sidebar.open {
     transform: translateX(0);
+    z-index: 100000 !important;
+  }
+
+  .sidebar-nav {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    padding: 15px 0 !important;
+  }
+
+  .sidebar-footer {
+    flex-shrink: 0 !important;
+    padding: 16px 18px !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+    background: #0b0f19 !important;
   }
 
   .sidebar-overlay {
@@ -192,7 +244,7 @@
     width: 100vw;
     height: 100vh;
     background: rgba(11, 15, 25, 0.7);
-    z-index: 999;
+    z-index: 99999 !important;
     backdrop-filter: blur(4px);
   }
 }

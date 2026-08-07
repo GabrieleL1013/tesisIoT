@@ -1,122 +1,252 @@
-import { useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
-import { LanguageProvider } from "./context/LanguageContext";
+import React, { useEffect, lazy, Suspense } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation, useParams } from "react-router-dom";
+import i18n from "./i18n";
+import { LanguageProvider, useLanguage } from "./context/LanguageContext";
 import { AuthProvider } from "./context/AuthContext";
-import { InterfaceTextProvider } from "./context/InterfaceTextContext";
+import { InterfaceTextProvider, useInterfaceText } from "./context/InterfaceTextContext";
 import { InterfaceImageProvider } from "./context/InterfaceImageContext";
+import { getUrlLanguage } from "./utils/routeMapping";
+import "./App.css";
+
 import Inicio from "./pages/Inicio";
 import Navbar from "../src/components/Navbar";
 import Footer from "../src/components/Footer";
 import IotTicker from "./components/IotTicker";
 
-// ── IMPORTACIÓN DE NUESTRAS NUEVAS INTERFACES TESIS ──
-import VisualizarMapa from "./pages/VisualizarMapa";
-import VisualizarHistorico from "./pages/VisualizarHistorico";
-import Login from "./pages/Login";
-import NoticiasPublicas from "./pages/NoticiasPublicas";
-import ArticulosPublicos from "./pages/ArticulosPublicos";
-import AcercaDe from "./pages/AcercaDe";
-import Contacto from "./pages/Contacto";
+// Code Splitting (Lazy Loading) para evitar cargar scripts de administracion u otras paginas innecesarias en la pagina de Inicio
+const VisualizarMapa = lazy(() => import("./pages/VisualizarMapa"));
+const VisualizarHistorico = lazy(() => import("./pages/VisualizarHistorico"));
+const Login = lazy(() => import("./pages/Login"));
+const NoticiasPublicas = lazy(() => import("./pages/NoticiasPublicas"));
+const ArticulosPublicos = lazy(() => import("./pages/ArticulosPublicos"));
+const AcercaDe = lazy(() => import("./pages/AcercaDe"));
+const Contacto = lazy(() => import("./pages/Contacto"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
-//INTERFACES DE ADMINISTRADOR
-import Dashboard from "./pages/admin/Dashboard";
-import RegistrarNodo from "./pages/admin/RegistrarNodo";
-import GestionarCategorias from "./pages/admin/GestionarCategorias";
-import GestionarMetricas from "./pages/admin/GestionarMetricas";
-import GestionarUbicaciones from "./pages/admin/GestionarUbicaciones";
-import GestionarUsuarios from "./pages/admin/GestionarUsuarios";
-import GestionarRoles from "./pages/admin/GestionarRoles";
-import GestionarInterfaces from "./pages/admin/GestionarInterfaces";
-import GestionarNoticias from "./pages/admin/GestionarNoticias";
-import GestionarArticulos from "./pages/admin/GestionarArticulos";
-import MonitorEnVivo from "./pages/admin/MonitorEnVivo";
-import HistoricoAgregado from "./pages/admin/HistoricoAgregado";
-import Notificaciones from "./pages/admin/Notificaciones";
-import Error403 from "./pages/admin/Error403";
+// Interfaces de Administrador cargadas bajo demanda
+const Dashboard = lazy(() => import("./pages/admin/Dashboard"));
+const RegistrarNodo = lazy(() => import("./pages/admin/RegistrarNodo"));
+const GestionarCategorias = lazy(() => import("./pages/admin/GestionarCategorias"));
+const GestionarMetricas = lazy(() => import("./pages/admin/GestionarMetricas"));
+const GestionarUbicaciones = lazy(() => import("./pages/admin/GestionarUbicaciones"));
+const GestionarUsuarios = lazy(() => import("./pages/admin/GestionarUsuarios"));
+const GestionarRoles = lazy(() => import("./pages/admin/GestionarRoles"));
+const GestionarInterfaces = lazy(() => import("./pages/admin/GestionarInterfaces"));
+const GestionarNoticias = lazy(() => import("./pages/admin/GestionarNoticias"));
+const GestionarArticulos = lazy(() => import("./pages/admin/GestionarArticulos"));
+const MonitorEnVivo = lazy(() => import("./pages/admin/MonitorEnVivo"));
+const HistoricoAgregado = lazy(() => import("./pages/admin/HistoricoAgregado"));
+const Notificaciones = lazy(() => import("./pages/admin/Notificaciones"));
+const Error403 = lazy(() => import("./pages/admin/Error403"));
+const AdminLayout = lazy(() => import("./components/admin/AdminLayout"));
 
-// ── IMPORTACIÓN DEL LAYOUT DE ADMINISTRACIÓN ──
-import AdminLayout from "./components/admin/AdminLayout";
+function LanguageRouteSync() {
+  const { lang } = useParams();
+  const location = useLocation();
+  const { refreshTexts } = useInterfaceText();
 
-// ── COMPONENTE PARA RESTAURAR EL SCROLL AL CAMBIAR DE RUTA O PARÁMETROS ──
+  useEffect(() => {
+    const activeLang = (lang === "es" || lang === "en") ? lang : getUrlLanguage(location.pathname);
+    if (i18n.language !== activeLang) {
+      i18n.changeLanguage(activeLang);
+      document.documentElement.setAttribute("lang", activeLang);
+    }
+    if (refreshTexts) {
+      refreshTexts(true);
+    }
+  }, [lang, location.pathname]);
+
+  return <Outlet />;
+}
+
+function RedirectToLocalizedRoute() {
+  const location = useLocation();
+  const pathname = location.pathname;
+  const currentLang = getUrlLanguage(pathname) || 'es';
+
+  if (pathname === "/") {
+    return <Navigate to={`/${currentLang}`} replace />;
+  }
+
+  if (pathname === "/login") {
+    return <Navigate to={`/${currentLang}/login`} replace />;
+  }
+
+  return <Navigate to={`/${currentLang}/404`} replace />;
+}
+
 function ScrollToTop() {
-  const { pathname, search } = useLocation();
+  const { pathname } = useLocation();
 
   useEffect(() => {
     window.scrollTo(0, 0);
     if (document.documentElement) document.documentElement.scrollTop = 0;
     if (document.body) document.body.scrollTop = 0;
-  }, [pathname, search]);
+  }, [pathname]);
 
   return null;
 }
 
-// ── LAYOUT PORTAL PÚBLICO (Navbar & Footer con Outlet) ──
 const PublicLayout = () => {
+  const { loading: textsLoading } = useInterfaceText();
+  const { language } = useLanguage();
+  const loadingText = language === "en" ? "LOADING..." : "CARGANDO...";
+
   return (
     <>
       <Navbar />
-      {/* Añadimos padding top de 85px para compensar la posición fixed del Navbar */}
-      <div className="min-h-screen bg-gray-50 pb-8" style={{ paddingTop: "85px" }}>
-        <Outlet />
-      </div>
-      <IotTicker />
-      <Footer />
+      {textsLoading ? (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          zIndex: 40,
+          backgroundColor: '#f9fafb',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingTop: '85px'
+        }}>
+          <style dangerouslySetInnerHTML={{ __html: `
+            @keyframes custom-spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}} />
+          <div style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '50%',
+            border: '4px solid transparent',
+            borderTopColor: '#dc2626',
+            borderBottomColor: '#dc2626',
+            animation: 'custom-spin 1s linear infinite',
+            marginBottom: '16px'
+          }}></div>
+          <p style={{
+            color: '#334155',
+            fontWeight: 'bold',
+            fontFamily: 'sans-serif',
+            letterSpacing: '0.1em',
+            fontSize: '1.125rem'
+          }}>
+            {loadingText}
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="min-h-screen bg-gray-50 pb-8 main-content-wrapper">
+            <Outlet />
+          </div>
+          <IotTicker />
+          <Footer />
+        </>
+      )}
     </>
   );
 };
 
 export default function App() {
   return (
-    <LanguageProvider>
-      <AuthProvider>
-        <InterfaceTextProvider>
-          <InterfaceImageProvider>
-          <Router>
-            {/* Restaura el scroll vertical a 0 en cada cambio de ruta */}
-            <ScrollToTop />
-            
-            <Routes>
-              {/* Dedicated Login Route (Standalone, no Navbar/Footer) */}
-              <Route path="/login" element={<Login />} />
+    <Router>
+      <LanguageProvider>
+        <AuthProvider>
+          <InterfaceTextProvider>
+            <InterfaceImageProvider>
+              <ScrollToTop />
+              <Suspense fallback={null}>
+                <Routes>
 
-              {/* ── SECCIÓN DE ADMINISTRACIÓN (Protegida por AdminLayout, sin Navbar/Footer públicos) ── */}
-              <Route path="/admin" element={<AdminLayout />}>
-                <Route index element={<Navigate to="/admin/dashboard" replace />} />
-                <Route path="dashboard" element={<Dashboard />} />
-                <Route path="nodos" element={<RegistrarNodo />} />
-                <Route path="categorias" element={<GestionarCategorias />} />
-                <Route path="metricas" element={<GestionarMetricas />} />
-                <Route path="ubicaciones" element={<GestionarUbicaciones />} />
-                <Route path="usuarios" element={<GestionarUsuarios />} />
-                <Route path="roles" element={<GestionarRoles />} />
-                <Route path="interfaces" element={<GestionarInterfaces />} />
-                <Route path="noticias" element={<GestionarNoticias />} />
-                <Route path="articulos" element={<GestionarArticulos />} />
-                <Route path="monitor-en-vivo" element={<MonitorEnVivo />} />
-                <Route path="historico" element={<HistoricoAgregado />} />
-                <Route path="notificaciones" element={<Notificaciones />} />
-                <Route path="403" element={<Error403 />} />
-              </Route>
+                  {/* ── RUTAS EXCLUSIVAS EN ESPAÑOL (/es) ── */}
+                  <Route path="/es" element={<LanguageRouteSync />}>
+                    <Route path="login" element={<Login />} />
+                    <Route path="404" element={<NotFound />} />
 
-              {/* ── PORTAL PÚBLICO (Renderiza Navbar y Footer públicos mediante PublicLayout) ── */}
-              <Route element={<PublicLayout />}>
-                <Route path="/" element={<Inicio />} />
-                <Route path="/mapa-tiempo-real" element={<VisualizarMapa />} />
-                <Route path="/analisis-historico" element={<VisualizarHistorico />} />
-                <Route path="/noticias" element={<NoticiasPublicas />} />
-                <Route path="/articulos" element={<ArticulosPublicos />} />
-                <Route path="/acerca-de" element={<AcercaDe />} />
-                <Route path="/software" element={<AcercaDe />} />
-                <Route path="/contacto" element={<Contacto />} />
-              </Route>
+                    {/* Panel Admin en Español */}
+                    <Route path="admin" element={<AdminLayout />}>
+                      <Route index element={<Navigate to="dashboard" replace />} />
+                      <Route path="dashboard" element={<Dashboard />} />
+                      <Route path="nodos" element={<RegistrarNodo />} />
+                      <Route path="categorias" element={<GestionarCategorias />} />
+                      <Route path="metricas" element={<GestionarMetricas />} />
+                      <Route path="ubicaciones" element={<GestionarUbicaciones />} />
+                      <Route path="usuarios" element={<GestionarUsuarios />} />
+                      <Route path="roles" element={<GestionarRoles />} />
+                      <Route path="interfaces" element={<GestionarInterfaces />} />
+                      <Route path="noticias" element={<GestionarNoticias />} />
+                      <Route path="articulos" element={<GestionarArticulos />} />
+                      <Route path="monitor-en-vivo" element={<MonitorEnVivo />} />
+                      <Route path="historico" element={<HistoricoAgregado />} />
+                      <Route path="notificaciones" element={<Notificaciones />} />
+                      <Route path="403" element={<Error403 />} />
+                      <Route path="*" element={<NotFound />} />
+                    </Route>
 
-              {/* Redirección por defecto para cualquier ruta no mapeada */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Router>
-          </InterfaceImageProvider>
-        </InterfaceTextProvider>
-      </AuthProvider>
-    </LanguageProvider>
+                    {/* Portal Público en Español */}
+                    <Route element={<PublicLayout />}>
+                      <Route index element={<Inicio />} />
+                      <Route path="categorias" element={<VisualizarMapa />} />
+                      <Route path="category" element={<Navigate to="/es/categorias" replace />} />
+                      <Route path="analisis-historico" element={<VisualizarHistorico />} />
+                      <Route path="noticias" element={<NoticiasPublicas />} />
+                      <Route path="articulos" element={<ArticulosPublicos />} />
+                      <Route path="software" element={<AcercaDe />} />
+                      <Route path="contacto" element={<Contacto />} />
+                    </Route>
+
+                    {/* 404 fuera de PublicLayout */}
+                    <Route path="*" element={<NotFound />} />
+                  </Route>
+
+                  {/* ── RUTAS EXCLUSIVAS EN INGLÉS (/en) ── */}
+                  <Route path="/en" element={<LanguageRouteSync />}>
+                    <Route path="login" element={<Login />} />
+                    <Route path="404" element={<NotFound />} />
+
+                    {/* Panel Admin en Inglés */}
+                    <Route path="admin" element={<AdminLayout />}>
+                      <Route index element={<Navigate to="dashboard" replace />} />
+                      <Route path="dashboard" element={<Dashboard />} />
+                      <Route path="nodes" element={<RegistrarNodo />} />
+                      <Route path="categories" element={<GestionarCategorias />} />
+                      <Route path="metrics" element={<GestionarMetricas />} />
+                      <Route path="locations" element={<GestionarUbicaciones />} />
+                      <Route path="users" element={<GestionarUsuarios />} />
+                      <Route path="roles" element={<GestionarRoles />} />
+                      <Route path="interfaces" element={<GestionarInterfaces />} />
+                      <Route path="news" element={<GestionarNoticias />} />
+                      <Route path="articles" element={<GestionarArticulos />} />
+                      <Route path="live-monitor" element={<MonitorEnVivo />} />
+                      <Route path="history" element={<HistoricoAgregado />} />
+                      <Route path="notifications" element={<Notificaciones />} />
+                      <Route path="403" element={<Error403 />} />
+                      <Route path="*" element={<NotFound />} />
+                    </Route>
+
+                    {/* Portal Público en Inglés */}
+                    <Route element={<PublicLayout />}>
+                      <Route index element={<Inicio />} />
+                      <Route path="categories" element={<VisualizarMapa />} />
+                      <Route path="category" element={<Navigate to="/en/categories" replace />} />
+                      <Route path="historical-analysis" element={<VisualizarHistorico />} />
+                      <Route path="news" element={<NoticiasPublicas />} />
+                      <Route path="articles" element={<ArticulosPublicos />} />
+                      <Route path="software" element={<AcercaDe />} />
+                      <Route path="contact" element={<Contacto />} />
+                    </Route>
+
+                    {/* 404 fuera de PublicLayout */}
+                    <Route path="*" element={<NotFound />} />
+                  </Route>
+
+                  {/* ── REDIRECCIÓN / O 404 GLOBAL ── */}
+                  <Route path="*" element={<RedirectToLocalizedRoute />} />
+                </Routes>
+              </Suspense>
+            </InterfaceImageProvider>
+          </InterfaceTextProvider>
+        </AuthProvider>
+      </LanguageProvider>
+    </Router>
   );
 }

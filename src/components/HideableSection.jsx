@@ -1,21 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useInterfaceText } from '../context/InterfaceTextContext';
+import { useLanguage } from '../context/LanguageContext';
+import { checkEditPermission } from '../utils/checkEditPermission';
 import Swal from 'sweetalert2';
 
 export default function HideableSection({ sectionKey, children, className = '', id = '', style = {} }) {
   const { texts, updateText, editMode } = useInterfaceText();
-  const [isSuperadmin] = useState(() => {
-    try {
-      const activeSession = localStorage.getItem('iot_sesion_activa');
-      if (activeSession) {
-        const session = JSON.parse(activeSession);
-        return session.user && session.user.rol === 'Superusuario';
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return false;
-  });
+  const { language } = useLanguage();
+  const isEn = language === 'en';
+  const [canEdit, setCanEdit] = useState(false);
+
+  useEffect(() => {
+    const checkRole = () => {
+      checkEditPermission().then(res => setCanEdit(res));
+    };
+    checkRole();
+    window.addEventListener("userProfileUpdated", checkRole);
+    window.addEventListener("appInterfacesUpdated", checkRole);
+    return () => {
+      window.removeEventListener("userProfileUpdated", checkRole);
+      window.removeEventListener("appInterfacesUpdated", checkRole);
+    };
+  }, []);
 
   const isHidden = texts[`visibility_${sectionKey}`] === 'hidden';
 
@@ -28,28 +34,37 @@ export default function HideableSection({ sectionKey, children, className = '', 
     e.stopPropagation();
     e.preventDefault();
 
-    const action = isHidden ? 'mostrar' : 'ocultar';
+    const action = isHidden 
+      ? (isEn ? 'show' : 'mostrar') 
+      : (isEn ? 'hide' : 'ocultar');
+
     const result = await Swal.fire({
-      title: `¿Desea ${action} esta sección?`,
+      title: isEn 
+        ? `Do you want to ${action} this section?` 
+        : `¿Desea ${action} esta sección?`,
       text: isHidden 
-        ? 'La sección volverá a ser visible para todos los visitantes públicos.' 
-        : 'La sección solo será visible para administradores en Modo Edición.',
+        ? (isEn ? 'The section will become visible to all public visitors.' : 'La sección volverá a ser visible para todos los visitantes públicos.') 
+        : (isEn ? 'The section will only be visible to administrators in Edit Mode.' : 'La sección solo será visible para administradores en Modo Edición.'),
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#3085d6',
       cancelButtonColor: '#d33',
-      confirmButtonText: isHidden ? 'Sí, mostrar' : 'Sí, ocultar',
-      cancelButtonText: 'Cancelar'
+      confirmButtonText: isHidden 
+        ? (isEn ? 'Yes, show' : 'Sí, mostrar') 
+        : (isEn ? 'Yes, hide' : 'Sí, ocultar'),
+      cancelButtonText: isEn ? 'Cancel' : 'Cancelar'
     });
 
     if (result.isConfirmed) {
       const newValue = isHidden ? 'visible' : 'hidden';
       await updateText(`visibility_${sectionKey}`, newValue);
       Swal.fire({
-        title: isHidden ? 'Sección Visible' : 'Sección Ocultada',
+        title: isHidden 
+          ? (isEn ? 'Section Visible' : 'Sección Visible') 
+          : (isEn ? 'Section Hidden' : 'Sección Ocultada'),
         text: isHidden 
-          ? 'La sección ahora es pública.' 
-          : 'La sección se ha ocultado del público.',
+          ? (isEn ? 'The section is now public.' : 'La sección ahora es pública.') 
+          : (isEn ? 'The section is now hidden from the public.' : 'La sección se ha ocultado del público.'),
         icon: 'success',
         timer: 1500,
         showConfirmButton: false
@@ -75,8 +90,8 @@ export default function HideableSection({ sectionKey, children, className = '', 
         } : {})
       }}
     >
-      {/* Visibility control badge overlay visible only in Edit Mode for Superadmin */}
-      {isSuperadmin && editMode && (
+      {/* Visibility control badge overlay visible only in Edit Mode for authorized user */}
+      {canEdit && editMode && (
         <div style={{
           position: 'absolute',
           top: '15px',
@@ -121,7 +136,7 @@ export default function HideableSection({ sectionKey, children, className = '', 
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                   <circle cx="12" cy="12" r="3"/>
                 </svg>
-                Mostrar Sección
+                {isEn ? 'Show Section' : 'Mostrar Sección'}
               </>
             ) : (
               <>
@@ -129,7 +144,7 @@ export default function HideableSection({ sectionKey, children, className = '', 
                   <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
                   <line x1="1" y1="1" x2="23" y2="23"/>
                 </svg>
-                Ocultar Sección
+                {isEn ? 'Hide Section' : 'Ocultar Sección'}
               </>
             )}
           </button>

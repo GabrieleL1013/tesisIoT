@@ -1,4 +1,4 @@
-import { API_BASE_URL, fetchWithAuth } from "../config/api";
+import { API_BASE_URL, fetchWithAuth, fetchDeduplicated } from "../config/api";
 import { createContext, useState, useContext, useEffect } from "react";
 
 const InterfaceImageContext = createContext();
@@ -18,7 +18,7 @@ export function InterfaceImageProvider({ children }) {
 
   // Load all interface images on mount
   useEffect(() => {
-    fetch(`${API_BASE_URL}/interface-images`)
+    fetchDeduplicated(`${API_BASE_URL}/interface-images`)
       .then((res) => {
         if (!res.ok) throw new Error("Error cargando imágenes de interfaz.");
         return res.json();

@@ -1,70 +1,153 @@
-import { API_BASE_URL, fetchWithAuth } from "../config/api";
-import { createContext, useState, useContext, useEffect } from "react";
+import { API_BASE_URL, fetchWithAuth, fetchDeduplicated } from "../config/api";
+import { createContext, useState, useContext, useEffect, useMemo } from "react";
+import { getUrlLanguage } from "../utils/routeMapping";
 
 const InterfaceTextContext = createContext();
 
+/**
+ * Returns the current URL path for matching against app_interfaces path_es/path_en.
+ */
+function getCurrentPath() {
+  return window.location.pathname;
+}
+
 export function InterfaceTextProvider({ children }) {
-  const [texts, setTexts] = useState(() => {
+  const [allTexts, setAllTexts] = useState(() => {
     try {
-      const saved = localStorage.getItem("cached_interface_texts");
-      return saved ? JSON.parse(saved) : {};
+      const esSaved = localStorage.getItem("cached_interface_texts_es");
+      const enSaved = localStorage.getItem("cached_interface_texts_en");
+      return {
+        es: esSaved ? JSON.parse(esSaved) : {},
+        en: enSaved ? JSON.parse(enSaved) : {}
+      };
     } catch {
-      return {};
+      return { es: {}, en: {} };
     }
   });
-  const [loading, setLoading] = useState(() => {
-    return Object.keys(texts || {}).length === 0;
-  });
-  const [editMode, setEditMode] = useState(false);
 
-  // Cargar todos los textos al iniciar y actualizar la caché local
-  useEffect(() => {
-    fetch(`${API_BASE_URL}/interface-texts`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Error cargando textos de interfaz.");
-        return res.json();
-      })
-      .then((data) => {
-        const sanitized = Array.isArray(data) ? {} : data;
-        setTexts(sanitized);
-        try {
-          localStorage.setItem("cached_interface_texts", JSON.stringify(sanitized));
-        } catch (e) {
-          console.warn("No se pudo guardar en localStorage", e);
+  const [loading, setLoading] = useState(() => {
+    return Object.keys(allTexts.es || {}).length === 0 && Object.keys(allTexts.en || {}).length === 0;
+  });
+
+  const [editMode, setEditMode] = useState(false);
+  const [currentUrlLang, setCurrentUrlLang] = useState(() => getUrlLanguage());
+
+  const fetchTexts = (forceLoadingScreen = false) => {
+    if (forceLoadingScreen) {
+      setTimeout(() => setLoading(true), 0);
+    }
+    const currentPath = getCurrentPath();
+    const activeLang = getUrlLanguage();
+    const startTime = Date.now();
+
+    // Consultar dinámicamente solo el idioma activo y la ruta para aligerar la carga de la red
+    const langUrl = `${API_BASE_URL}/interface-texts?lang=${activeLang}&path=${encodeURIComponent(currentPath)}`;
+
+    fetchDeduplicated(langUrl)
+      .then((res) => (res.ok ? res.json() : {}))
+      .then((langData) => {
+        const sanitized = Array.isArray(langData) ? {} : (langData || {});
+
+        setAllTexts((prev) => {
+          const updated = {
+            ...prev,
+            [activeLang]: { ...(prev[activeLang] || {}), ...sanitized }
+          };
+          try {
+            localStorage.setItem(`cached_interface_texts_${activeLang}`, JSON.stringify(updated[activeLang]));
+          } catch (e) {
+            console.warn("No se pudo guardar en localStorage", e);
+          }
+          return updated;
+        });
+
+        const finishLoading = () => setLoading(false);
+        if (forceLoadingScreen) {
+          const elapsed = Date.now() - startTime;
+          const delay = Math.max(0, 500 - elapsed);
+          setTimeout(finishLoading, delay);
+        } else {
+          finishLoading();
         }
-        setLoading(false);
       })
       .catch((err) => {
-        console.error("Error al cargar textos dinámicos:", err);
-        setLoading(false);
+        console.error("Error al cargar textos dinámicos de la interfaz:", err);
+        // Do not set loading to false here, keep loading screen if backend is down
       });
+  };
+
+  useEffect(() => {
+    fetchTexts();
+
+    const handleLocationChange = () => {
+      setCurrentUrlLang(getUrlLanguage());
+      fetchTexts(true);
+    };
+
+    window.addEventListener("popstate", handleLocationChange);
+    window.addEventListener("languageChanged", handleLocationChange);
+    return () => {
+      window.removeEventListener("popstate", handleLocationChange);
+      window.removeEventListener("languageChanged", handleLocationChange);
+    };
   }, []);
 
-  // Función para actualizar o crear un texto
-  const updateText = async (key, textValue) => {
+  const texts = useMemo(() => {
+    const activeLang = getUrlLanguage();
+    return allTexts[activeLang] || allTexts.es || {};
+  }, [allTexts, currentUrlLang, window.location.pathname]);
+
+  const updateText = async (key, textValue, forcePath = null, autoTranslate = true) => {
     try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/interface-texts`, {
+      const activeLang = getUrlLanguage();
+      const currentPath = getCurrentPath();
+      const pathToSend = forcePath || currentPath;
+      const endpoint = `${API_BASE_URL}/interface-texts?lang=${activeLang}`;
+
+      // Actualizar estado de React optimistamente de inmediato para re-renderizado instantáneo en pantalla
+      setAllTexts((prev) => ({
+        ...prev,
+        [activeLang]: {
+          ...(prev[activeLang] || {}),
+          [key]: textValue
+        }
+      }));
+
+      const response = await fetchWithAuth(endpoint, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "Accept-Language": activeLang
         },
-        body: JSON.stringify({ key, text: textValue }),
+        body: JSON.stringify({
+          key,
+          text: textValue,
+          path: pathToSend,
+          auto_translate: autoTranslate
+        }),
       });
 
       if (!response.ok) {
         throw new Error("No se pudo actualizar el texto en la base de datos.");
       }
 
-      // Actualizar el estado local y la caché
-      setTexts((prev) => {
-        const next = { ...prev, [key]: textValue };
-        try {
-          localStorage.setItem("cached_interface_texts", JSON.stringify(next));
-        } catch (e) {
-          console.warn("No se pudo actualizar localStorage", e);
-        }
-        return next;
-      });
+      const resData = await response.json();
+      if (resData && resData.key && resData.text !== undefined) {
+        setAllTexts((prev) => {
+          const updatedLang = {
+            ...(prev[activeLang] || {}),
+            [resData.key]: resData.text
+          };
+          try {
+            localStorage.setItem(`cached_interface_texts_${activeLang}`, JSON.stringify(updatedLang));
+          } catch (e) {}
+          return {
+            ...prev,
+            [activeLang]: updatedLang
+          };
+        });
+      }
+
       return true;
     } catch (error) {
       console.error("Error actualizando texto de interfaz:", error);
@@ -77,7 +160,7 @@ export function InterfaceTextProvider({ children }) {
   };
 
   return (
-    <InterfaceTextContext.Provider value={{ texts, updateText, loading, editMode, toggleEditMode }}>
+    <InterfaceTextContext.Provider value={{ texts, updateText, loading, editMode, toggleEditMode, refreshTexts: fetchTexts }}>
       {children}
     </InterfaceTextContext.Provider>
   );

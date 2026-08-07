@@ -1,85 +1,204 @@
-import { API_BASE_URL } from '../config/api';
-import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import '../styles/ArticulosPublicos.css';
+import { API_BASE_URL, fetchDeduplicated } from '../config/api';
+import SEO from "../components/SEO";
+import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useLanguage } from '../context/LanguageContext';
+import { usePageTitle } from '../hooks/usePageTitle';
+import { useInterfaceText } from '../context/InterfaceTextContext';
 import EditableText from '../components/EditableText';
+import { formatExternalUrl } from '../utils/urlUtils';
+
+const formatImageUrl = (urlStr) => {
+  if (!urlStr) return '';
+  if (urlStr.startsWith('data:') || urlStr.startsWith('http://') || urlStr.startsWith('https://')) {
+    return urlStr;
+  }
+  const backendHost = API_BASE_URL.replace(/\/api\/?$/, '');
+  return `${backendHost}${urlStr.startsWith('/') ? '' : '/'}${urlStr}`;
+};
 
 export default function ArticulosPublicos() {
+  const { language, t } = useLanguage();
+  const { texts } = useInterfaceText();
+  usePageTitle(language === 'en' ? 'Articles' : 'Artículos');
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [articulos, setArticulos] = useState([]);
   const [articuloSeleccionado, setArticuloSeleccionado] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [totalPaginas, setTotalPaginas] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+
   const [busqueda, setBusqueda] = useState('');
+  const [debouncedBusqueda, setDebouncedBusqueda] = useState('');
   const [filtroTipo, setFiltroTipo] = useState(null);
   const [filtroAnio, setFiltroAnio] = useState(null);
   const [ordenarPor, setOrdenarPor] = useState(null);
   const [paginaActual, setPaginaActual] = useState(1);
+  const [aniosDisponibles, setAniosDisponibles] = useState([]);
+  const [modalImagenFull, setModalImagenFull] = useState(null);
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+  
+  const searchInputRef = useRef(null);
+  const artCarouselRef = useRef(null);
+
+  // Debounce para evitar llamadas repetidas a la API al escribir
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedBusqueda(busqueda);
+    }, 350);
+    return () => clearTimeout(handler);
+  }, [busqueda]);
+
+  // Cargar años únicos desde la base de datos
+  useEffect(() => {
+    fetchDeduplicated(`${API_BASE_URL}/articulos/anios`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setAniosDisponibles(data);
+        } else {
+          setAniosDisponibles([new Date().getFullYear()]);
+        }
+      })
+      .catch(() => {
+        setAniosDisponibles([new Date().getFullYear()]);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (searchExpanded && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [searchExpanded]);
 
   useEffect(() => {
     setPaginaActual(1);
-  }, [busqueda, filtroTipo, filtroAnio, ordenarPor]);
+  }, [debouncedBusqueda, filtroTipo, filtroAnio, ordenarPor]);
 
   const articuloIdParam = searchParams.get('id');
 
+  // Cargar artículos científicos desde el backend con paginación y búsqueda
   useEffect(() => {
-    fetch(`${API_BASE_URL}/articulos`)
+    setLoading(true);
+    let sortParam = 'recientes';
+    if (ordenarPor === 'Antiguo') {
+      sortParam = 'antiguos';
+    } else if (ordenarPor === 'Titulo_ASC') {
+      sortParam = 'alfa_asc';
+    } else if (ordenarPor === 'Titulo_DESC') {
+      sortParam = 'alfa_desc';
+    }
+
+    let url = `${API_BASE_URL}/articulos?lang=${language}&estado=Publicado&page=${paginaActual}&per_page=9&sort=${sortParam}`;
+    if (debouncedBusqueda.trim()) {
+      url += `&search=${encodeURIComponent(debouncedBusqueda.trim())}`;
+    }
+    if (filtroAnio !== null && filtroAnio !== 'todos') {
+      url += `&year=${encodeURIComponent(filtroAnio)}`;
+    }
+
+    fetchDeduplicated(url)
       .then(res => res.json())
       .then(data => {
-        if (Array.isArray(data)) {
-          // Filter only published articles
-          const publicos = data.filter(art => art.estado === 'Publicado');
-          setArticulos(publicos);
-
-          // Synchronize selection if ID is in the URL parameters
-          if (articuloIdParam) {
-            const encontrado = publicos.find(a => String(a.id) === String(articuloIdParam));
-            if (encontrada) {
-              if (encontrada.tipo_registro === 'PDF' && encontrada.url_pdf) {
-                // Directly open external PDF and reset params to avoid empty reader state
-                window.open(encontrada.url_pdf, '_blank');
-                setSearchParams({});
-              } else {
-                setArticuloSeleccionado(encontrada);
-              }
-            }
-          }
+        let rawList = [];
+        if (data && data.data && Array.isArray(data.data)) {
+          rawList = data.data;
+          setTotalPaginas(data.last_page || 1);
+          setTotalItems(data.total || 0);
+        } else if (Array.isArray(data)) {
+          rawList = data;
+          setTotalPaginas(Math.ceil(data.length / 9) || 1);
+          setTotalItems(data.length);
         }
+        setArticulos(rawList);
       })
       .catch(err => {
         console.error("Error loading public articles:", err);
+      })
+      .finally(() => {
+        setLoading(false);
       });
-  }, [articuloIdParam, setSearchParams]);
+  }, [language, paginaActual, debouncedBusqueda, filtroAnio, ordenarPor]);
+
+  useEffect(() => {
+    if (articulos.length > 0 && articuloIdParam) {
+      const encontrado = articulos.find(a => String(a.id) === String(articuloIdParam));
+      if (encontrado && (encontrado.tipo_registro !== 'PDF' || !encontrado.url_pdf)) {
+        setArticuloSeleccionado(encontrado);
+      } else {
+        setArticuloSeleccionado(null);
+      }
+    } else if (!articuloIdParam) {
+      setArticuloSeleccionado(null);
+    }
+  }, [articuloIdParam, articulos]);
 
   useEffect(() => {
     const handleOutsideClick = (e) => {
-      if (!e.target.closest('.pub-news-filter-group')) {
-        setShowFilterPanel(false);
+      if (e.target && typeof e.target.closest === 'function') {
+        if (!e.target.closest('.pub-news-filter-group')) {
+          setShowFilterPanel(false);
+        }
+        if (!e.target.closest('.pub-news-search-box')) {
+          const searchInput = document.querySelector('.pub-news-search-input');
+          if (!searchInput || !searchInput.value) {
+            setSearchExpanded(false);
+          }
+        }
       }
     };
     document.addEventListener('click', handleOutsideClick);
     return () => document.removeEventListener('click', handleOutsideClick);
   }, []);
 
+  const slugify = (text) => {
+    if (!text) return '';
+    return text
+      .toString()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-');
+  };
+
   const handleLeerMasClick = (art) => {
     if (art.tipo_registro === 'PDF' && art.url_pdf) {
-      window.open(art.url_pdf, '_blank');
+      window.open(formatExternalUrl(art.url_pdf), '_blank');
       return;
     }
-    setSearchParams({ id: art.id });
+    const slug = slugify(art.titulo);
+    setSearchParams({ id: art.id, slug: slug });
     setArticuloSeleccionado(art);
     window.scrollTo(0, 0);
   };
 
-  const handleVolverClick = () => {
-    setSearchParams({});
+  // Mantener actualizado el slug en la URL al cambiar de idioma dentro de un artículo
+  useEffect(() => {
+    if (articuloSeleccionado) {
+      const slug = slugify(articuloSeleccionado.titulo);
+      setSearchParams({ id: articuloSeleccionado.id, slug: slug });
+    }
+  }, [language, articuloSeleccionado]);
+
+  const handleVolverClick = (e) => {
+    if (e) e.stopPropagation();
     setArticuloSeleccionado(null);
+    setSearchParams({});
     window.scrollTo(0, 0);
   };
 
-  const formatKeywords = (kwStr) => {
-    if (!kwStr) return [];
-    return kwStr.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
+  const scrollCarousel = (direction) => {
+    if (!artCarouselRef.current) return;
+    const scrollAmount = artCarouselRef.current.clientWidth * 0.85;
+    artCarouselRef.current.scrollBy({
+      left: direction === 'left' ? -scrollAmount : scrollAmount,
+      behavior: 'smooth'
+    });
   };
 
   const formatReferences = (refsText) => {
@@ -90,128 +209,62 @@ export default function ArticulosPublicos() {
   const formatFecha = (dateStr) => {
     if (!dateStr) return 'N/A';
     const date = new Date(dateStr);
-    return date.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
+    return date.toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric'
+    });
   };
 
-  // Dynamically compute available publication years
-  const aniosDisponibles = Array.from(
-    new Set(
-      articulos
-        .map(art => art.created_at ? new Date(art.created_at).getFullYear() : null)
-        .filter(yr => yr !== null)
-    )
-  ).sort((a, b) => b - a);
-
-  // Helper to construct dynamic button text
   const obtenerTextoFiltro = () => {
     const filtrosActivos = [];
-    if (filtroTipo !== null) {
-      filtrosActivos.push(filtroTipo === 'Completo' ? 'Lectura Digital' : 'Enlaces Externos');
-    }
-    if (filtroAnio !== null) {
+    if (filtroAnio !== null && filtroAnio !== 'todos') {
       filtrosActivos.push(filtroAnio);
     }
     if (ordenarPor === 'Antiguo') {
-      filtrosActivos.push('Antiguos');
-    } else if (ordenarPor === 'Titulo') {
-      filtrosActivos.push('A-Z');
-    } else if (ordenarPor === 'TituloDesc') {
-      filtrosActivos.push('Z-A');
+      filtrosActivos.push(language === 'en' ? 'Oldest first' : 'Más antiguos');
     } else if (ordenarPor === 'Reciente') {
-      filtrosActivos.push('Recientes');
+      filtrosActivos.push(language === 'en' ? 'Newest first' : 'Más recientes');
+    } else if (ordenarPor === 'Titulo_ASC') {
+      filtrosActivos.push(language === 'en' ? 'By A-Z' : 'Por A-Z');
+    } else if (ordenarPor === 'Titulo_DESC') {
+      filtrosActivos.push(language === 'en' ? 'By Z-A' : 'Por Z-A');
     }
 
     if (filtrosActivos.length === 0) {
-      return 'Filtrar y Ordenar';
+      return null;
     }
     return filtrosActivos.join(' • ');
   };
 
-  // Filter and Sort publications list
-  const articulosFiltrados = articulos
-    .filter(art => {
-      // 1. Text Search
-      const query = busqueda.toLowerCase().trim();
-      const cumpleQuery = !query ||
-        art.titulo.toLowerCase().includes(query) ||
-        art.autores.toLowerCase().includes(query) ||
-        (art.palabras_clave && art.palabras_clave.toLowerCase().includes(query)) ||
-        (art.revista && art.revista.toLowerCase().includes(query));
-
-      // 2. Format Type Filter
-      let cumpleTipo = true;
-      if (filtroTipo !== null) {
-        cumpleTipo = art.tipo_registro === filtroTipo;
-      }
-
-      // 3. Year Filter
-      let cumpleAnio = true;
-      if (filtroAnio !== null) {
-        const year = art.created_at ? new Date(art.created_at).getFullYear() : null;
-        cumpleAnio = String(year) === String(filtroAnio);
-      }
-
-      return cumpleQuery && cumpleTipo && cumpleAnio;
-    })
-    .sort((a, b) => {
-      // 4. Sorting
-      if (ordenarPor === 'Antiguo') {
-        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return timeA - timeB;
-      } else if (ordenarPor === 'Titulo') {
-        return a.titulo.localeCompare(b.titulo);
-      } else if (ordenarPor === 'TituloDesc') {
-        return b.titulo.localeCompare(a.titulo);
-      } else if (ordenarPor === 'Reciente') {
-        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return timeB - timeA;
-      } else {
-        // default: newest first
-        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return timeB - timeA;
-      }
-    });
-
-  // Pagination Calculations
-  const itemsPerPage = 6;
-  const totalItems = articulosFiltrados.length;
-  const totalPaginas = Math.ceil(totalItems / itemsPerPage);
-
-  const indiceInicio = (paginaActual - 1) * itemsPerPage;
-  const indiceFin = indiceInicio + itemsPerPage;
-  const articulosPaginados = articulosFiltrados.slice(indiceInicio, indiceFin);
-
-  // READER MODE: GORGEOUS IEEE DOUBLE COLUMN FORMAT
   if (articuloSeleccionado) {
     return (
       <div className="pub-art-reader-container">
-        {/* Navigation row */}
+        <SEO 
+          title={`${articuloSeleccionado.titulo} - ${language === 'en' ? 'Articles' : 'Artículos'}`}
+          description={articuloSeleccionado.resumen || (language === 'en' ? "Scientific article details." : "Detalles del artículo científico.")}
+        />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
           <button onClick={handleVolverClick} className="pub-art-btn-back">
-            <EditableText textKey="art_btn_back" defaultText="← Volver al listado" />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '6px' }}>
+              <line x1="19" y1="12" x2="5" y2="12" />
+              <polyline points="12 19 5 12 12 5" />
+            </svg>
+            <EditableText textKey="art_btn_back" defaultText={t("common.close", "Volver")} />
           </button>
 
           {articuloSeleccionado.url_pdf && (
             <a
-              href={articuloSeleccionado.url_pdf}
+              href={formatExternalUrl(articuloSeleccionado.url_pdf)}
               target="_blank"
               rel="noopener noreferrer"
               className="pub-paper-btn-pdf"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              Descargar PDF Original
+              {t("articles.download_pdf", "Descargar PDF Original")}
             </a>
           )}
         </div>
 
-        {/* Paper Sheet Document styling */}
         <article className="pub-paper-sheet">
           <span className="pub-paper-badge">
             <EditableText textKey="paper_badge" defaultText="Repositorio Institucional" />
@@ -219,72 +272,63 @@ export default function ArticulosPublicos() {
 
           <header className="pub-paper-header">
             <div className="pub-paper-journal">
-              {articuloSeleccionado.revista || 'REVISTA DE DIVULGACIÓN CIENTÍFICA ULEAM'}
+              {articuloSeleccionado.revista || 'REVISTA ULEAM'}
             </div>
 
             <h1 className="pub-paper-title">{articuloSeleccionado.titulo}</h1>
 
-            <div className="pub-paper-authors">
+            <div className="pub-paper-authors notranslate" translate="no">
               {articuloSeleccionado.autores}
-            </div>
-
-            <div className="pub-paper-institution">
-              <EditableText textKey="paper_institution" defaultText="Facultad de Ciencias Informáticas (FACCI), Universidad Laica Eloy Alfaro de Manabí" isTextArea={true} />
             </div>
           </header>
 
-          {/* Abstract section */}
           <div className="pub-paper-abstract-section">
             <p className="pub-paper-abstract-text">
-              <strong>Resumen—</strong>
+              <strong>{t("articles.abstract", "Resumen")}—</strong>
               {articuloSeleccionado.resumen}
             </p>
 
             {articuloSeleccionado.palabras_clave && (
               <div className="pub-paper-keywords">
-                <strong>Palabras Clave—</strong>
+                <strong>{t("articles.keywords", "Palabras Clave")}—</strong>
                 {articuloSeleccionado.palabras_clave}
               </div>
             )}
           </div>
 
-          {/* Conditional content depending on type */}
           {articuloSeleccionado.tipo_registro === 'PDF' ? (
-            /* PDF MODE: ONLY THE COVER DATA + ACCENTED PDF BUTTON */
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '4rem', padding: '2rem 1rem', borderTop: '1px dashed #cbd5e1' }}>
-              <div style={{ fontStyle: 'italic', fontSize: '0.85rem', color: '#64748b', marginBottom: '2rem', textAlign: 'center', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                <EditableText textKey="paper_pdf_desc" defaultText="Este artículo científico está indexado y disponible para lectura directa en formato PDF. Haz clic a continuación para abrir el documento original:" isTextArea={true} />
-              </div>
-
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '4rem', padding: '2rem 1rem' }}>
               <a
-                href={articuloSeleccionado.url_pdf || '#'}
+                href={articuloSeleccionado.url_pdf ? formatExternalUrl(articuloSeleccionado.url_pdf) : '#'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="pub-paper-btn-pdf"
-                style={{ padding: '0.9rem 2.5rem', fontSize: '0.95rem', borderRadius: '8px', boxShadow: '0 6px 15px rgba(5, 150, 105, 0.2)' }}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="18" height="18" style={{ marginRight: '8px' }}>
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-                <EditableText textKey="paper_btn_pdf" defaultText="Abrir Documento PDF Completo" />
+                <EditableText textKey="paper_btn_pdf" defaultText={t("articles.download_pdf", "Abrir Documento PDF Completo")} />
               </a>
             </div>
           ) : (
-            /* FULL MODE: DOUBLE COLUMN CONTENT SECTIONS */
             <div className="pub-paper-body">
-              {articuloSeleccionado.introduccion && (
+              {(articuloSeleccionado.introduccion || articuloSeleccionado.introduccion_imagen) && (
                 <div className="pub-paper-section">
-                  <h2 className="pub-paper-section-title">I. Introducción</h2>
-                  <div className="pub-paper-text pub-ieee-dropcap">
-                    {articuloSeleccionado.introduccion}
-                  </div>
+                  <h2 className="pub-paper-section-title">I. {t("articles.introduction", "Introducción")}</h2>
+                  {articuloSeleccionado.introduccion && (
+                    <div className="pub-paper-text pub-ieee-dropcap">
+                      {articuloSeleccionado.introduccion}
+                    </div>
+                  )}
                   {articuloSeleccionado.introduccion_imagen && (
                     <div className="pub-paper-figure">
-                      <img src={articuloSeleccionado.introduccion_imagen} alt="Fig 1" className="pub-paper-figure-img" />
+                      <img
+                        src={formatImageUrl(articuloSeleccionado.introduccion_imagen)}
+                        alt="Fig 1"
+                        className="pub-paper-figure-img"
+                        onClick={() => setModalImagenFull(formatImageUrl(articuloSeleccionado.introduccion_imagen))}
+                        style={{ cursor: 'pointer' }}
+                        title={language === 'en' ? 'Click to view full size' : 'Haz clic para ver en tamaño completo'}
+                      />
                       <div className="pub-paper-figure-caption">
-                        <strong>Fig. 1.</strong> {articuloSeleccionado.introduccion_imagen_descripcion || 'Ilustración o diagrama correspondiente a la sección de Introducción.'}
+                        <strong>Fig. 1.</strong> {articuloSeleccionado.introduccion_imagen_descripcion || (language === 'en' ? 'Illustration corresponding to Introduction section.' : 'Ilustración correspondiente a la sección de Introducción.')}
                       </div>
                     </div>
                   )}
@@ -293,7 +337,7 @@ export default function ArticulosPublicos() {
 
               {(articuloSeleccionado.metodologia || articuloSeleccionado.metodologia_imagen) && (
                 <div className="pub-paper-section">
-                  <h2 className="pub-paper-section-title">II. Metodología</h2>
+                  <h2 className="pub-paper-section-title">II. {t("articles.methodology", "Metodología")}</h2>
                   {articuloSeleccionado.metodologia && (
                     <div className="pub-paper-text">
                       {articuloSeleccionado.metodologia}
@@ -301,9 +345,16 @@ export default function ArticulosPublicos() {
                   )}
                   {articuloSeleccionado.metodologia_imagen && (
                     <div className="pub-paper-figure">
-                      <img src={articuloSeleccionado.metodologia_imagen} alt="Fig 2" className="pub-paper-figure-img" />
+                      <img
+                        src={formatImageUrl(articuloSeleccionado.metodologia_imagen)}
+                        alt="Fig 2"
+                        className="pub-paper-figure-img"
+                        onClick={() => setModalImagenFull(formatImageUrl(articuloSeleccionado.metodologia_imagen))}
+                        style={{ cursor: 'pointer' }}
+                        title={language === 'en' ? 'Click to view full size' : 'Haz clic para ver en tamaño completo'}
+                      />
                       <div className="pub-paper-figure-caption">
-                        <strong>Fig. 2.</strong> {articuloSeleccionado.metodologia_imagen_descripcion || 'Esquema metodológico del diseño experimental.'}
+                        <strong>Fig. 2.</strong> {articuloSeleccionado.metodologia_imagen_descripcion || (language === 'en' ? 'Methodological diagram.' : 'Esquema metodológico.')}
                       </div>
                     </div>
                   )}
@@ -312,7 +363,7 @@ export default function ArticulosPublicos() {
 
               {(articuloSeleccionado.resultados || articuloSeleccionado.resultados_imagen) && (
                 <div className="pub-paper-section">
-                  <h2 className="pub-paper-section-title">III. Resultados y Discusión</h2>
+                  <h2 className="pub-paper-section-title">III. {t("articles.results", "Resultados")}</h2>
                   {articuloSeleccionado.resultados && (
                     <div className="pub-paper-text">
                       {articuloSeleccionado.resultados}
@@ -320,9 +371,16 @@ export default function ArticulosPublicos() {
                   )}
                   {articuloSeleccionado.resultados_imagen && (
                     <div className="pub-paper-figure">
-                      <img src={articuloSeleccionado.resultados_imagen} alt="Fig 3" className="pub-paper-figure-img" />
+                      <img
+                        src={formatImageUrl(articuloSeleccionado.resultados_imagen)}
+                        alt="Fig 3"
+                        className="pub-paper-figure-img"
+                        onClick={() => setModalImagenFull(formatImageUrl(articuloSeleccionado.resultados_imagen))}
+                        style={{ cursor: 'pointer' }}
+                        title={language === 'en' ? 'Click to view full size' : 'Haz clic para ver en tamaño completo'}
+                      />
                       <div className="pub-paper-figure-caption">
-                        <strong>Fig. 3.</strong> {articuloSeleccionado.resultados_imagen_descripcion || 'Gráfica de variables y discusión de hallazgos.'}
+                        <strong>Fig. 3.</strong> {articuloSeleccionado.resultados_imagen_descripcion || (language === 'en' ? 'Variable graph and discussion.' : 'Gráfica de variables y discusión.')}
                       </div>
                     </div>
                   )}
@@ -331,7 +389,7 @@ export default function ArticulosPublicos() {
 
               {(articuloSeleccionado.conclusiones || articuloSeleccionado.conclusiones_imagen) && (
                 <div className="pub-paper-section">
-                  <h2 className="pub-paper-section-title">IV. Conclusiones</h2>
+                  <h2 className="pub-paper-section-title">IV. {t("articles.conclusions", "Conclusiones")}</h2>
                   {articuloSeleccionado.conclusiones && (
                     <div className="pub-paper-text">
                       {articuloSeleccionado.conclusiones}
@@ -339,9 +397,16 @@ export default function ArticulosPublicos() {
                   )}
                   {articuloSeleccionado.conclusiones_imagen && (
                     <div className="pub-paper-figure">
-                      <img src={articuloSeleccionado.conclusiones_imagen} alt="Fig 4" className="pub-paper-figure-img" />
+                      <img
+                        src={formatImageUrl(articuloSeleccionado.conclusiones_imagen)}
+                        alt="Fig 4"
+                        className="pub-paper-figure-img"
+                        onClick={() => setModalImagenFull(formatImageUrl(articuloSeleccionado.conclusiones_imagen))}
+                        style={{ cursor: 'pointer' }}
+                        title={language === 'en' ? 'Click to view full size' : 'Haz clic para ver en tamaño completo'}
+                      />
                       <div className="pub-paper-figure-caption">
-                        <strong>Fig. 4.</strong> {articuloSeleccionado.conclusiones_imagen_descripcion || 'Ilustración final o fotografía de la solución implementada.'}
+                        <strong>Fig. 4.</strong> {articuloSeleccionado.conclusiones_imagen_descripcion || (language === 'en' ? 'Final illustration of implemented solution.' : 'Ilustración final de la solución implementada.')}
                       </div>
                     </div>
                   )}
@@ -349,46 +414,111 @@ export default function ArticulosPublicos() {
               )}
 
               {articuloSeleccionado.referencias && (
-                <div className="pub-paper-section" style={{ breakInside: 'avoid' }}>
-                  <h2 className="pub-paper-section-title" style={{ textAlign: 'left', borderBottom: '1px solid #111111' }}>Referencias</h2>
+                <div className="pub-paper-section">
+                  <h2 className="pub-paper-section-title">{t("articles.references", "Referencias")}</h2>
                   <ol className="pub-paper-references-list">
                     {formatReferences(articuloSeleccionado.referencias).map((ref, idx) => (
-                      <li key={idx} className="pub-paper-reference-item">
-                        {ref}
-                      </li>
+                      <li key={idx} className="pub-paper-reference-item">{ref}</li>
                     ))}
                   </ol>
                 </div>
               )}
             </div>
           )}
+
+          <div className="pub-news-reader-footer" style={{ marginTop: '2.5rem', paddingTop: '1.5rem', borderTop: '1px solid #e2e8f0' }}>
+            <button onClick={handleVolverClick} className="pub-art-btn-back">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '6px' }}>
+                <line x1="19" y1="12" x2="5" y2="12" />
+                <polyline points="12 19 5 12 12 5" />
+              </svg>
+              <EditableText textKey="art_btn_back" defaultText={t("common.close", "Volver")} />
+            </button>
+          </div>
         </article>
 
-        {/* Back button at footer */}
-        <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-start' }}>
-          <button onClick={handleVolverClick} className="pub-art-btn-back">
-            <EditableText textKey="art_btn_back" defaultText="← Volver al listado" />
-          </button>
-        </div>
+        {/* MODAL LIGHTBOX DE IMAGEN A PANTALLA COMPLETA */}
+        {modalImagenFull && (
+          <div
+            onClick={() => setModalImagenFull(null)}
+            style={{
+              position: 'fixed',
+              top: 0, left: 0, right: 0, bottom: 0,
+              zIndex: 9999,
+              backgroundColor: 'rgba(0, 0, 0, 0.92)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1.5rem',
+              backdropFilter: 'blur(8px)',
+              animation: 'fadeIn 0.2s ease'
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setModalImagenFull(null)}
+              style={{
+                position: 'absolute',
+                top: '20px',
+                right: '20px',
+                background: 'rgba(255, 255, 255, 0.2)',
+                color: '#ffffff',
+                border: '1.5px solid rgba(255, 255, 255, 0.4)',
+                borderRadius: '50%',
+                width: '44px',
+                height: '44px',
+                fontSize: '1.2rem',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s ease'
+              }}
+              title={language === 'en' ? 'Close' : 'Cerrar'}
+            >
+              ✕
+            </button>
+            <img
+              src={modalImagenFull}
+              alt="Full screen preview"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                maxWidth: '92vw',
+                maxHeight: '90vh',
+                objectFit: 'contain',
+                borderRadius: '12px',
+                boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
+              }}
+            />
+          </div>
+        )}
       </div>
     );
   }
 
-  // LIST OF ARTICLES PUBLIC VIEW
   return (
     <div className="pub-art-container">
-      {/* Cabecera de la Página y Barra de Filtros */}
-      <div className="pub-news-header-row">
-        <div className="pub-news-header" style={{ margin: 0, textAlign: 'left', display: 'inline-block', width: 'fit-content' }}>
-          <h1 className="pub-news-main-title">
-            <EditableText textKey="articles_main_title" defaultText="Artículos Científicos" />
+      <SEO 
+        title={language === 'en' ? "Scientific Articles - IoT ULEAM" : "Artículos Científicos - IoT ULEAM"}
+        description={language === 'en' ? "Read our latest scientific articles related to IoT telemetry and research." : "Lee nuestros últimos artículos científicos relacionados a la telemetría IoT e investigación."}
+      />
+      <div className="pub-news-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.25rem', marginBottom: '2.5rem', textAlign: 'left' }}>
+        <div className="pub-news-title-group" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ color: '#d0182b', display: 'inline-flex', alignItems: 'center' }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="32" height="32">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              <line x1="8" y1="7" x2="16" y2="7" />
+              <line x1="8" y1="11" x2="14" y2="11" />
+            </svg>
+          </span>
+          <h1 className="pub-news-main-title" style={{ margin: 0, textAlign: 'left' }}>
+            <EditableText textKey="articles_main_title" defaultText={t("articles.title", "Artículos Científicos")} />
           </h1>
-          <div className="pub-news-title-underline" />
         </div>
 
-        {/* Sleek Filter and Search Toolbar */}
         <div className="pub-news-toolbar">
-          {/* Unified Filter and Sort Component */}
           <div className="pub-news-filter-group" style={{ position: 'relative' }}>
             <button
               type="button"
@@ -398,316 +528,329 @@ export default function ArticulosPublicos() {
                 setShowFilterPanel(!showFilterPanel);
               }}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
-                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-              </svg>
-              <span>{obtenerTextoFiltro()}</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12" className="select-arrow-icon">
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
+              {(() => {
+                const text = obtenerTextoFiltro();
+                if (!text) {
+                  return (
+                    <>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16" style={{ marginRight: '8px' }}>
+                        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                      </svg>
+                      <span>{t("common.filter", "Filtrar")}</span>
+                    </>
+                  );
+                }
+                return <span>{text}</span>;
+              })()}
             </button>
 
             {showFilterPanel && (
-              <div className="pub-news-unified-filter-panel" style={{ minWidth: '450px' }}>
-                {/* Column 1: Formato */}
-                <div className="filter-panel-section">
-                  <span className="filter-panel-section-title">Formato</span>
-                  <div className="filter-panel-options-list">
-                    <button
-                      type="button"
-                      className={`filter-panel-option-item ${filtroTipo === 'Completo' ? 'active' : ''}`}
-                      onClick={() => {
-                        if (filtroTipo === 'Completo') {
-                          setFiltroTipo(null);
-                        } else {
-                          setFiltroTipo('Completo');
-                        }
-                      }}
-                    >
-                      Lectura Digital
-                    </button>
-                    <button
-                      type="button"
-                      className={`filter-panel-option-item ${filtroTipo === 'PDF' ? 'active' : ''}`}
-                      onClick={() => {
-                        if (filtroTipo === 'PDF') {
-                          setFiltroTipo(null);
-                        } else {
-                          setFiltroTipo('PDF');
-                        }
-                      }}
-                    >
-                      Enlaces Externos
-                    </button>
+              <div className="pub-news-unified-filter-panel" style={{ minWidth: '350px' }}>
+                <div style={{ display: 'flex', gap: '2rem' }}>
+                  <div className="filter-panel-section" style={{ flex: 1 }}>
+                    <span className="filter-panel-section-title">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="14" height="14" style={{ marginRight: '6px', verticalAlign: 'middle' }}>
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                        <line x1="16" y1="2" x2="16" y2="6" />
+                        <line x1="8" y1="2" x2="8" y2="6" />
+                        <line x1="3" y1="10" x2="21" y2="10" />
+                      </svg>
+                      <EditableText textKey="news_filter_year" defaultText={t("common.date", "Año")} />
+                    </span>
+                    <div className="filter-panel-options-list">
+                      {aniosDisponibles.map(yr => (
+                        <button
+                          key={yr}
+                          type="button"
+                          className={`filter-panel-option-item ${String(filtroAnio) === String(yr) ? 'active' : ''}`}
+                          onClick={() => setFiltroAnio(filtroAnio === String(yr) ? null : String(yr))}
+                        >
+                          {yr}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
 
-                {/* Divider 1 */}
-                <div className="filter-panel-divider" />
-
-                {/* Column 2: Año */}
-                <div className="filter-panel-section">
-                  <span className="filter-panel-section-title">Año</span>
-                  <div className="filter-panel-options-list">
-                    {aniosDisponibles.map(yr => (
+                  <div className="filter-panel-section" style={{ flex: 1.5 }}>
+                    <span className="filter-panel-section-title">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="14" height="14" style={{ marginRight: '6px', verticalAlign: 'middle' }}>
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <polyline points="19 12 12 19 5 12"></polyline>
+                      </svg>
+                      <EditableText textKey="news_filter_sort" defaultText={t("common.sort", "Ordenar por")} />
+                    </span>
+                    <div className="filter-panel-options-list">
                       <button
-                        key={yr}
                         type="button"
-                        className={`filter-panel-option-item ${String(filtroAnio) === String(yr) ? 'active' : ''}`}
-                        onClick={() => {
-                          if (filtroAnio === String(yr)) {
-                            setFiltroAnio(null);
-                          } else {
-                            setFiltroAnio(String(yr));
-                          }
-                        }}
+                        className={`filter-panel-option-item ${ordenarPor === 'Reciente' ? 'active' : ''}`}
+                        onClick={() => setOrdenarPor(ordenarPor === 'Reciente' ? null : 'Reciente')}
                       >
-                        {yr}
+                        <EditableText textKey="news_sort_newest" defaultText={t("common.newest", "Más recientes primero")} />
                       </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Divider 2 */}
-                <div className="filter-panel-divider" />
-
-                {/* Column 3: Ordenar por */}
-                <div className="filter-panel-section">
-                  <span className="filter-panel-section-title">Ordenar por</span>
-                  <div className="filter-panel-options-list">
-                    <button
-                      type="button"
-                      className={`filter-panel-option-item ${ordenarPor === 'Reciente' ? 'active' : ''}`}
-                      onClick={() => {
-                        if (ordenarPor === 'Reciente') {
-                          setOrdenarPor(null);
-                        } else {
-                          setOrdenarPor('Reciente');
-                        }
-                      }}
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12">
-                        <line x1="12" y1="5" x2="12" y2="19" />
-                        <polyline points="19 12 12 19 5 12" />
-                      </svg>
-                      <span>Más recientes</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className={`filter-panel-option-item ${ordenarPor === 'Antiguo' ? 'active' : ''}`}
-                      onClick={() => {
-                        if (ordenarPor === 'Antiguo') {
-                          setOrdenarPor(null);
-                        } else {
-                          setOrdenarPor('Antiguo');
-                        }
-                      }}
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12">
-                        <line x1="12" y1="19" x2="12" y2="5" />
-                        <polyline points="5 12 12 5 19 12" />
-                      </svg>
-                      <span>Más antiguos</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className={`filter-panel-option-item ${ordenarPor === 'Titulo' ? 'active' : ''}`}
-                      onClick={() => {
-                        if (ordenarPor === 'Titulo') {
-                          setOrdenarPor(null);
-                        } else {
-                          setOrdenarPor('Titulo');
-                        }
-                      }}
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12">
-                        <path d="M4 6h16M4 12h10M4 18h6" />
-                      </svg>
-                      <span>Título: A-Z</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className={`filter-panel-option-item ${ordenarPor === 'TituloDesc' ? 'active' : ''}`}
-                      onClick={() => {
-                        if (ordenarPor === 'TituloDesc') {
-                          setOrdenarPor(null);
-                        } else {
-                          setOrdenarPor('TituloDesc');
-                        }
-                      }}
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12">
-                        <path d="M4 6h16M4 12h10M4 18h6" />
-                      </svg>
-                      <span>Título: Z-A</span>
-                    </button>
+                      <button
+                        type="button"
+                        className={`filter-panel-option-item ${ordenarPor === 'Antiguo' ? 'active' : ''}`}
+                        onClick={() => setOrdenarPor(ordenarPor === 'Antiguo' ? null : 'Antiguo')}
+                      >
+                        <EditableText textKey="news_sort_oldest" defaultText={t("common.oldest", "Más antiguos primero")} />
+                      </button>
+                      <button
+                        type="button"
+                        className={`filter-panel-option-item ${ordenarPor === 'Titulo_ASC' ? 'active' : ''}`}
+                        onClick={() => setOrdenarPor(ordenarPor === 'Titulo_ASC' ? null : 'Titulo_ASC')}
+                      >
+                        <EditableText textKey="news_sort_az" defaultText={t("common.az", "Por A-Z")} />
+                      </button>
+                      <button
+                        type="button"
+                        className={`filter-panel-option-item ${ordenarPor === 'Titulo_DESC' ? 'active' : ''}`}
+                        onClick={() => setOrdenarPor(ordenarPor === 'Titulo_DESC' ? null : 'Titulo_DESC')}
+                      >
+                        <EditableText textKey="news_sort_za" defaultText={t("common.za", "Por Z-A")} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Expandable Search Input wrapper */}
           <div className={`pub-news-search-box ${searchExpanded ? 'expanded' : ''}`}>
+            <button 
+              type="button"
+              className="pub-news-search-toggle-btn" 
+              onClick={(e) => {
+                e.stopPropagation();
+                setSearchExpanded(!searchExpanded);
+              }}
+              title={t("common.search", "Buscar")}
+            >
+              <svg className="pub-news-search-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="18" height="18">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+            </button>
             <input
+              ref={searchInputRef}
               type="text"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar artículo..."
+              onBlur={() => { if(!busqueda.trim()) setSearchExpanded(false); }}
+              placeholder={texts['articles_search_placeholder'] || t("common.search", "Buscar artículo...")}
               className="pub-news-search-input"
-              onBlur={() => {
-                if (busqueda.trim() === '') {
-                  setSearchExpanded(false);
-                }
-              }}
             />
-            <button
-              type="button"
-              className="pub-news-search-toggle-btn"
-              onClick={() => {
-                setSearchExpanded(true);
-                setTimeout(() => {
-                  document.querySelector('.pub-news-search-input')?.focus();
-                }, 100);
-              }}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="20" height="20" className="pub-news-search-icon-svg">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-            </button>
+            {busqueda.trim() && (
+              <button
+                type="button"
+                className="pub-news-search-clear-btn"
+                onClick={() => { setBusqueda(''); setSearchExpanded(false); }}
+                title="Limpiar"
+              >
+                ✕
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Articles Grid (Library Shelf style) */}
-      {articulosPaginados.length === 0 ? (
-        <div className="pub-art-empty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="60" height="60" style={{ color: '#cbd5e1' }}>
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="16" y1="13" x2="8" y2="13" />
-            <line x1="16" y1="17" x2="8" y2="17" />
+      {/* Banner de "Búsqueda relacionada con" */}
+      {debouncedBusqueda.trim() !== '' && (
+        <div className="pub-news-search-related-banner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
-          <h3><EditableText textKey="art_empty_title" defaultText="No se encontraron publicaciones" /></h3>
-          <p><EditableText textKey="art_empty_desc" defaultText="Intenta cambiar los términos de búsqueda o filtros establecidos." isTextArea={true} /></p>
+          <span>
+            {language === 'en' ? 'Search related to:' : 'Búsqueda relacionada con:'} <strong>"{debouncedBusqueda.trim()}"</strong>
+          </span>
+          <button
+            type="button"
+            className="pub-news-search-related-clear"
+            onClick={() => { setBusqueda(''); setSearchExpanded(false); }}
+            title={language === 'en' ? 'Clear search' : 'Limpiar búsqueda'}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '5rem 1rem', gap: '1rem', minHeight: '300px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span className="spinner-dot" style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#2563eb', animation: 'ping 1s cubic-bezier(0, 0, 0.2, 1) infinite' }}></span>
+            <span style={{ fontSize: '0.95rem', fontWeight: '600', color: '#64748b' }}>
+              {language === 'en' ? 'Loading articles...' : 'Cargando artículos...'}
+            </span>
+          </div>
         </div>
       ) : (
         <>
-          <div className="pub-art-grid">
-            {articulosPaginados.map((art) => (
-              <div
-                key={art.id}
-                className={`pub-art-card ${art.tipo_registro === 'PDF' ? 'card-pdf' : 'card-internal'}`}
-                onClick={() => handleLeerMasClick(art)}
-                style={{ cursor: 'pointer' }}
+          {/* Controles de flecha para carrusel en teléfono (SOLO si hay más de 1 artículo) */}
+          {articulos.length > 1 && (
+            <div className="pub-news-mobile-arrows-row">
+              <button
+                type="button"
+                className="pub-news-mobile-arrow-btn"
+                onClick={() => scrollCarousel('left')}
+                aria-label="Anterior"
               >
-                {/* LEFT VERTICAL SPINE (as shown in user image) */}
-                <div className="pub-art-card-spine">
-                  <div className="pub-art-card-spine-text-wrapper">
-                    <div className="pub-art-card-spine-text">
-                      {art.revista || 'REPOSITORIO CIENTÍFICO ULEAM'}
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="pub-news-mobile-arrow-btn"
+                onClick={() => scrollCarousel('right')}
+                aria-label="Siguiente"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
+            </div>
+          )}
+
+          {articulos.length === 0 ? (
+            <div className="pub-art-empty">
+              <h3><EditableText textKey="art_empty_title" defaultText={t("articles.no_articles", "No se encontraron publicaciones")} /></h3>
+            </div>
+          ) : (
+            <div className="pub-art-grid" ref={artCarouselRef}>
+              {articulos.map((art) => (
+                <div
+                  key={art.id}
+                  id={`article-card-${art.id}`}
+                  className={`pub-art-card ${art.tipo_registro === 'PDF' ? 'card-pdf' : 'card-internal'}`}
+                  onClick={() => handleLeerMasClick(art)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className="pub-art-card-spine">
+                    <div className="pub-art-card-spine-text-wrapper">
+                      <div className="pub-art-card-spine-text">
+                        {art.revista || 'REPOSITORIO CIENTÍFICO ULEAM'}
+                      </div>
                     </div>
                   </div>
-                  <div className="pub-art-card-spine-logo">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="15" height="15">
-                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                    </svg>
+
+                  <div className="pub-art-card-right-content">
+                    <h3 className="pub-art-card-title">{art.titulo}</h3>
+
+                    <div className="pub-art-card-prepared-by">
+                      <div className="pub-art-prepared-label"><EditableText textKey="art_prepared_label" defaultText={t("articles.authors", "Autores")} />:</div>
+                      <div className="pub-art-card-authors-text">{art.autores}</div>
+                      <div className="pub-art-card-date-text">{formatFecha(art.updated_at || art.created_at)}</div>
+                    </div>
+
+                    <div className="pub-art-card-footer" style={{ borderTop: 'none', paddingTop: 0, marginTop: 'auto' }}>
+                      <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: '600' }}>
+                        {t("home.read_more", "Leer más")} →
+                      </span>
+                    </div>
                   </div>
                 </div>
+              ))}
+            </div>
+          )}
 
-                {/* RIGHT CONTENT PANE */}
-                <div className="pub-art-card-right-content">
-                  <div className="pub-art-card-badge-row">
-                    {art.tipo_registro === 'PDF' ? (
-                      <span className="pub-art-card-badge pdf-badge">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="10" height="10" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '4px', marginTop: '-2px' }}>
-                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                          <polyline points="15 3 21 3 21 9" />
-                          <line x1="10" y1="14" x2="21" y2="3" />
-                        </svg>
-                        <EditableText textKey="art_badge_external" defaultText="Enlace Externo" />
-                      </span>
-                    ) : (
-                      <span className="pub-art-card-badge internal-badge">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="10" height="10" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '4px', marginTop: '-2px' }}>
-                          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                        </svg>
-                        <EditableText textKey="art_badge_digital" defaultText="Lectura Digital" />
-                      </span>
-                    )}
-                  </div>
-
-                  <h3 className="pub-art-card-title">{art.titulo}</h3>
-
-                  <div className="pub-art-card-prepared-by">
-                    <div className="pub-art-prepared-label"><EditableText textKey="art_prepared_label" defaultText="Preparado por:" /></div>
-                    <div className="pub-art-card-authors-text">{art.autores}</div>
-                    <div className="pub-art-card-revista-text">{art.revista || 'Facultad de Ciencias Informáticas (FACCI)'}</div>
-                    <div className="pub-art-card-date-text"><EditableText textKey="art_published_prefix" defaultText="Publicado: " /> {formatFecha(art.created_at)}</div>
-                  </div>
-
-                  <div className="pub-art-card-footer" style={{ borderTop: 'none', paddingTop: 0, marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: '600' }}>
-                      {art.tipo_registro === 'PDF' ? (
-                        <EditableText textKey="art_footer_external" defaultText="Enlace Externo" />
-                      ) : (
-                        <EditableText textKey="art_footer_interactive" defaultText="Formato Interactivo" />
-                      )}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* PAGINATION CONTROL (Google Scholar Style) */}
+          {/* BARRA DE PAGINACIÓN */}
           {totalPaginas > 1 && (
             <div className="pub-art-pagination">
               <button
                 className="pub-art-pagination-btn"
+                onClick={() => { setPaginaActual(prev => Math.max(prev - 1, 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                 disabled={paginaActual === 1}
-                onClick={() => {
-                  setPaginaActual(prev => Math.max(prev - 1, 1));
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
+                title={language === 'en' ? 'Previous page' : 'Página anterior'}
               >
-                <EditableText textKey="art_pagination_prev" defaultText="Anterior" />
+                <svg className="pub-art-pagination-arrow-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+                <span className="pub-art-pagination-btn-text">{language === 'en' ? '← Previous' : '← Anterior'}</span>
               </button>
-
+              
               <div className="pub-art-pagination-numbers">
-                {Array.from({ length: totalPaginas }, (_, i) => i + 1).map((pg) => (
+                {Array.from({ length: totalPaginas }, (_, i) => i + 1).map(num => (
                   <button
-                    key={pg}
-                    className={`pub-art-pagination-number ${paginaActual === pg ? 'active' : ''}`}
-                    onClick={() => {
-                      setPaginaActual(pg);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
+                    key={num}
+                    className={`pub-art-pagination-number ${num === paginaActual ? 'active' : ''}`}
+                    onClick={() => { setPaginaActual(num); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   >
-                    {pg}
+                    {num}
                   </button>
                 ))}
               </div>
 
               <button
                 className="pub-art-pagination-btn"
+                onClick={() => { setPaginaActual(prev => Math.min(prev + 1, totalPaginas)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                 disabled={paginaActual === totalPaginas}
-                onClick={() => {
-                  setPaginaActual(prev => Math.min(prev + 1, totalPaginas));
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
+                title={language === 'en' ? 'Next page' : 'Página siguiente'}
               >
-                <EditableText textKey="art_pagination_next" defaultText="Siguiente" />
+                <span className="pub-art-pagination-btn-text">{language === 'en' ? 'Next →' : 'Siguiente →'}</span>
+                <svg className="pub-art-pagination-arrow-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
               </button>
             </div>
           )}
         </>
+      )}
+
+      {/* MODAL LIGHTBOX DE IMAGEN A PANTALLA COMPLETA */}
+      {modalImagenFull && (
+        <div
+          onClick={() => setModalImagenFull(null)}
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            zIndex: 9999,
+            backgroundColor: 'rgba(0, 0, 0, 0.92)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem',
+            backdropFilter: 'blur(8px)',
+            animation: 'fadeIn 0.2s ease'
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setModalImagenFull(null)}
+            style={{
+              position: 'absolute',
+              top: '20px',
+              right: '20px',
+              background: 'rgba(255, 255, 255, 0.2)',
+              color: '#ffffff',
+              border: '1.5px solid rgba(255, 255, 255, 0.4)',
+              borderRadius: '50%',
+              width: '44px',
+              height: '44px',
+              fontSize: '1.2rem',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s ease'
+            }}
+            title={language === 'en' ? 'Close' : 'Cerrar'}
+          >
+            ✕
+          </button>
+          <img
+            src={modalImagenFull}
+            alt="Full screen preview"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '92vw',
+              maxHeight: '90vh',
+              objectFit: 'contain',
+              borderRadius: '12px',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
+            }}
+          />
+        </div>
       )}
     </div>
   );

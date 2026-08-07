@@ -1,14 +1,141 @@
 import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
+import { useLanguage } from '../../context/LanguageContext';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import '../../styles/components/admin/GestionarUbicaciones.css';
 
+const CustomItemsPerPageSelect = ({ value, onChange, options = [5, 10, 20, 50], language = 'es' }) => {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const suffix = language === 'en' ? 'page' : 'pág';
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '6px 14px',
+          borderRadius: '10px',
+          border: '1.5px solid #cbd5e1',
+          background: '#ffffff',
+          color: '#0f2c59',
+          fontWeight: '700',
+          fontSize: '0.82rem',
+          cursor: 'pointer',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.04)',
+          transition: 'all 0.2s ease',
+          outline: 'none'
+        }}
+      >
+        <span>{value} / {suffix}</span>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          width="12"
+          height="12"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 'calc(100% + 6px)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#ffffff',
+            border: '1.5px solid #e2e8f0',
+            borderRadius: '12px',
+            boxShadow: '0 12px 28px rgba(15, 23, 42, 0.18)',
+            padding: '6px',
+            minWidth: '115px',
+            zIndex: 1100,
+            maxWidth: '90vw',
+            boxSizing: 'border-box'
+          }}
+        >
+          {options.map((opt) => {
+            const isSelected = Number(opt) === Number(value);
+            return (
+              <div
+                key={opt}
+                onClick={() => {
+                  onChange(Number(opt));
+                  setOpen(false);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  width: '100%',
+                  padding: '7px 10px',
+                  borderRadius: '8px',
+                  background: isSelected ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                  color: isSelected ? '#1e40af' : '#334155',
+                  fontWeight: isSelected ? '800' : '600',
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'background 0.15s ease',
+                  boxSizing: 'border-box'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = '#f8fafc';
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <span>{opt} / {suffix}</span>
+                {isSelected && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#1e40af" strokeWidth="3" width="12" height="12">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function GestionarUbicaciones() {
+  const { language, t, triggerContentLoading } = useLanguage();
+  usePageTitle({ es: 'Gestionar Ubicaciones', en: 'Manage Locations' }, 'Admin · IoT ULEAM');
   const [ubicaciones, setUbicaciones] = useState([]);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const [orden, setOrden] = useState(null);
   const [showOrdenPanel, setShowOrdenPanel] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [busqueda, orden, itemsPerPage]);
 
   const ubicacionesFiltradas = ubicaciones
     .filter(u => {
@@ -23,6 +150,10 @@ export default function GestionarUbicaciones() {
       return Number(b.id) - Number(a.id);
     });
 
+  const totalPages = Math.ceil(ubicacionesFiltradas.length / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const ubicacionesPaginadas = ubicacionesFiltradas.slice(startIndex, startIndex + itemsPerPage);
+
   // Estados del Formulario
   const [editandoId, setEditandoId] = useState(null);
   const [nombre, setNombre] = useState('');
@@ -30,144 +161,87 @@ export default function GestionarUbicaciones() {
   const [latitud, setLatitud] = useState('');
   const [longitud, setLongitud] = useState('');
 
-  // Estados para búsqueda de geocodificación en el mapa
+  // Estados para enlace de Google Maps en el mapa
   const [busquedaMapa, setBusquedaMapa] = useState('');
-  const [buscandoMapa, setBuscandoMapa] = useState(false);
-  const [sugerencias, setSugerencias] = useState([]);
-  const [obteniendoUbicacion, setObteniendoUbicacion] = useState(false);
   const [mapStyle, setMapStyle] = useState('google'); // google, satellite, dark
 
-  // Auto-fetch suggestions on input change (with debounce)
-  useEffect(() => {
-    if (!busquedaMapa.trim()) {
-      setSugerencias([]);
-      return;
+  // Extraer coordenadas exclusivamente de links de Google Maps o coordenadas directas
+  const extractCoordinatesFromText = (text) => {
+    if (!text || typeof text !== 'string') return null;
+    const str = text.trim();
+
+    // 1. Google Maps @lat,lng format e.g. /@(-?\d+\.\d+),(-?\d+\.\d+)/
+    const atMatch = str.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (atMatch) {
+      return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
     }
 
-    const delayDebounce = setTimeout(() => {
-      fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(busquedaMapa)}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data) {
-            setSugerencias(data);
-          }
-        })
-        .catch(err => console.error("Error fetching suggestions:", err));
-    }, 450);
+    // 2. Query params e.g. ?q=-0.951,-80.74 o &query=-0.951,-80.74 o place/name/@lat,lng o place/-0.951,-80.74
+    const queryMatch = str.match(/(?:q=|query=|place\/)(-?\d+\.\d+),(?:%20|\s)?(-?\d+\.\d+)/i);
+    if (queryMatch) {
+      return { lat: parseFloat(queryMatch[1]), lng: parseFloat(queryMatch[2]) };
+    }
 
-    return () => clearTimeout(delayDebounce);
-  }, [busquedaMapa]);
+    // 3. Direct lat,lng coordinates e.g. "-0.951732, -80.747621" o "-0.951732 -80.747621"
+    const rawCoordMatch = str.match(/^@?(-?\d+\.\d+)(?:,\s*|\s+)(-?\d+\.\d+)$/);
+    if (rawCoordMatch) {
+      return { lat: parseFloat(rawCoordMatch[1]), lng: parseFloat(rawCoordMatch[2]) };
+    }
 
-  const seleccionarSugerencia = (sug) => {
-    const lat = parseFloat(sug.lat);
-    const lon = parseFloat(sug.lon);
+    return null;
+  };
 
+  const aplicarCoordenadasManuales = (lat, lng, label = '') => {
     setLatitud(lat.toFixed(6));
-    setLongitud(lon.toFixed(6));
-    setBusquedaMapa(sug.display_name);
-    setSugerencias([]);
+    setLongitud(lng.toFixed(6));
+    if (label) setBusquedaMapa(label);
 
     if (window.leafletMapInstance) {
-      window.leafletMapInstance.setView([lat, lon], 17);
+      window.leafletMapInstance.flyTo([lat, lng], 17, { duration: 1 });
       window.leafletMapInstance.eachLayer((layer) => {
         if (layer instanceof window.L.Marker) {
-          layer.setLatLng([lat, lon]);
+          layer.setLatLng([lat, lng]);
         }
       });
     }
+
+    Swal.fire({
+      icon: 'success',
+      title: isEn ? 'Link Loaded' : 'Enlace Cargado',
+      text: `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`,
+      timer: 1800,
+      showConfirmButton: false
+    });
   };
 
-  const buscarEnMapa = () => {
+  const handleBusquedaMapaChange = (e) => {
+    const val = e.target.value;
+    setBusquedaMapa(val);
+    const coords = extractCoordinatesFromText(val);
+    if (coords) {
+      aplicarCoordenadasManuales(coords.lat, coords.lng, val);
+    }
+  };
+
+  const cargarLinkMapa = () => {
     if (!busquedaMapa.trim()) return;
-    setBuscandoMapa(true);
 
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(busquedaMapa)}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.length > 0) {
-          seleccionarSugerencia(data[0]);
-        } else {
-          Swal.fire({
-            icon: 'info',
-            title: 'Sin Resultados',
-            text: 'No se encontraron coordenadas para el lugar o dirección ingresada.',
-            confirmButtonColor: '#ff9f1c'
-          });
-        }
-      })
-      .catch(err => {
-        console.error("Geocoding search error:", err);
-        Swal.fire({
-          icon: 'error',
-          title: 'Error de Búsqueda',
-          text: 'Ocurrió un problema al consultar el servicio de geolocalización.',
-          confirmButtonColor: '#ff9f1c'
-        });
-      })
-      .finally(() => {
-        setBuscandoMapa(false);
-      });
-  };
-
-  const usarUbicacionActual = () => {
-    if (!navigator.geolocation) {
+    const coords = extractCoordinatesFromText(busquedaMapa);
+    if (coords) {
+      aplicarCoordenadasManuales(coords.lat, coords.lng, busquedaMapa);
+    } else {
       Swal.fire({
-        icon: 'error',
-        title: 'No compatible',
-        text: 'La geolocalización no está soportada por tu navegador.',
-        confirmButtonColor: '#ff9f1c'
+        icon: 'warning',
+        title: isEn ? 'Invalid Link' : 'Enlace No Válido',
+        text: isEn ? 'Please paste a valid Google Maps URL or coordinates.' : 'Por favor, pega un enlace válido de Google Maps (ej. https://maps.google.com/...) o coordenadas.',
+        confirmButtonColor: '#0f2c59'
       });
-      return;
     }
-
-    setObteniendoUbicacion(true);
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = position.coords.latitude;
-        const lon = position.coords.longitude;
-
-        setLatitud(lat.toFixed(6));
-        setLongitud(lon.toFixed(6));
-
-        if (window.leafletMapInstance) {
-          window.leafletMapInstance.setView([lat, lon], 17);
-          window.leafletMapInstance.eachLayer((layer) => {
-            if (layer instanceof window.L.Marker) {
-              layer.setLatLng([lat, lon]);
-            }
-          });
-        }
-
-        Swal.fire({
-          icon: 'success',
-          title: 'Ubicación Obtenida',
-          text: 'Se han cargado las coordenadas de tu ubicación actual.',
-          timer: 2000,
-          showConfirmButton: false
-        });
-        setObteniendoUbicacion(false);
-      },
-      (error) => {
-        console.error("Geolocation error:", error);
-        let msg = 'No se pudo acceder a tu ubicación.';
-        if (error.code === error.PERMISSION_DENIED) {
-          msg = 'Permiso denegado. Por favor, habilita el acceso a la ubicación en tu navegador.';
-        }
-        Swal.fire({
-          icon: 'warning',
-          title: 'Acceso Denegado',
-          text: msg,
-          confirmButtonColor: '#ff9f1c'
-        });
-        setObteniendoUbicacion(false);
-      },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-    );
   };
 
   // Fetch locations from PostgreSQL backend
-  const cargarUbicaciones = () => {
+  const cargarUbicaciones = (showLoader = false) => {
+    if (showLoader) triggerContentLoading();
     fetch(`${API_BASE_URL}/ubicaciones`)
       .then(res => res.json())
       .then(data => {
@@ -209,11 +283,11 @@ export default function GestionarUbicaciones() {
   }, []);
 
   const obtenerTextoOrden = () => {
-    if (orden === 'desc') return 'Más recientes primero';
-    if (orden === 'name_asc') return 'Nombre (A-Z)';
-    if (orden === 'name_desc') return 'Nombre (Z-A)';
-    if (orden === 'asc') return 'Más antiguos primero';
-    return 'Ordenar';
+    if (orden === 'desc') return t("locations.sort_newest", "Más recientes primero");
+    if (orden === 'name_asc') return t("locations.sort_name_asc", "Nombre (A-Z)");
+    if (orden === 'name_desc') return t("locations.sort_name_desc", "Nombre (Z-A)");
+    if (orden === 'asc') return t("locations.sort_oldest", "Más antiguos primero");
+    return t("locations.sort", "Ordenar");
   };
 
   // Leaflet Map Initialization and Synchronization
@@ -430,6 +504,7 @@ export default function GestionarUbicaciones() {
           return res.json();
         })
         .then(updatedItem => {
+          triggerContentLoading();
           const list = ubicaciones.map(u => u.id === editandoId ? updatedItem : u);
           setUbicaciones(list);
           setEditandoId(null);
@@ -459,6 +534,7 @@ export default function GestionarUbicaciones() {
           return res.json();
         })
         .then(newItem => {
+          triggerContentLoading();
           const list = [...ubicaciones, newItem];
           setUbicaciones(list);
           setMostrarFormulario(false);
@@ -553,19 +629,21 @@ export default function GestionarUbicaciones() {
     setMostrarFormulario(true);
   };
 
+  const isEn = language === 'en';
+
   const cerrarFormulario = () => {
     const tieneCambios = nombre.trim() !== '' || descripcion.trim() !== '' || latitud !== '' || longitud !== '';
     
     if (tieneCambios || editandoId !== null) {
       Swal.fire({
-        title: '¿Descartar cambios?',
-        text: 'Hay datos en el formulario. Si sales, se perderán los cambios no guardados.',
+        title: t("common.discard_title", isEn ? "Discard changes?" : "¿Descartar cambios?"),
+        text: t("common.discard_text", isEn ? "There are unsaved form data. If you leave, unsaved changes will be lost." : "Hay datos en el formulario. Si sales, se perderán los cambios no guardados."),
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#ef4444',
         cancelButtonColor: '#4b5563',
-        confirmButtonText: 'Sí, salir',
-        cancelButtonText: 'Seguir editando'
+        confirmButtonText: t("common.yes_exit", isEn ? "Yes, leave" : "Sí, salir"),
+        cancelButtonText: t("common.keep_editing", isEn ? "Keep editing" : "Seguir editando")
       }).then((result) => {
         if (result.isConfirmed) {
           limpiarFormulario();
@@ -592,7 +670,7 @@ export default function GestionarUbicaciones() {
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                     <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z" />
                   </svg>
-                  Modificar Ubicación Territorial
+                  {t("locations.edit_title", "Modificar Ubicación Territorial")}
                 </>
               ) : (
                 <>
@@ -600,12 +678,12 @@ export default function GestionarUbicaciones() {
                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                     <circle cx="12" cy="10" r="3" />
                   </svg>
-                  Nueva Ubicación IoT
+                  {t("locations.new_title", "Nueva Ubicación IoT")}
                 </>
               )}
             </h2>
             <p className="ubi-subheading">
-              Mapea y asigna las coordenadas geográficas precisas usando Leaflet.
+              {t("locations.form_subheading", "Mapea y asigna las coordenadas geográficas precisas usando Leaflet.")}
             </p>
           </div>
 
@@ -616,7 +694,7 @@ export default function GestionarUbicaciones() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15">
               <polyline points="15 18 9 12 15 6" />
             </svg>
-            Volver al Listado
+            {t("locations.back_to_list", "Volver al Listado")}
           </button>
         </div>
       )}
@@ -630,45 +708,45 @@ export default function GestionarUbicaciones() {
               {/* Form Input fields */}
               <div className="ubi-fields-column">
                 <div className="ubi-field-group">
-                  <label className="ubi-label">Nombre de la Ubicación / Campus</label>
+                  <label className="ubi-label">{t("locations.name_label", "Nombre de la Ubicación / Campus")}</label>
                   <input
                     type="text"
                     value={nombre}
                     onChange={(e) => setNombre(e.target.value)}
-                    placeholder="Ej. Facultad de Ingeniería"
+                    placeholder={t("locations.name_ph", "Ingresa el nombre de la ubicación")}
                     className="ubi-input"
                   />
                 </div>
 
                 <div className="ubi-field-group">
-                  <label className="ubi-label">Descripción / Detalles de Acceso</label>
+                  <label className="ubi-label">{t("locations.desc_label", "Descripción / Detalles de Acceso")}</label>
                   <input
                     type="text"
                     value={descripcion}
                     onChange={(e) => setDescripcion(e.target.value)}
-                    placeholder="Ej. Junto a laboratorio de telecomunicaciones"
+                    placeholder={t("locations.desc_ph", "Ingresa una descripción o detalles")}
                     className="ubi-input"
                   />
                 </div>
 
                 <div className="ubi-coords-row">
                   <div className="ubi-field-group">
-                    <label className="ubi-label">Latitud</label>
+                    <label className="ubi-label">{t("locations.latitude", "Latitud")}</label>
                     <input
                       type="text"
                       value={latitud}
                       onChange={(e) => setLatitud(e.target.value)}
-                      placeholder="-0.9517"
+                      placeholder={t("locations.lat_ph", "Latitud")}
                       className="ubi-input ubi-input-mono"
                     />
                   </div>
                   <div className="ubi-field-group">
-                    <label className="ubi-label">Longitud</label>
+                    <label className="ubi-label">{t("locations.longitude", "Longitud")}</label>
                     <input
                       type="text"
                       value={longitud}
                       onChange={(e) => setLongitud(e.target.value)}
-                      placeholder="-80.7476"
+                      placeholder={t("locations.lng_ph", "Longitud")}
                       className="ubi-input ubi-input-mono"
                     />
                   </div>
@@ -677,82 +755,37 @@ export default function GestionarUbicaciones() {
 
               {/* REAL MAP DISPLAY */}
               <div className="ubi-map-column">
-                <label className="ubi-label mb-2">Punto de Georreferenciación (Leaflet OpenStreetMap)</label>
+                <label className="ubi-label mb-2">{t("locations.map_point_label", "Punto de Georreferenciación (Leaflet OpenStreetMap)")}</label>
 
-                {/* MAP SEARCH BAR */}
+                {/* MAP SEARCH BAR FOR GOOGLE MAPS LINK */}
                 <div className="ubi-map-search-wrapper">
                   <div className="ubi-map-search-bar">
                     <input
                       type="text"
                       value={busquedaMapa}
-                      onChange={(e) => setBusquedaMapa(e.target.value)}
+                      onChange={handleBusquedaMapaChange}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
-                          buscarEnMapa();
+                          cargarLinkMapa();
                         }
                       }}
-                      placeholder="🔍 Buscar dirección, ciudad o campus..."
+                      placeholder={t("locations.map_search_ph", "Pega el enlace de Google Maps aquí...")}
                       className="ubi-map-search-input"
                     />
                     <button
                       type="button"
-                      onClick={buscarEnMapa}
-                      disabled={buscandoMapa}
+                      onClick={cargarLinkMapa}
                       className="ubi-map-search-btn"
                     >
-                      {buscandoMapa ? '...' : 'Buscar'}
+                      {t("locations.map_search_btn", "Cargar Link")}
                     </button>
                   </div>
-
-                  {sugerencias.length > 0 && (
-                    <ul className="ubi-suggestions-list">
-                      {sugerencias.map((sug, i) => (
-                        <li
-                          key={i}
-                          onClick={() => seleccionarSugerencia(sug)}
-                          className="ubi-suggestion-item"
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14" style={{ marginRight: '6px', flexShrink: 0, color: '#ef4444' }}>
-                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                            <circle cx="12" cy="10" r="3" />
-                          </svg>
-                          {sug.display_name}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
                 </div>
 
                 {/* MAP ACTIONS ROW */}
                 <div className="ubi-map-actions-row">
-                  <button
-                    type="button"
-                    onClick={usarUbicacionActual}
-                    disabled={obteniendoUbicacion}
-                    className="ubi-btn-current-location"
-                  >
-                    {obteniendoUbicacion ? (
-                      <>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15" style={{ marginRight: '5px' }}>
-                          <circle cx="12" cy="12" r="10" />
-                          <polyline points="12 6 12 12 16 14" />
-                        </svg>
-                        GPS...
-                      </>
-                    ) : (
-                      <>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15" style={{ marginRight: '5px' }}>
-                          <circle cx="12" cy="12" r="3" />
-                          <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
-                          <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />
-                        </svg>
-                        Ubicación actual
-                      </>
-                    )}
-                  </button>
-
-                  <div className="ubi-map-style-selector">
+                  <div className="ubi-map-style-selector" style={{ width: '100%' }}>
                     <button
                       type="button"
                       onClick={() => setMapStyle('google')}
@@ -764,7 +797,7 @@ export default function GestionarUbicaciones() {
                         <line x1="9" y1="3" x2="9" y2="18" />
                         <line x1="15" y1="6" x2="15" y2="21" />
                       </svg>
-                      Mapa
+                      {t("locations.map_style_map", "Mapa")}
                     </button>
                     <button
                       type="button"
@@ -777,7 +810,7 @@ export default function GestionarUbicaciones() {
                         <line x1="2" y1="12" x2="22" y2="12" />
                         <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
                       </svg>
-                      Satélite
+                      {t("locations.map_style_sat", "Satélite")}
                     </button>
                     <button
                       type="button"
@@ -788,14 +821,14 @@ export default function GestionarUbicaciones() {
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13" style={{ marginRight: '4px' }}>
                         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
                       </svg>
-                      Oscuro
+                      {t("locations.map_style_dark", "Oscuro")}
                     </button>
                   </div>
                 </div>
 
                 <div id="leaflet-map-admin" className="leaflet-map-container"></div>
                 <p className="ubi-map-tip">
-                  Arrastra el punto rojo, haz clic en cualquier lugar del mapa, usa el buscador de arriba o haz clic en "Ubicación actual" para fijar coordenadas.
+                  {t("locations.map_tip", "Pega el enlace de Google Maps arriba, o bien arrastra el punto rojo o haz clic en el mapa para fijar coordenadas.")}
                 </p>
               </div>
 
@@ -806,7 +839,7 @@ export default function GestionarUbicaciones() {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
                   <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
-                Cancelar
+                {t("admin.cancel", "Cancelar")}
               </button>
               <button type="submit" className="ubi-btn-save">
                 {editandoId ? (
@@ -816,7 +849,7 @@ export default function GestionarUbicaciones() {
                       <polyline points="17 21 17 13 7 13 7 21" />
                       <polyline points="7 3 7 8 15 8" />
                     </svg>
-                    Actualizar Zona
+                    {t("locations.update_btn", "Actualizar Zona")}
                   </>
                 ) : (
                   <>
@@ -824,7 +857,7 @@ export default function GestionarUbicaciones() {
                       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                       <circle cx="12" cy="10" r="3" />
                     </svg>
-                    Completar Registro
+                    {t("locations.complete_reg_btn", "Completar Registro")}
                   </>
                 )}
               </button>
@@ -843,7 +876,7 @@ export default function GestionarUbicaciones() {
               </svg>
               <input
                 type="text"
-                placeholder="Buscar ubicación..."
+                placeholder={t("locations.search_placeholder", "Buscar ubicación...")}
                 value={busqueda}
                 onChange={e => setBusqueda(e.target.value)}
                 className="ubi-filter-input ubi-search-input"
@@ -871,9 +904,9 @@ export default function GestionarUbicaciones() {
               </button>
 
               {showOrdenPanel && (
-                <div className="pub-news-unified-filter-panel" style={{ minWidth: '220px', left: 0 }}>
+                <div className="pub-news-unified-filter-panel ubi-order-dropdown-panel">
                   <div className="filter-panel-section" style={{ width: '100%' }}>
-                    <span className="filter-panel-section-title">Ordenar por</span>
+                    <span className="filter-panel-section-title">{t("locations.sort_by", "Ordenar por")}</span>
                     <div className="filter-panel-options-list">
                       <button
                         type="button"
@@ -887,7 +920,7 @@ export default function GestionarUbicaciones() {
                           setShowOrdenPanel(false);
                         }}
                       >
-                        Más antiguos primero
+                        {t("locations.sort_oldest", "Más antiguos primero")}
                       </button>
                       <button
                         type="button"
@@ -901,7 +934,7 @@ export default function GestionarUbicaciones() {
                           setShowOrdenPanel(false);
                         }}
                       >
-                        Más recientes primero
+                        {t("locations.sort_newest", "Más recientes primero")}
                       </button>
                       <button
                         type="button"
@@ -915,7 +948,7 @@ export default function GestionarUbicaciones() {
                           setShowOrdenPanel(false);
                         }}
                       >
-                        Nombre (A-Z)
+                        {t("locations.sort_name_asc", "Nombre (A-Z)")}
                       </button>
                       <button
                         type="button"
@@ -929,7 +962,7 @@ export default function GestionarUbicaciones() {
                           setShowOrdenPanel(false);
                         }}
                       >
-                        Nombre (Z-A)
+                        {t("locations.sort_name_desc", "Nombre (Z-A)")}
                       </button>
                     </div>
                   </div>
@@ -942,7 +975,7 @@ export default function GestionarUbicaciones() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="15" height="15">
                 <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
               </svg>
-              Registrar Nueva Ubicación
+              {t("locations.add_location", "Registrar Nueva Ubicación")}
             </button>
           </div>
 
@@ -951,23 +984,23 @@ export default function GestionarUbicaciones() {
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Nombre / Detalle</th>
-                  <th>Coordenadas GPS</th>
-                  <th style={{ textAlign: 'right' }}>Operaciones Escritura</th>
+                  <th>{t("locations.col_name_detail", "Nombre / Detalle")}</th>
+                  <th>{t("locations.col_gps_coords", "Coordenadas GPS")}</th>
+                  <th style={{ textAlign: 'right' }}>{t("locations.col_write_ops", "Operaciones Escritura")}</th>
                 </tr>
               </thead>
               <tbody>
                 {ubicaciones.length === 0 ? (
-                  <tr><td colSpan="4" className="ubi-empty-cell">Cargando ubicaciones...</td></tr>
+                  <tr><td colSpan="4" className="ubi-empty-cell">{t("locations.loading", "Cargando ubicaciones...")}</td></tr>
                 ) : ubicacionesFiltradas.length === 0 ? (
-                  <tr><td colSpan="4" className="ubi-empty-cell">No se encontraron ubicaciones que coincidan con la búsqueda.</td></tr>
+                  <tr><td colSpan="4" className="ubi-empty-cell">{t("locations.empty", "No se encontraron ubicaciones que coincidan con la búsqueda.")}</td></tr>
                 ) : (
-                  ubicacionesFiltradas.map((ubi, index) => (
+                  ubicacionesPaginadas.map((ubi, index) => (
                     <tr key={ubi.id} className="ubi-row">
-                      <td className="ubi-idx">{index + 1}</td>
+                      <td className="ubi-idx">{startIndex + index + 1}</td>
                       <td>
                         <span className="ubi-name">{ubi.nombre}</span>
-                        <span className="ubi-desc">{ubi.descripcion || 'Sin descripción adicional'}</span>
+                        <span className="ubi-desc">{ubi.descripcion || t("locations.no_desc", "Sin descripción adicional")}</span>
                       </td>
                       <td className="ubi-coords-cell">
                         <span className="ubi-coord-pill ubi-coord-pill-lat">Lat: {ubi.latitud}</span>
@@ -983,7 +1016,7 @@ export default function GestionarUbicaciones() {
                               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                               <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                             </svg>
-                            Modificar
+                            {t("locations.modify", "Modificar")}
                           </button>
                           <button
                             onClick={() => eliminarUbicacion(ubi.id)}
@@ -993,7 +1026,7 @@ export default function GestionarUbicaciones() {
                               <polyline points="3 6 5 6 21 6" />
                               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                             </svg>
-                            Eliminar
+                            {t("locations.delete", "Eliminar")}
                           </button>
                         </div>
                       </td>
@@ -1003,6 +1036,67 @@ export default function GestionarUbicaciones() {
               </tbody>
             </table>
           </div>
+
+          {/* CONTROLES DE PAGINACIÓN */}
+          {ubicacionesFiltradas.length > 0 && (
+            <div className="ubi-pagination-bar">
+              <div className="pagination-info-text">
+                {language === 'en' 
+                  ? `Showing ${Math.min(startIndex + 1, ubicacionesFiltradas.length)} to ${Math.min(startIndex + itemsPerPage, ubicacionesFiltradas.length)} of ${ubicacionesFiltradas.length} locations`
+                  : `Mostrando ${Math.min(startIndex + 1, ubicacionesFiltradas.length)} a ${Math.min(startIndex + itemsPerPage, ubicacionesFiltradas.length)} de ${ubicacionesFiltradas.length} ubicaciones`}
+              </div>
+
+              <div className="pagination-controls-group">
+                <CustomItemsPerPageSelect
+                  value={itemsPerPage}
+                  onChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+                  options={[5, 10, 20, 50]}
+                  language={language}
+                />
+
+                <div className="pagination-buttons-wrapper">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className={`pagination-nav-btn prev-btn ${currentPage === 1 ? 'disabled' : ''}`}
+                    title={language === 'en' ? 'Previous page' : 'Página anterior'}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                      <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                    <span className="pagination-btn-label">{language === 'en' ? 'Prev' : 'Anterior'}</span>
+                  </button>
+
+                  <div className="pagination-number-list">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setCurrentPage(p)}
+                        className={`pagination-num-btn ${p === currentPage ? 'active' : ''}`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className={`pagination-nav-btn next-btn ${currentPage === totalPages ? 'disabled' : ''}`}
+                    title={language === 'en' ? 'Next page' : 'Página siguiente'}
+                  >
+                    <span className="pagination-btn-label">{language === 'en' ? 'Next' : 'Siguiente'}</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
 

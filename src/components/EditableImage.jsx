@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useInterfaceText } from "../context/InterfaceTextContext";
 import { useInterfaceImage } from "../context/InterfaceImageContext";
+import { useLanguage } from "../context/LanguageContext";
 import { checkEditPermission } from "../utils/checkEditPermission";
 import Swal from "sweetalert2";
 import "./EditableImage.css";
@@ -42,6 +43,8 @@ const TrashIcon = () => (
 // Image Cropper Component
 // ─────────────────────────────────────────────
 function ImageCropper({ imageSrc, aspectRatio, recommendedW, recommendedH, onCrop, onCancel }) {
+  const { language } = useLanguage();
+  const isEn = language === 'en';
   const stageRef = useRef(null);
   const imgRef = useRef(null);
   const dragging = useRef(null);
@@ -214,17 +217,13 @@ function ImageCropper({ imageSrc, aspectRatio, recommendedW, recommendedH, onCro
 
   if (!imageSrc) return null;
 
-  // Stage size (for shade overlay calculation) — use relative coordinates inside the stage
-  const stageW = stageRef.current?.clientWidth ?? 0;
-  const stageH = stageRef.current?.clientHeight ?? 0;
-
   return (
     <div className="eimg-cropper-overlay">
       <div className="eimg-cropper-box">
         <div className="eimg-cropper-header">
-          <span>✂️ Recortar imagen</span>
+          <span>{isEn ? "✂️ Crop image" : "✂️ Recortar imagen"}</span>
           <span className="eimg-cropper-hint">
-            Recomendado: {recommendedW} × {recommendedH} px &nbsp;•&nbsp; Arrastra las esquinas del recuadro para redimensionar
+            {isEn ? `Recommended: ${recommendedW} × ${recommendedH} px • Drag corner handles to resize` : `Recomendado: ${recommendedW} × ${recommendedH} px • Arrastra las esquinas del recuadro para redimensionar`}
           </span>
         </div>
 
@@ -277,8 +276,8 @@ function ImageCropper({ imageSrc, aspectRatio, recommendedW, recommendedH, onCro
         </div>
 
         <div className="eimg-cropper-actions">
-          <button className="eimg-btn eimg-btn-ghost" onClick={onCancel}>Cancelar</button>
-          <button className="eimg-btn eimg-btn-primary" onClick={applyCrop}>✅ Aplicar recorte</button>
+          <button className="eimg-btn eimg-btn-ghost" onClick={onCancel}>{isEn ? "Cancel" : "Cancelar"}</button>
+          <button className="eimg-btn eimg-btn-primary" onClick={applyCrop}>{isEn ? "✅ Apply Crop" : "✅ Aplicar recorte"}</button>
         </div>
       </div>
     </div>
@@ -304,6 +303,8 @@ export default function EditableImage({
 }) {
   const { editMode, loading: textLoading } = useInterfaceText();
   const { images, imagesLoading, updateImage, deleteImage } = useInterfaceImage();
+  const { language } = useLanguage();
+  const isEn = language === 'en';
 
   const [hasPermission, setHasPermission] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
@@ -350,7 +351,7 @@ export default function EditableImage({
         showConfirmButton: false,
         timer: 3000,
         icon: "error",
-        title: "Por favor selecciona un archivo de imagen válido",
+        title: isEn ? "Please select a valid image file" : "Por favor selecciona un archivo de imagen válido",
       });
       e.target.value = "";
       return;
@@ -364,14 +365,16 @@ export default function EditableImage({
       // Si es un GIF animado, PNG o SVG, preguntar si desea usarse directo sin compresión ni recorte
       if (fileType === "image/gif" || fileType === "image/png" || fileType === "image/svg+xml") {
         Swal.fire({
-          title: "Formato de Imagen Detectado",
-          text: `Has seleccionado un archivo ${fileType.split("/")[1].toUpperCase()}. ¿Deseas usar el archivo original directo (sin comprimir/recortar) o abrir la herramienta de recorte?`,
+          title: isEn ? "Image Format Detected" : "Formato de Imagen Detectado",
+          text: isEn 
+            ? `You selected a ${fileType.split("/")[1].toUpperCase()} file. Do you want to use the original file directly (uncompressed/uncropped) or open the crop tool?` 
+            : `Has seleccionado un archivo ${fileType.split("/")[1].toUpperCase()}. ¿Deseas usar el archivo original directo (sin comprimir/recortar) o abrir la herramienta de recorte?`,
           icon: "question",
           showCancelButton: true,
           showDenyButton: true,
-          confirmButtonText: "Usar Original (Sin comprimir)",
-          denyButtonText: "✂️ Recortar imagen",
-          cancelButtonText: "Cancelar",
+          confirmButtonText: isEn ? "Use Original (Uncompressed)" : "Usar Original (Sin comprimir)",
+          denyButtonText: isEn ? "✂️ Crop image" : "✂️ Recortar imagen",
+          cancelButtonText: isEn ? "Cancel" : "Cancelar",
           confirmButtonColor: "#2563eb",
           denyButtonColor: "#475569",
         }).then((res) => {
@@ -410,7 +413,7 @@ export default function EditableImage({
         timer: 2500,
         timerProgressBar: true,
         icon: "success",
-        title: "Imagen de interfaz actualizada",
+        title: isEn ? "Interface image updated" : "Imagen de interfaz actualizada",
       });
     } catch (err) {
       Swal.fire({
@@ -419,7 +422,7 @@ export default function EditableImage({
         showConfirmButton: false,
         timer: 3000,
         icon: "error",
-        title: "Error al guardar la imagen",
+        title: isEn ? "Error saving image" : "Error al guardar la imagen",
       });
     } finally {
       setSaving(false);
@@ -428,12 +431,12 @@ export default function EditableImage({
 
   const handleDelete = async () => {
     const res = await Swal.fire({
-      title: "¿Eliminar imagen personalizada?",
-      text: "Se eliminará la foto cargada y se restaurará la imagen predeterminada.",
+      title: isEn ? "Delete custom image?" : "¿Eliminar imagen personalizada?",
+      text: isEn ? "The uploaded photo will be deleted and the default image will be restored." : "Se eliminará la foto cargada y se restaurará la imagen predeterminada.",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "Sí, eliminar",
-      cancelButtonText: "Cancelar",
+      confirmButtonText: isEn ? "Yes, delete" : "Sí, eliminar",
+      cancelButtonText: isEn ? "Cancel" : "Cancelar",
       confirmButtonColor: "#ef4444",
       cancelButtonColor: "#64748b",
     });
@@ -449,7 +452,7 @@ export default function EditableImage({
         showConfirmButton: false,
         timer: 2000,
         icon: "info",
-        title: "Imagen eliminada",
+        title: isEn ? "Image deleted" : "Imagen eliminada",
       });
     } catch (err) {
       Swal.fire({
@@ -458,7 +461,7 @@ export default function EditableImage({
         showConfirmButton: false,
         timer: 3000,
         icon: "error",
-        title: "Error al eliminar la imagen",
+        title: isEn ? "Error deleting image" : "Error al eliminar la imagen",
       });
     } finally {
       setSaving(false);
@@ -508,7 +511,7 @@ export default function EditableImage({
         {!isShowingSkeleton && hasPermission && editMode && (
           <button
             className={`eimg-pencil-btn ${circular ? "eimg-pencil-btn--circular" : ""}`}
-            title={`Editar imagen: ${imageKey}`}
+            title={isEn ? `Edit image: ${imageKey}` : `Editar imagen: ${imageKey}`}
             onClick={() => { setPreviewSrc(null); setShowModal(true); }}
             type="button"
           >
@@ -537,7 +540,7 @@ export default function EditableImage({
             {/* Header */}
             <div className="eimg-modal-header">
               <div>
-                <h3 className="eimg-modal-title">Editar imagen de interfaz</h3>
+                <h3 className="eimg-modal-title">{isEn ? "Edit Interface Image" : "Editar imagen de interfaz"}</h3>
                 <code className="eimg-modal-key">{imageKey}</code>
               </div>
               <button className="eimg-modal-close" onClick={() => setShowModal(false)}>
@@ -547,15 +550,21 @@ export default function EditableImage({
 
             {hint && <p className="eimg-modal-hint-text">{hint}</p>}
             <div className="eimg-modal-recommended">
-              📐 Tamaño recomendado: <strong>{recommendedWidth} × {recommendedHeight} px</strong>
+              📐 {isEn ? "Recommended size:" : "Tamaño recomendado:"} <strong>{recommendedWidth} × {recommendedHeight} px</strong>
               {recommendedWidth <= 300 && (
-                <span className="eimg-modal-compression-badge"> · Compresión automática aplicada</span>
+                <span className="eimg-modal-compression-badge">{isEn ? " · Automatic compression applied" : " · Compresión automática aplicada"}</span>
               )}
             </div>
 
             <div className="eimg-modal-preview-wrap">
               <div className="eimg-modal-preview-label">
-                {previewSrc ? "Vista previa del recorte:" : hasCustomImage ? "Imagen actual:" : effectiveSrc ? "Imagen predeterminada:" : "Sin imagen (se usará el ícono SVG)"}
+                {previewSrc 
+                  ? (isEn ? "Crop preview:" : "Vista previa del recorte:") 
+                  : hasCustomImage 
+                  ? (isEn ? "Current image:" : "Imagen actual:") 
+                  : effectiveSrc 
+                  ? (isEn ? "Default image:" : "Imagen predeterminada:") 
+                  : (isEn ? "No image (SVG icon will be used)" : "Sin imagen (se usará el ícono SVG)")}
               </div>
               <div className="eimg-modal-preview-img-wrap">
                 {previewSrc || effectiveSrc ? (
@@ -565,7 +574,7 @@ export default function EditableImage({
                     style={{ maxWidth: "100%", maxHeight: "280px", objectFit: "contain", borderRadius: "8px" }}
                   />
                 ) : (
-                  <div style={{ color: "#94a3b8", fontSize: "0.85rem" }}>Sin imagen predeterminada — sube una nueva</div>
+                  <div style={{ color: "#94a3b8", fontSize: "0.85rem" }}>{isEn ? "No default image — upload a new one" : "Sin imagen predeterminada — sube una nueva"}</div>
                 )}
               </div>
             </div>
@@ -573,21 +582,32 @@ export default function EditableImage({
             <div className="eimg-modal-actions">
               {previewSrc ? (
                 <>
-                  <button className="eimg-btn eimg-btn-ghost" onClick={() => setPreviewSrc(null)}>← Volver a recortar</button>
+                  <button className="eimg-btn eimg-btn-ghost" onClick={() => setPreviewSrc(null)}>{isEn ? "← Back to crop" : "← Volver a recortar"}</button>
                   <button className="eimg-btn eimg-btn-primary" onClick={handleSave} disabled={saving}>
-                    {saving ? "Guardando…" : "💾 Guardar imagen"}
+                    {saving ? (
+                      (isEn ? "Saving…" : "Guardando…")
+                    ) : (
+                      <>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+                          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                          <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                          <polyline points="7 3 7 8 15 8"></polyline>
+                        </svg>
+                        {isEn ? "Save image" : "Guardar imagen"}
+                      </>
+                    )}
                   </button>
                 </>
               ) : (
                 <>
                   {hasCustomImage && (
                     <button className="eimg-btn eimg-btn-danger" onClick={handleDelete} disabled={saving}>
-                      <TrashIcon /> {saving ? "Eliminando…" : "Eliminar imagen"}
+                      <TrashIcon /> {saving ? (isEn ? "Deleting…" : "Eliminando…") : (isEn ? "Delete image" : "Eliminar imagen")}
                     </button>
                   )}
                   <button className="eimg-btn eimg-btn-secondary" onClick={handlePickFile}>
                     <UploadIcon />
-                    {hasCustomImage ? "Actualizar imagen" : "Subir imagen"}
+                    {hasCustomImage ? (isEn ? "Update image" : "Actualizar imagen") : (isEn ? "Upload image" : "Subir imagen")}
                   </button>
                 </>
               )}

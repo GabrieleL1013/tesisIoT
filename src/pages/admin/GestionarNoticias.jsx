@@ -1,9 +1,159 @@
 import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
+import { useLanguage } from '../../context/LanguageContext';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import '../../styles/components/admin/GestionarNoticias.css';
 
+const CustomItemsPerPageSelect = ({ value, onChange, options = [10, 20, 50], language = 'es' }) => {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const suffix = language === 'en' ? 'page' : 'pág';
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '6px 12px',
+          borderRadius: '8px',
+          border: '1px solid #cbd5e1',
+          background: '#ffffff',
+          color: '#1e293b',
+          fontSize: '0.82rem',
+          fontWeight: '700',
+          cursor: 'pointer',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+          transition: 'all 0.2s ease',
+          outline: 'none'
+        }}
+      >
+        <span>{value} / {suffix}</span>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          width="12"
+          height="12"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '100%',
+            right: 0,
+            marginBottom: '6px',
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '10px',
+            boxShadow: '0 10px 25px rgba(15, 23, 42, 0.15)',
+            padding: '4px',
+            minWidth: '110px',
+            zIndex: 1000
+          }}
+        >
+          {options.map((opt) => {
+            const isSelected = Number(opt) === Number(value);
+            return (
+              <div
+                key={opt}
+                onClick={() => {
+                  onChange(Number(opt));
+                  setOpen(false);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  width: '100%',
+                  padding: '7px 10px',
+                  borderRadius: '6px',
+                  background: isSelected ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                  color: isSelected ? '#1e40af' : '#334155',
+                  fontWeight: isSelected ? '800' : '600',
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'background 0.15s ease',
+                  boxSizing: 'border-box'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = '#f8fafc';
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <span>{opt} / {suffix}</span>
+                {isSelected && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#1e40af" strokeWidth="3" width="12" height="12">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const formatImageUrl = (urlStr) => {
+  if (!urlStr) return '';
+  if (urlStr.startsWith('data:') || urlStr.startsWith('http://') || urlStr.startsWith('https://')) {
+    return urlStr;
+  }
+  const backendHost = API_BASE_URL.replace(/\/api\/?$/, '');
+  return `${backendHost}${urlStr.startsWith('/') ? '' : '/'}${urlStr}`;
+};
+
+const convertImageToWebP = (file, quality = 0.85) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.src = url;
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const webpDataUrl = canvas.toDataURL('image/webp', quality);
+      resolve(webpDataUrl);
+    };
+    img.onerror = (err) => {
+      URL.revokeObjectURL(url);
+      reject(err);
+    };
+  });
+};
+
 export default function GestionarNoticias() {
+  const { t, language } = useLanguage();
+  usePageTitle({ es: 'Gestionar Noticias', en: 'Manage News' }, 'Admin · IoT ULEAM');
   const [noticias, setNoticias] = useState([]);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [busqueda, setBusqueda] = useState('');
@@ -26,6 +176,15 @@ export default function GestionarNoticias() {
     { id: Date.now(), type: 'text', value: '' }
   ]);
 
+  // Estados de Paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Resetear página actual al cambiar filtros o búsqueda
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [busqueda, filtroEstado, orden]);
+
   // Filtrado y ordenamiento de la lista
   const noticiasFiltradas = noticias
     .filter(n => {
@@ -41,9 +200,13 @@ export default function GestionarNoticias() {
       return Number(b.id) - Number(a.id); // desc por defecto
     });
 
+  const totalPages = Math.ceil(noticiasFiltradas.length / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const noticiasPaginadas = noticiasFiltradas.slice(startIndex, startIndex + itemsPerPage);
+
   // Cargar datos al iniciar
   const cargarNoticias = () => {
-    fetch(`${API_BASE_URL}/noticias`)
+    fetchWithAuth(`${API_BASE_URL}/noticias`)
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -95,17 +258,17 @@ export default function GestionarNoticias() {
 
   // Helpers texto filtros
   const textoEstado = () => {
-    if (filtroEstado === 'Publicado') return 'Publicado';
-    if (filtroEstado === 'Borrador') return 'Borrador';
-    return 'Estado';
+    if (filtroEstado === 'Publicado') return t("manage_news.status_published", "Publicado");
+    if (filtroEstado === 'Borrador') return t("manage_news.status_draft", "Borrador");
+    return t("manage_news.col_status", "Estado");
   };
 
   const textoOrden = () => {
-    if (orden === 'asc') return 'Más antiguos';
-    if (orden === 'desc') return 'Más recientes';
-    if (orden === 'name_asc') return 'Título (A-Z)';
-    if (orden === 'name_desc') return 'Título (Z-A)';
-    return 'Ordenar';
+    if (orden === 'asc') return language === 'en' ? 'Oldest first' : 'Más antiguos';
+    if (orden === 'desc') return language === 'en' ? 'Newest first' : 'Más recientes';
+    if (orden === 'name_asc') return language === 'en' ? 'Title (A-Z)' : 'Título (A-Z)';
+    if (orden === 'name_desc') return language === 'en' ? 'Title (Z-A)' : 'Título (Z-A)';
+    return language === 'en' ? 'Sort' : 'Ordenar';
   };
 
   // Controladores de bloques dinámicos
@@ -148,29 +311,39 @@ export default function GestionarNoticias() {
     setBloques(nuevosBloques);
   };
 
-  const handleBlockImageChange = (e, blockId) => {
+  const handleBlockImageChange = async (e, blockId) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        Swal.fire({ icon: 'error', title: 'Archivo demasiado grande', text: 'La imagen debe ser menor a 2MB.', confirmButtonColor: '#0f2c59' });
+      if (file.size > 5 * 1024 * 1024) {
+        Swal.fire({ icon: 'error', title: 'Archivo demasiado grande', text: 'La imagen debe ser menor a 5MB.', confirmButtonColor: '#0f2c59' });
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => actualizarBloque(blockId, reader.result);
-      reader.readAsDataURL(file);
+      try {
+        const webpBase64 = await convertImageToWebP(file);
+        actualizarBloque(blockId, webpBase64);
+      } catch (err) {
+        const reader = new FileReader();
+        reader.onloadend = () => actualizarBloque(blockId, reader.result);
+        reader.readAsDataURL(file);
+      }
     }
   };
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        Swal.fire({ icon: 'error', title: 'Archivo demasiado grande', text: 'La imagen debe ser menor a 2MB.', confirmButtonColor: '#0f2c59' });
+      if (file.size > 5 * 1024 * 1024) {
+        Swal.fire({ icon: 'error', title: 'Archivo demasiado grande', text: 'La imagen debe ser menor a 5MB.', confirmButtonColor: '#0f2c59' });
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => setImagenUrl(reader.result);
-      reader.readAsDataURL(file);
+      try {
+        const webpBase64 = await convertImageToWebP(file);
+        setImagenUrl(webpBase64);
+      } catch (err) {
+        const reader = new FileReader();
+        reader.onloadend = () => setImagenUrl(reader.result);
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -226,6 +399,50 @@ export default function GestionarNoticias() {
       });
   };
 
+  const parseAndNormalizeBlocks = (contenidoRaw) => {
+    if (!contenidoRaw) return [{ id: Date.now(), type: 'text', value: '' }];
+    let blocks = [];
+    try {
+      if (typeof contenidoRaw === 'string' && contenidoRaw.trim().startsWith('[')) {
+        blocks = JSON.parse(contenidoRaw);
+      } else if (Array.isArray(contenidoRaw)) {
+        blocks = contenidoRaw;
+      } else {
+        return [{ id: Date.now(), type: 'text', value: String(contenidoRaw) }];
+      }
+    } catch (e) {
+      return [{ id: Date.now(), type: 'text', value: String(contenidoRaw) }];
+    }
+
+    if (!Array.isArray(blocks) || blocks.length === 0) {
+      return [{ id: Date.now(), type: 'text', value: '' }];
+    }
+
+    return blocks.map((b, idx) => {
+      let type = b.type;
+      const val = (b.value || '').trim();
+      const isImgUrl = val.startsWith('data:image') || val.startsWith('http://') || val.startsWith('https://') || val.startsWith('/') || val.startsWith('blob:');
+
+      if (type === 'texto' || type === 'text') {
+        type = 'text';
+      } else if (type === 'imagen' || type === 'image') {
+        type = 'image';
+      } else {
+        type = isImgUrl ? 'image' : 'text';
+      }
+
+      if (type === 'image' && val && !isImgUrl) {
+        type = 'text';
+      }
+
+      return {
+        id: b.id || (Date.now() + idx),
+        type,
+        value: b.value || ''
+      };
+    });
+  };
+
   const cargarEdicion = (noticia) => {
     setEditandoId(noticia.id);
     setTitulo(noticia.titulo);
@@ -233,16 +450,7 @@ export default function GestionarNoticias() {
     setImagenUrl(noticia.imagenUrl || '');
     setEstado(noticia.estado);
 
-    let blocks = [];
-    try {
-      if (noticia.contenido && noticia.contenido.startsWith('[')) {
-        blocks = JSON.parse(noticia.contenido);
-      } else {
-        blocks = [{ id: Date.now(), type: 'text', value: noticia.contenido || '' }];
-      }
-    } catch (e) {
-      blocks = [{ id: Date.now(), type: 'text', value: noticia.contenido || '' }];
-    }
+    const blocks = parseAndNormalizeBlocks(noticia.contenido);
     setBloques(blocks);
     setMostrarFormulario(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -286,20 +494,22 @@ export default function GestionarNoticias() {
   };
 
   const abrirFormulario = () => { limpiarFormulario(); setMostrarFormulario(true); };
-  
+
+  const isEn = language === 'en';
+
   const cerrarFormulario = () => {
     const tieneCambios = titulo.trim() !== '' || autor.trim() !== '' || imagenUrl.trim() !== '' || (bloques.length > 1 || (bloques.length === 1 && bloques[0].value.trim() !== ''));
-    
+
     if (tieneCambios || editandoId !== null) {
       Swal.fire({
-        title: '¿Descartar cambios?',
-        text: 'Hay datos en el formulario. Si sales, se perderán los cambios no guardados.',
+        title: t("common.discard_title", isEn ? "Discard changes?" : "¿Descartar cambios?"),
+        text: t("common.discard_text", isEn ? "There are unsaved form data. If you leave, unsaved changes will be lost." : "Hay datos en el formulario. Si sales, se perderán los cambios no guardados."),
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#ef4444',
         cancelButtonColor: '#4b5563',
-        confirmButtonText: 'Sí, salir',
-        cancelButtonText: 'Seguir editando'
+        confirmButtonText: t("common.yes_exit", isEn ? "Yes, leave" : "Sí, salir"),
+        cancelButtonText: t("common.keep_editing", isEn ? "Keep editing" : "Seguir editando")
       }).then((result) => {
         if (result.isConfirmed) {
           limpiarFormulario();
@@ -326,19 +536,19 @@ export default function GestionarNoticias() {
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                     <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z" />
                   </svg>
-                  Editar Artículo Científico
+                  {t("manage_news.edit_title", "Modificar Noticia Informativa")}
                 </>
               ) : (
                 <>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="22" height="22" style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle' }}>
                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                   </svg>
-                  Redactar Nueva Noticia
+                  {t("manage_news.new_title", "Publicar Nueva Noticia")}
                 </>
               )}
             </h2>
             <p className="news-subheading">
-              Publica avances de proyectos, boletines meteorológicos o artículos informativos con secciones dinámicas.
+              {t("manage_news.form_subheading", "Redacta el contenido, sube la portada y organiza los bloques de texto e imágenes.")}
             </p>
           </div>
 
@@ -346,7 +556,7 @@ export default function GestionarNoticias() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15">
               <polyline points="15 18 9 12 15 6" />
             </svg>
-            Volver al Listado
+            {t("manage_news.back_to_list", "Volver al Listado")}
           </button>
         </div>
       )}
@@ -360,43 +570,43 @@ export default function GestionarNoticias() {
               {/* Column 1: Metadatos e Imagen Principal */}
               <div className="news-fields-column">
                 <div className="news-field-group">
-                  <label className="news-label">Título de la Noticia / Hallazgo</label>
+                  <label className="news-label">{t("manage_news.news_title_label", isEn ? "News Title / Finding" : "Título de la Noticia / Hallazgo")}</label>
                   <input
                     type="text"
                     value={titulo}
                     onChange={(e) => setTitulo(e.target.value)}
-                    placeholder="Ej. Implementación de nuevos nodos de medición de CO2 en el Campus Manta"
+                    placeholder={t("manage_news.news_title_ph", isEn ? "E.g. Implementation of new CO2 measurement nodes at Manta Campus" : "Ej. Implementación de nuevos nodos de medición de CO2 en el Campus Manta")}
                     className="news-input"
                   />
                 </div>
 
                 <div className="news-field-group">
-                  <label className="news-label">Investigador / Autor Responsable</label>
+                  <label className="news-label">{t("manage_news.author_label", isEn ? "Researcher / Responsible Author" : "Investigador / Autor Responsable")}</label>
                   <input
                     type="text"
                     value={autor}
                     onChange={(e) => setAutor(e.target.value)}
-                    placeholder="Ej. Dr. Willian Zamora"
+                    placeholder={t("manage_news.author_ph", isEn ? "E.g. Dr. Willian Zamora" : "Ej. Dr. Willian Zamora")}
                     className="news-input"
                   />
                 </div>
 
                 <div className="news-field-group">
-                  <label className="news-label">Estado de Publicación</label>
+                  <label className="news-label">{t("manage_news.status_label", isEn ? "Publication Status" : "Estado de Publicación")}</label>
                   <select value={estado} onChange={(e) => setEstado(e.target.value)} className="news-select">
-                    <option value="Publicado">Publicado (Visible en Portal Público)</option>
-                    <option value="Borrador">Borrador (Oculto al Público)</option>
+                    <option value="Publicado">{isEn ? "Published (Visible in Public Portal)" : "Publicado (Visible en Portal Público)"}</option>
+                    <option value="Borrador">{isEn ? "Draft (Hidden from Public)" : "Borrador (Oculto al Público)"}</option>
                   </select>
                 </div>
 
                 {/* Imagen de portada — solo subida manual */}
                 <div className="news-field-group" style={{ marginTop: '0.5rem' }}>
-                  <label className="news-label">Imagen de Portada Principal</label>
+                  <label className="news-label">{t("manage_news.cover_label", isEn ? "Main Cover Image" : "Imagen de Portada Principal")}</label>
 
                   {imagenUrl ? (
                     <div className="news-image-preview-container">
                       <img src={imagenUrl} alt="Vista previa" className="news-image-preview" />
-                      <button type="button" className="news-btn-remove-image" onClick={() => setImagenUrl('')} title="Quitar imagen">
+                      <button type="button" className="news-btn-remove-image" onClick={() => setImagenUrl('')} title={isEn ? "Remove image" : "Quitar imagen"}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="14" height="14">
                           <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                         </svg>
@@ -410,8 +620,8 @@ export default function GestionarNoticias() {
                         <polyline points="17 8 12 3 7 8" />
                         <line x1="12" y1="3" x2="12" y2="15" />
                       </svg>
-                      <span className="news-upload-text">Subir imagen de portada</span>
-                      <span className="news-upload-hint">PNG, JPG, WEBP · Máx. 2MB</span>
+                      <span className="news-upload-text">{isEn ? "Upload cover image" : "Subir imagen de portada"}</span>
+                      <span className="news-upload-hint">PNG, JPG, WEBP · {isEn ? "Max. 2MB" : "Máx. 2MB"}</span>
                     </label>
                   )}
                 </div>
@@ -421,8 +631,8 @@ export default function GestionarNoticias() {
               <div className="news-media-column">
                 <div className="news-field-group" style={{ flex: 1 }}>
                   <label className="news-label" style={{ marginBottom: '0.8rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>Cuerpo del Artículo (Secciones Reordenables)</span>
-                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '500' }}>Reordena usando ▲ o ▼</span>
+                    <span>{t("manage_news.body_label", isEn ? "Article Body (Reorderable Sections)" : "Cuerpo del Artículo (Secciones Reordenables)")}</span>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '500' }}>{t("manage_news.body_hint", isEn ? "Reorder using ▲ or ▼" : "Reordena usando ▲ o ▼")}</span>
                   </label>
 
                   <div className="news-blocks-list">
@@ -432,13 +642,13 @@ export default function GestionarNoticias() {
                         {/* Block Header / Control bar */}
                         <div className="news-block-header">
                           <span className="news-block-type-badge">
-                            {block.type === 'text' ? 'Sección de Texto' : 'Sección de Imagen'}
+                            {block.type === 'text' ? (isEn ? 'Text Section' : 'Sección de Texto') : (isEn ? 'Image Section' : 'Sección de Imagen')}
                           </span>
 
                           <div className="news-block-controls">
-                            <button type="button" onClick={() => moverBloqueArriba(index)} disabled={index === 0} className="news-btn-block-control" title="Subir sección">▲</button>
-                            <button type="button" onClick={() => moverBloqueAbajo(index)} disabled={index === bloques.length - 1} className="news-btn-block-control" title="Bajar sección">▼</button>
-                            <button type="button" onClick={() => eliminarBloque(block.id)} className="news-btn-block-delete" title="Eliminar sección">×</button>
+                            <button type="button" onClick={() => moverBloqueArriba(index)} disabled={index === 0} className="news-btn-block-control" title={isEn ? "Move section up" : "Subir sección"}>▲</button>
+                            <button type="button" onClick={() => moverBloqueAbajo(index)} disabled={index === bloques.length - 1} className="news-btn-block-control" title={isEn ? "Move section down" : "Bajar sección"}>▼</button>
+                            <button type="button" onClick={() => eliminarBloque(block.id)} className="news-btn-block-delete" title={isEn ? "Delete section" : "Eliminar sección"}>×</button>
                           </div>
                         </div>
 
@@ -448,15 +658,15 @@ export default function GestionarNoticias() {
                             <textarea
                               value={block.value}
                               onChange={(e) => actualizarBloque(block.id, e.target.value)}
-                              placeholder="Escribe el contenido de esta sección de texto..."
+                              placeholder={t("manage_news.text_ph", isEn ? "Write content for this text section..." : "Escribe el contenido de esta sección de texto...")}
                               className="news-block-textarea"
                             />
                           ) : (
                             <div className="news-block-image-upload-wrapper">
                               {block.value ? (
                                 <div className="news-block-image-preview-container">
-                                  <img src={block.value} alt="Sección del artículo" className="news-block-image-preview" />
-                                  <button type="button" onClick={() => actualizarBloque(block.id, '')} className="news-block-btn-remove-image">Quitar Imagen</button>
+                                  <img src={formatImageUrl(block.value)} alt="Sección del artículo" className="news-block-image-preview" />
+                                  <button type="button" onClick={() => actualizarBloque(block.id, '')} className="news-block-btn-remove-image">{isEn ? "Remove Image" : "Quitar Imagen"}</button>
                                 </div>
                               ) : (
                                 <label className="news-block-dropzone">
@@ -466,7 +676,7 @@ export default function GestionarNoticias() {
                                     <circle cx="8.5" cy="8.5" r="1.5" />
                                     <polyline points="21 15 16 10 5 21" />
                                   </svg>
-                                  <span>Subir imagen para esta sección</span>
+                                  <span>{t("manage_news.upload_img_section", isEn ? "Upload image for this section" : "Subir imagen para esta sección")}</span>
                                 </label>
                               )}
                             </div>
@@ -480,10 +690,10 @@ export default function GestionarNoticias() {
                   {/* Add Block Toolbar */}
                   <div className="news-add-block-buttons">
                     <button type="button" onClick={() => agregarBloque('text')} className="news-btn-add-block text">
-                      + Añadir Sección de Texto
+                      {t("manage_news.add_text_section", isEn ? "+ Add Text Section" : "+ Añadir Sección de Texto")}
                     </button>
                     <button type="button" onClick={() => agregarBloque('image')} className="news-btn-add-block image">
-                      + Añadir Sección de Imagen
+                      {t("manage_news.add_img_section", isEn ? "+ Add Image Section" : "+ Añadir Sección de Imagen")}
                     </button>
                   </div>
                 </div>
@@ -496,7 +706,7 @@ export default function GestionarNoticias() {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
                   <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
-                Cancelar
+                {isEn ? "Cancel" : "Cancelar"}
               </button>
               <button type="submit" className="news-btn-save">
                 {editandoId ? (
@@ -506,14 +716,14 @@ export default function GestionarNoticias() {
                       <polyline points="17 21 17 13 7 13 7 21" />
                       <polyline points="7 3 7 8 15 8" />
                     </svg>
-                    Actualizar
+                    {t("manage_news.update_btn", isEn ? "Update Article" : "Actualizar Noticia")}
                   </>
                 ) : (
                   <>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15">
                       <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                     </svg>
-                    Publicar Noticia
+                    {t("manage_news.publish_btn", isEn ? "Publish News" : "Publicar Noticia")}
                   </>
                 )}
               </button>
@@ -537,7 +747,7 @@ export default function GestionarNoticias() {
                 type="text"
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar noticia por título o autor..."
+                placeholder={t("manage_news.search_ph", "Buscar noticia por título o autor...")}
                 className="news-search-input"
               />
             </div>
@@ -633,7 +843,7 @@ export default function GestionarNoticias() {
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
-              Redactar Noticia
+              {t("manage_news.add_news", "Crear Noticia")}
             </button>
           </div>
 
@@ -643,27 +853,27 @@ export default function GestionarNoticias() {
               <thead>
                 <tr>
                   <th style={{ width: '4rem' }}>#</th>
-                  <th>Título de la Noticia / Artículo</th>
-                  <th style={{ width: '10rem' }}>Estado</th>
-                  <th style={{ width: '12rem' }}>Fecha de Publicación</th>
-                  <th style={{ width: '16rem', textAlign: 'right' }}>Operaciones Escritura</th>
+                  <th>{t("manage_news.col_news", "Noticia")}</th>
+                  <th style={{ width: '10rem' }}>{t("manage_news.col_status", "Estado")}</th>
+                  <th style={{ width: '12rem' }}>{t("manage_news.col_date", "Fecha de Publicación")}</th>
+                  <th style={{ width: '16rem', textAlign: 'right' }}>{t("manage_news.col_ops", "Operaciones")}</th>
                 </tr>
               </thead>
               <tbody>
                 {noticiasFiltradas.length === 0 ? (
                   <tr>
                     <td colSpan="5" className="news-empty-cell">
-                      No se encontraron artículos científicos que coincidan con la búsqueda.
+                      {t("manage_news.empty", "No se encontraron noticias registradas.")}
                     </td>
                   </tr>
                 ) : (
-                  noticiasFiltradas.map((n, i) => (
+                  noticiasPaginadas.map((n, i) => (
                     <tr key={n.id} className="news-row">
-                      <td className="news-idx">{String(i + 1).padStart(2, '0')}</td>
+                      <td className="news-idx">{String(startIndex + i + 1).padStart(2, '0')}</td>
                       <td>
                         <div className="news-title-cell-wrapper">
                           {n.imagenUrl ? (
-                            <img src={n.imagenUrl} alt="Miniatura" className="news-thumb-mini" />
+                            <img src={formatImageUrl(n.imagenUrl)} alt="Miniatura" className="news-thumb-mini" />
                           ) : (
                             <div className="news-thumb-placeholder">
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="18" height="18">
@@ -675,13 +885,13 @@ export default function GestionarNoticias() {
                           )}
                           <div>
                             <span className="news-name">{n.titulo}</span>
-                            <span className="news-author">Por: {n.autor}</span>
+                            <span className="news-author">{t("manage_news.by_author", "Por:")} {n.autor}</span>
                           </div>
                         </div>
                       </td>
                       <td>
                         <span className={`badge-status ${n.estado === 'Publicado' ? 'status-published' : 'status-draft'}`}>
-                          {n.estado}
+                          {n.estado === 'Publicado' ? t("manage_articles.status_published", "Publicado") : t("manage_articles.status_draft", "Borrador")}
                         </span>
                       </td>
                       <td className="news-date-cell">
@@ -694,7 +904,7 @@ export default function GestionarNoticias() {
                               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                               <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z" />
                             </svg>
-                            Editar
+                            {t("admin.edit", "Editar")}
                           </button>
                           <button onClick={() => eliminarNoticia(n.id)} className="news-btn-delete">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
@@ -703,7 +913,7 @@ export default function GestionarNoticias() {
                               <line x1="10" y1="11" x2="10" y2="17" />
                               <line x1="14" y1="11" x2="14" y2="17" />
                             </svg>
-                            Borrar
+                            {t("manage_news.delete", "Borrar")}
                           </button>
                         </div>
                       </td>
@@ -713,6 +923,63 @@ export default function GestionarNoticias() {
               </tbody>
             </table>
           </div>
+
+          {/* CONTROLES DE PAGINACIÓN */}
+          {noticiasFiltradas.length > 0 && (
+            <div className="news-pagination-bar">
+              <div className="news-pagination-info">
+                {language === 'en'
+                  ? `Showing ${Math.min(startIndex + 1, noticiasFiltradas.length)} to ${Math.min(startIndex + itemsPerPage, noticiasFiltradas.length)} of ${noticiasFiltradas.length} news items`
+                  : `Mostrando ${Math.min(startIndex + 1, noticiasFiltradas.length)} a ${Math.min(startIndex + itemsPerPage, noticiasFiltradas.length)} de ${noticiasFiltradas.length} noticias`}
+              </div>
+
+              <div className="news-pagination-controls">
+                <CustomItemsPerPageSelect
+                  value={itemsPerPage}
+                  onChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+                  options={[10, 20, 50]}
+                  language={language}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="news-pagination-btn prev-btn"
+                  title={language === 'en' ? 'Previous page' : 'Página anterior'}
+                >
+                  <svg className="news-pagination-arrow-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                  <span className="news-pagination-btn-text">{language === 'en' ? '← Prev' : '← Anterior'}</span>
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setCurrentPage(p)}
+                    className={`news-pagination-page-btn ${p === currentPage ? 'active' : ''}`}
+                  >
+                    {p}
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="news-pagination-btn next-btn"
+                  title={language === 'en' ? 'Next page' : 'Página siguiente'}
+                >
+                  <span className="news-pagination-btn-text">{language === 'en' ? 'Next →' : 'Siguiente →'}</span>
+                  <svg className="news-pagination-arrow-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

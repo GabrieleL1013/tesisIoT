@@ -1,11 +1,44 @@
-import { API_BASE_URL } from '../../config/api';
+import { API_BASE_URL, fetchWithAuth, fetchDeduplicated } from '../../config/api';
 import { echo } from '../../config/echo';
 import React, { useState, useEffect } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
-import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { useLanguage } from '../../context/LanguageContext';
+import { usePageTitle } from '../../hooks/usePageTitle';
+import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Brush } from 'recharts';
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import '../../styles/components/admin/Dashboard.css';
+import '../../styles/pages/admin/MonitorEnVivo.css';
+import ModalExportarCSV from '../../components/ModalExportarCSV';
+
+// Dynamic Icons and Themes matching En Vivo interface
+const DYNAMIC_ICONS_VIVO = {
+  termometro: { class: 'theme-orange', hex: '#ea580c', bg: '#fff7ed', icon: <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z" /> },
+  humedad: { class: 'theme-blue', hex: '#3b82f6', bg: '#eff6ff', icon: <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" /> },
+  presion: { class: 'theme-green', hex: '#10b981', bg: '#ecfdf5', icon: <><circle cx="12" cy="12" r="9" /><line x1="12" y1="12" x2="15" y2="9" /></> },
+  viento: { class: 'theme-cyan', hex: '#06b6d4', bg: '#ecfeff', icon: <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2" /> },
+  lluvia: { class: 'theme-purple', hex: '#8b5cf6', bg: '#f5f3ff', icon: <path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25M8 16v4m4-2v4m4-4v4" /> },
+  luz: { class: 'theme-orange', hex: '#f59e0b', bg: '#fffbeb', icon: <><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></> },
+  energia: { class: 'theme-blue', hex: '#6366f1', bg: '#eef2ff', icon: <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /> },
+  ph: { class: 'theme-green', hex: '#14b8a6', bg: '#f0fdfa', icon: <path d="M10 2v7.31L4.75 18.25A2 2 0 0 0 6.46 21.2h11.08a2 2 0 0 0 1.71-2.95L14 9.31V2" /> },
+  sonido: { class: 'theme-purple', hex: '#a855f7', bg: '#faf5ff', icon: <><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /></> },
+  general: { class: 'theme-green', hex: '#10b981', bg: '#ecfdf5', icon: <><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></> }
+};
+
+const getTheme = (clave, icono) => {
+  let baseTheme = DYNAMIC_ICONS_VIVO.general;
+  const t = (clave || '').toLowerCase();
+  if (t.includes('temp')) baseTheme = DYNAMIC_ICONS_VIVO.termometro;
+  else if (t.includes('hum') || t.includes('soil')) baseTheme = DYNAMIC_ICONS_VIVO.humedad;
+  else if (t.includes('press') || t.includes('presion')) baseTheme = DYNAMIC_ICONS_VIVO.presion;
+  else if (t.includes('wind') || t.includes('viento')) baseTheme = DYNAMIC_ICONS_VIVO.viento;
+  else if (t.includes('rain') || t.includes('lluvia')) baseTheme = DYNAMIC_ICONS_VIVO.lluvia;
+
+  if (icono && DYNAMIC_ICONS_VIVO[icono]) {
+    return DYNAMIC_ICONS_VIVO[icono];
+  }
+  return baseTheme;
+};
 
 // Custom Inline SVG Icons matching the image
 const NodesIcon = () => (
@@ -71,8 +104,8 @@ const DashboardCustomSelectNode = ({ nodos, selectedSerial, onSelect }) => {
   const filteredNodos = React.useMemo(() => {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase();
-    return (nodos || []).filter(n => 
-      (n.serial_number && n.serial_number.toLowerCase().includes(q)) || 
+    return (nodos || []).filter(n =>
+      (n.serial_number && n.serial_number.toLowerCase().includes(q)) ||
       (n.nombre && n.nombre.toLowerCase().includes(q)) ||
       (n.categoria && n.categoria.toLowerCase().includes(q))
     );
@@ -108,21 +141,21 @@ const DashboardCustomSelectNode = ({ nodos, selectedSerial, onSelect }) => {
                 <circle cx="11" cy="11" r="8"></circle>
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               </svg>
-              <input 
-                type="text" 
-                placeholder="Buscar nodo..." 
+              <input
+                type="text"
+                placeholder="Buscar nodo..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 autoFocus
               />
             </div>
-            
+
             <div className="dropdown-list-wrapper">
               {searchQuery.trim() !== '' ? (
                 filteredNodos.length > 0 ? (
                   filteredNodos.map(n => (
-                    <div 
-                      key={n.id || n.serial_number} 
+                    <div
+                      key={n.id || n.serial_number}
                       className={`custom-dropdown-item ${selectedSerial === n.serial_number ? 'active' : ''}`}
                       onClick={() => {
                         onSelect(n.serial_number);
@@ -139,7 +172,7 @@ const DashboardCustomSelectNode = ({ nodos, selectedSerial, onSelect }) => {
                 )
               ) : (
                 <>
-                  <div 
+                  <div
                     className={`custom-dropdown-item ${!selectedSerial ? 'active' : ''}`}
                     onClick={() => {
                       onSelect('');
@@ -152,7 +185,7 @@ const DashboardCustomSelectNode = ({ nodos, selectedSerial, onSelect }) => {
                   </div>
                   {Object.entries(groupedNodos).map(([cat, catNodos]) => (
                     <div key={cat} className="dropdown-category-group">
-                      <div 
+                      <div
                         className="dropdown-category-header"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -186,8 +219,8 @@ const DashboardCustomSelectNode = ({ nodos, selectedSerial, onSelect }) => {
               </div>
               <div className="dropdown-list-wrapper">
                 {groupedNodos[activeCategoryKey].map(n => (
-                  <div 
-                    key={n.id || n.serial_number} 
+                  <div
+                    key={n.id || n.serial_number}
                     className={`custom-dropdown-item ${selectedSerial === n.serial_number ? 'active' : ''}`}
                     onClick={() => {
                       onSelect(n.serial_number);
@@ -306,23 +339,120 @@ const DashboardCustomSelectVar = ({ lecturas, selectedKey, disabled, onSelect })
 };
 
 export default function Dashboard() {
+  const { language, triggerContentLoading } = useLanguage();
+  usePageTitle({ es: 'Panel de Control', en: 'Dashboard' }, 'Admin · IoT ULEAM');
+  const [loading, setLoading] = useState(true);
+  const hasInitialCenteredRef = React.useRef(false);
   // Database states
   const [nodos, setNodos] = useState([]);
   const [ubicaciones, setUbicaciones] = useState([]);
-  const [usuarios, setUsuarios] = useState([]);
+  const [totalUsuarios, setTotalUsuarios] = useState(0);
   const [noticias, setNoticias] = useState([]);
   const [categorias, setCategorias] = useState([]);
-  
-  // Live Dashboard states
+
+  // Live Dashboard & Historical Date states
+  const todayDateStr = React.useMemo(() => {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }, []);
+
+  const [selectedDate, setSelectedDate] = useState(todayDateStr);
   const [liveData, setLiveData] = useState([]);
-  
-  // Telemetry section category, node & variable checkbox selection state
+  const [allVarsLiveData, setAllVarsLiveData] = useState([]);
+  const [chartOffset, setChartOffset] = useState(0); // Offset desde el final de liveData (ventana de 10)
+
+  // Telemetry section category, node & variable selection mode (Same-Unit Multi-variable)
   const [selectedTelemetryCategory, setSelectedTelemetryCategory] = useState('');
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [selectedTelemetryNodeSerial, setSelectedTelemetryNodeSerial] = useState('');
   const [checkedVarKeys, setCheckedVarKeys] = useState([]); // array of checked data_type keys
+  const [liveMode, setLiveMode] = useState(false); // false = Base de datos (por fecha), true = En vivo (WebSockets / Buffer)
+  const [isByUnitMode, setIsByUnitMode] = useState(false); // false = Navegación libre de variable única, true = Multiselección por unidad
   const [chartMode, setChartMode] = useState('area'); // 'area', 'bar', 'line'
   const [nodeDropdownOpen, setNodeDropdownOpen] = useState(false);
+  const [maxReadingsToShow, setMaxReadingsToShow] = useState(15); // Límite configurable de lecturas por ventana (1 a 15)
+  const [showExportModal, setShowExportModal] = useState(false);
+
+  const categoryDropdownRef = React.useRef(null);
+  const nodeDropdownRef = React.useRef(null);
+  const dateInputRef = React.useRef(null);
+
+  const handleOpenDatePicker = () => {
+    if (dateInputRef.current) {
+      if (typeof dateInputRef.current.showPicker === 'function') {
+        dateInputRef.current.showPicker();
+      } else {
+        dateInputRef.current.focus();
+        dateInputRef.current.click();
+      }
+    }
+  };
+
+  // Cerrar menús desplegables al hacer clic en cualquier lugar fuera de ellos
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target)) {
+        setCategoryDropdownOpen(false);
+      }
+      if (nodeDropdownRef.current && !nodeDropdownRef.current.contains(e.target)) {
+        setNodeDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Fecha del día actual en formato legible (Español / Inglés)
+  const todayFormatted = React.useMemo(() => {
+    const d = new Date();
+    const str = d.toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }, [language]);
+
+  // Adaptabilidad y Zoom Dinámico: Límite configurable de lecturas a mostrar (1 a 15 lecturas en pantalla)
+  const { visibleLiveData, startIndex, endIndex, isAtLatest, canGoPrev, canGoNext, showPagination } = React.useMemo(() => {
+    if (!liveData || liveData.length === 0) {
+      return { visibleLiveData: [], startIndex: 0, endIndex: 0, isAtLatest: true, canGoPrev: false, canGoNext: false, showPagination: false };
+    }
+
+    const pageSize = Math.min(15, Math.max(1, maxReadingsToShow));
+    const total = liveData.length;
+
+    let maxOffset = Math.max(0, total - pageSize);
+    let clampedOffset = Math.min(Math.max(0, chartOffset), maxOffset);
+
+    let end = total - clampedOffset;
+    let start = Math.max(0, end - pageSize);
+    end = Math.min(total, start + pageSize);
+
+    return {
+      visibleLiveData: liveData.slice(start, end),
+      startIndex: start + 1,
+      endIndex: end,
+      isAtLatest: clampedOffset === 0,
+      canGoPrev: start > 0,
+      canGoNext: clampedOffset > 0,
+      showPagination: total > pageSize
+    };
+  }, [liveData, chartOffset, maxReadingsToShow]);
+
+  const handlePrevPage = () => {
+    setChartOffset(prev => prev + maxReadingsToShow);
+  };
+
+  const handleNextPage = () => {
+    setChartOffset(prev => Math.max(0, prev - maxReadingsToShow));
+  };
+
+  const handleResetToLatest = () => {
+    setChartOffset(0);
+  };
 
   // Toast notifications state
   const [toasts, setToasts] = useState([]);
@@ -334,7 +464,7 @@ export default function Dashboard() {
   const tileLayerRef = React.useRef(null);
   const markersRefMap = React.useRef({});
   const centerCurrentNodeRef = React.useRef(null);
-  
+
   const [mapStyle, setMapStyle] = useState('google'); // 'google', 'satellite', 'dark'
   const [selectedActiveNodeIndex, setSelectedActiveNodeIndex] = useState(0);
 
@@ -344,16 +474,13 @@ export default function Dashboard() {
   }, [nodos]);
 
   const targetNavList = React.useMemo(() => {
-    return activeNodos.length > 0 ? activeNodos : (nodos || []);
-  }, [activeNodos, nodos]);
+    return nodos || [];
+  }, [nodos]);
 
   const activeNodeNumberMap = React.useMemo(() => {
     const map = {};
-    let count = 1;
-    (nodos || []).forEach(n => {
-      if (n.is_online) {
-        map[n.serial_number || n.id] = count++;
-      }
+    (nodos || []).forEach((n, idx) => {
+      map[n.serial_number || n.id] = idx + 1;
     });
     return map;
   }, [nodos]);
@@ -363,7 +490,7 @@ export default function Dashboard() {
     const bg = isActive ? '#10b981' : '#64748b'; // Green when Online/Active, Gray when Offline
     const borderColor = isSelected ? '#3b82f6' : '#ffffff';
     const borderWidth = isSelected ? '3.5' : '2';
-    
+
     // Glow and pulse ring colors matching the pin point color
     const ringBg = isActive ? 'rgba(16, 185, 129, 0.45)' : 'rgba(100, 116, 139, 0.45)';
     const ringShadow = isActive ? '0 0 14px rgba(16, 185, 129, 0.85)' : '0 0 14px rgba(100, 116, 139, 0.85)';
@@ -419,26 +546,46 @@ export default function Dashboard() {
 
   useEffect(() => {
     document.title = "Dashboard - IoT ULEAM";
-    
-    // Fetch dashboard stats from backend database APIs
+
+    // Fetch dashboard stats from backend database APIs with deduplicated requests
     Promise.all([
-      fetch(`${API_BASE_URL}/nodos`).then(res => res.json()),
-      fetch(`${API_BASE_URL}/ubicaciones`).then(res => res.json()),
-      fetch(`${API_BASE_URL}/noticias`).then(res => res.json()),
-      fetch(`${API_BASE_URL}/users`).then(res => res.json()),
-      fetch(`${API_BASE_URL}/categorias`).then(res => res.json())
+      fetchDeduplicated(`${API_BASE_URL}/nodos?lang=${language}`).then(res => res.json()),
+      fetchWithAuth(`${API_BASE_URL}/ubicaciones?lang=${language}`).then(res => res.json()),
+      fetchDeduplicated(`${API_BASE_URL}/noticias?lang=${language}`).then(res => res.json()),
+      fetchWithAuth(`${API_BASE_URL}/users/count`).then(res => res.json()),
+      fetchDeduplicated(`${API_BASE_URL}/categorias?lang=${language}`).then(res => res.json())
     ])
-      .then(([nodosData, ubiData, noticiasData, usersData, catsData]) => {
+      .then(([nodosData, ubiData, noticiasData, userCountData, catsData]) => {
         setNodos(Array.isArray(nodosData) ? nodosData : []);
         setUbicaciones(Array.isArray(ubiData) ? ubiData : []);
         setNoticias(Array.isArray(noticiasData) ? noticiasData : []);
-        setUsuarios(Array.isArray(usersData) ? usersData : []);
+        setTotalUsuarios(userCountData?.total_users ?? (typeof userCountData === 'number' ? userCountData : 0));
         setCategorias(Array.isArray(catsData) ? catsData : []);
 
         if (Array.isArray(nodosData) && nodosData.length > 0) {
-          if (!selectedNodeSerial) {
-            setSelectedNodeSerial(nodosData[0].serial_number);
+          // 1. Verificar parámetro URL ?nodo=nombre-id
+          const searchParams = new URLSearchParams(window.location.search);
+          const nodoUrlParam = searchParams.get('nodo');
+          let foundFromUrl = null;
+          if (nodoUrlParam) {
+            const parts = nodoUrlParam.split('-');
+            const possibleId = parts[parts.length - 1];
+            if (possibleId && !isNaN(possibleId)) {
+              foundFromUrl = nodosData.find(n => String(n.id) === String(possibleId));
+            }
           }
+
+          // 2. Verificar localStorage
+          const sharedNodeId = localStorage.getItem('shared_node_id');
+          const sharedNodeSerial = localStorage.getItem('shared_node_serial');
+          const foundFromStorage = nodosData.find(n => String(n.id) === String(sharedNodeId) || n.serial_number === sharedNodeSerial);
+
+          const initialNode = foundFromUrl || foundFromStorage || nodosData[0];
+
+          setSelectedTelemetryNodeSerial(initialNode.serial_number);
+          localStorage.setItem('shared_node_id', String(initialNode.id));
+          localStorage.setItem('shared_node_serial', String(initialNode.serial_number));
+
           const savedFilters = localStorage.getItem('dashboardFilters');
           if (savedFilters) {
             try {
@@ -469,8 +616,63 @@ export default function Dashboard() {
       })
       .catch(err => {
         console.error("Error loading dashboard data from backend APIs:", err);
+      })
+      .finally(() => {
+        setLoading(false);
       });
-  }, []);
+  }, [language]);
+
+
+  // Sincronizar el nodo seleccionado en el Dashboard hacia el almacenamiento compartido
+  useEffect(() => {
+    if (selectedTelemetryNodeSerial && nodos.length > 0) {
+      const node = nodos.find(n => n.serial_number === selectedTelemetryNodeSerial);
+      if (node) {
+        localStorage.setItem('shared_node_id', String(node.id));
+        localStorage.setItem('shared_node_serial', String(node.serial_number));
+      }
+    }
+    // Mantener la URL limpia en el Dashboard sin parámetros
+    if (window.location.search) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, [selectedTelemetryNodeSerial, nodos]);
+
+  // Sincronizar interacción del mapa con la sección inferior de telemetría y gráficos (Mapa -> Telemetría)
+  useEffect(() => {
+    if (targetNavList && targetNavList.length > 0) {
+      const mapNode = targetNavList[selectedActiveNodeIndex];
+      if (mapNode && mapNode.serial_number && mapNode.serial_number !== selectedTelemetryNodeSerial) {
+        if (mapNode.categoria) {
+          setSelectedTelemetryCategory(mapNode.categoria);
+        }
+        setSelectedTelemetryNodeSerial(mapNode.serial_number);
+      }
+    }
+  }, [selectedActiveNodeIndex, targetNavList]);
+
+  // Sincronizar interacción inferior con el mapa (Telemetría -> Mapa)
+  useEffect(() => {
+    if (!selectedTelemetryNodeSerial || !targetNavList || targetNavList.length === 0) return;
+    const matchIdx = targetNavList.findIndex(n => (n.serial_number || n.id) === selectedTelemetryNodeSerial);
+    if (matchIdx >= 0) {
+      if (matchIdx !== selectedActiveNodeIndex) {
+        setSelectedActiveNodeIndex(matchIdx);
+      }
+      const targetNode = targetNavList[matchIdx];
+      if (targetNode && mapInstanceRef.current) {
+        let lat = parseFloat(targetNode.latitud);
+        let lng = parseFloat(targetNode.longitud);
+        if (isNaN(lat) || isNaN(lng)) {
+          const originalIdx = nodos.findIndex(n => n.id === targetNode.id);
+          const numId = Number(targetNode.id) || (originalIdx >= 0 ? originalIdx : 0);
+          lat = -0.95 + ((numId % 10) - 5) * 0.002;
+          lng = -80.73 + (((numId * 3) % 10) - 5) * 0.002;
+        }
+        mapInstanceRef.current.flyTo([lat, lng], 15, { animate: true, duration: 0.8 });
+      }
+    }
+  }, [selectedTelemetryNodeSerial, targetNavList]);
 
   // Map Initialization and Markers
   useEffect(() => {
@@ -550,16 +752,23 @@ export default function Dashboard() {
 
       const icon = createNumberedMarkerIcon(displayNum, isActive, isSelected);
 
+      const statusBadgeText = isActive
+        ? (language === 'en' ? '● Online' : '● Activo')
+        : (language === 'en' ? '○ Offline' : '○ Inactivo');
+      const statusLineText = isActive
+        ? (language === 'en' ? '● Online / Transmitting' : '● Activo / Transmitiendo')
+        : (language === 'en' ? '○ Offline (No data)' : '○ Inactivo (Sin datos)');
+
       const popupContent = `
         <div style="font-family:'Outfit','Inter',sans-serif; padding: 4px; min-width: 180px;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:6px;">
             <strong style="color:#0f2c59; font-size:0.95rem;">${nodo.nombre}</strong>
-            ${isActive ? `<span style="background:#10b981; color:white; font-size:0.7rem; font-weight:800; padding:2px 8px; border-radius:10px;">● Online</span>` : `<span style="background:#ef4444; color:white; font-size:0.7rem; font-weight:800; padding:2px 8px; border-radius:10px;">○ Offline</span>`}
+            ${isActive ? `<span style="background:#10b981; color:white; font-size:0.7rem; font-weight:800; padding:2px 8px; border-radius:10px;">${statusBadgeText}</span>` : `<span style="background:#ef4444; color:white; font-size:0.7rem; font-weight:800; padding:2px 8px; border-radius:10px;">${statusBadgeText}</span>`}
           </div>
-          <div style="font-size:0.8rem; color:#64748b; margin-bottom:3px;">Categoría: <b style="color:#334155">${nodo.categoria || 'N/A'}</b></div>
+          <div style="font-size:0.8rem; color:#64748b; margin-bottom:3px;">${language === 'en' ? 'Category:' : 'Categoría:'} <b style="color:#334155">${nodo.categoria || 'N/A'}</b></div>
           <div style="font-size:0.8rem; color:#64748b; margin-bottom:3px;">Serial: <code style="color:#0f2c59; background:#f1f5f9; padding:1px 4px; border-radius:4px">${nodo.serial_number || 'N/A'}</code></div>
           <div style="font-size:0.8rem; font-weight:700; color:${isActive ? '#10b981' : '#ef4444'}; border-top:1px solid #f1f5f9; padding-top:5px; margin-top:4px;">
-            ${isActive ? '● En línea / Transmitiendo' : '○ Desconectado (Sin datos)'}
+            ${statusLineText}
           </div>
         </div>
       `;
@@ -580,6 +789,15 @@ export default function Dashboard() {
         const matchIdx = targetNavList.findIndex(n => (n.serial_number || n.id) === (nodo.serial_number || nodo.id));
         if (matchIdx >= 0) {
           setSelectedActiveNodeIndex(matchIdx);
+        }
+        if (nodo.categoria) {
+          setSelectedTelemetryCategory(nodo.categoria);
+        }
+        if (nodo.serial_number) {
+          setSelectedTelemetryNodeSerial(nodo.serial_number);
+        }
+        if (nodo.lecturas && nodo.lecturas.length > 0) {
+          setCheckedVarKeys([nodo.lecturas[0].data_type]);
         }
       });
 
@@ -678,13 +896,13 @@ export default function Dashboard() {
     const now = new Date();
     const points = [];
     const pad = (n) => String(n).padStart(2, '0');
-    
+
     for (let i = 12; i >= 0; i--) {
       const t = new Date(now.getTime() - i * 45 * 1000);
       const timeStr = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`;
       const fullDateTimeStr = `${pad(t.getDate())}/${pad(t.getMonth() + 1)}/${t.getFullYear()} ${timeStr}`;
       const point = { time: timeStr, fullDateTime: fullDateTimeStr };
-      
+
       selections.forEach(sel => {
         const key = `${sel.serial_number}_${sel.clave_mqtt}`;
         let baseVal = 24.5;
@@ -694,7 +912,7 @@ export default function Dashboard() {
         else if (nameLower.includes('presion') || nameLower.includes('presión')) baseVal = 1013;
         else if (nameLower.includes('conductividad')) baseVal = 450;
         else if (nameLower.includes('oxigeno') || nameLower.includes('oxígeno')) baseVal = 6.8;
-        
+
         const noise = (Math.sin(i * 0.8 + (sel.serial_number ? sel.serial_number.length : 1)) * 2.2) + ((Math.random() - 0.5) * 0.6);
         point[key] = parseFloat((baseVal + noise).toFixed(2));
       });
@@ -705,9 +923,10 @@ export default function Dashboard() {
     return points;
   }, []);
 
-  // Auto-center map on Node #1 whenever targetNavList is available
+  // Auto-center map on Node #1 ONCE when targetNavList is first available
   useEffect(() => {
-    if (targetNavList.length > 0 && mapInstanceRef.current) {
+    if (!hasInitialCenteredRef.current && targetNavList.length > 0 && mapInstanceRef.current) {
+      hasInitialCenteredRef.current = true;
       setSelectedActiveNodeIndex(0);
       const node1 = targetNavList[0];
       let lat = parseFloat(node1.latitud);
@@ -754,109 +973,270 @@ export default function Dashboard() {
       }));
   }, [currentTelemetryNode, checkedVarKeys]);
 
-  // Cargar historial en vivo
+  // Unidad de medida de la primera variable activa seleccionada
+  const activeSelectedUnit = React.useMemo(() => {
+    if (!currentTelemetryNode?.lecturas || checkedVarKeys.length === 0) return null;
+    const selectedLectura = currentTelemetryNode.lecturas.find(l => checkedVarKeys.includes(l.data_type));
+    return selectedLectura ? selectedLectura.unidad : null;
+  }, [currentTelemetryNode, checkedVarKeys]);
+
+  // Determinación de Eje Y (Izquierdo para valores normales, Derecho para magnitudes grandes)
+  const getAxisForSelection = React.useCallback((sel) => {
+    if (appliedSelections.length <= 1) return 'left';
+    const dataKey = `${sel.serial_number}_${sel.clave_mqtt}`;
+    let maxVal = 0;
+    (liveData || []).forEach(item => {
+      if (item && item[dataKey] !== undefined && item[dataKey] !== null) {
+        const val = Math.abs(parseFloat(item[dataKey]));
+        if (!isNaN(val) && val > maxVal) maxVal = val;
+      }
+    });
+    return maxVal > 100 ? 'right' : 'left';
+  }, [liveData, appliedSelections]);
+
+  const hasRightAxisVariables = React.useMemo(() => {
+    return appliedSelections.some(sel => getAxisForSelection(sel) === 'right');
+  }, [appliedSelections, getAxisForSelection]);
+
+  // Helper para extraer hora HH:mm:ss y fecha completa de cualquier payload telemétrico
+  const extractTimeAndDate = (item) => {
+    if (!item) return { time: '', fullDateTime: '' };
+
+    let shortT = item.shortTime || item.time;
+    let fullT = item.fullDateTime || item.dateTime;
+
+    if (shortT && typeof shortT === 'string' && shortT.length === 8 && shortT.includes(':')) {
+      // Ya tiene formato "HH:mm:ss"
+    } else if (fullT && typeof fullT === 'string') {
+      if (fullT.includes(' ')) {
+        const parts = fullT.trim().split(' ');
+        shortT = parts[parts.length - 1];
+      } else if (fullT.includes('T')) {
+        shortT = fullT.split('T')[1].split('.')[0];
+      } else if (fullT.includes(',')) {
+        shortT = fullT.split(', ')[1];
+      }
+    } else if (item.created_at) {
+      const d = new Date(item.created_at);
+      if (!isNaN(d.getTime())) {
+        const pad = (n) => String(n).padStart(2, '0');
+        shortT = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        fullT = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${shortT}`;
+      }
+    } else if (item.timestamp) {
+      const ts = typeof item.timestamp === 'number' ? (item.timestamp > 1e11 ? item.timestamp : item.timestamp * 1000) : Date.now();
+      const d = new Date(ts);
+      if (!isNaN(d.getTime())) {
+        const pad = (n) => String(n).padStart(2, '0');
+        shortT = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        fullT = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${shortT}`;
+      }
+    }
+
+    if (!shortT) {
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      shortT = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+      fullT = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${shortT}`;
+    }
+
+    if (shortT) shortT = shortT.replace(/\s*([ap]\.?m\.?|AM|PM)/gi, '').trim();
+
+    return { time: shortT, fullDateTime: fullT || shortT };
+  };
+
+  // Helper para formatear cualquier item de telemetría hacia la estructura de Recharts
+  const formatTelemetryItemToPoint = (item, selections) => {
+    const { time, fullDateTime } = extractTimeAndDate(item);
+    const pt = { time, fullDateTime };
+
+    selections.forEach(sel => {
+      const dataKey = `${sel.serial_number}_${sel.clave_mqtt}`;
+      let val = undefined;
+
+      if (item[dataKey] !== undefined && item[dataKey] !== null) {
+        val = parseFloat(item[dataKey]);
+      } else if (item[sel.clave_mqtt] !== undefined && item[sel.clave_mqtt] !== null) {
+        val = parseFloat(item[sel.clave_mqtt]);
+      } else if (item.data_type === sel.clave_mqtt && (item.valor !== undefined || item.value !== undefined)) {
+        val = parseFloat(item.valor ?? item.value);
+      }
+
+      if (val !== undefined && !isNaN(val)) {
+        pt[dataKey] = val;
+      }
+    });
+
+    return pt;
+  };
+
+  const appliedSelectionsKey = React.useMemo(() => JSON.stringify(appliedSelections), [appliedSelections]);
+  const lecturasTypesKey = React.useMemo(() => currentTelemetryNode?.lecturas?.map(l => l.data_type).join(',') || '', [currentTelemetryNode]);
+
+  // Cargar historial telemétrico en una ÚNICA llamada a la API por nodo y fecha (sirve para gráfico y tarjetas KPI)
   useEffect(() => {
-    if (appliedSelections.length === 0) {
+    if (!currentTelemetryNode || !currentTelemetryNode.lecturas || currentTelemetryNode.lecturas.length === 0) {
       setLiveData([]);
+      setAllVarsLiveData([]);
       return;
     }
-    
-    fetch(`${API_BASE_URL}/lecturas/live-history`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({ selections: appliedSelections })
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (Array.isArray(data) && data.length > 0) {
-        setLiveData(data);
-      } else {
-        setLiveData(generateMockLiveData(appliedSelections));
-      }
-    })
-    .catch(err => {
-      console.error("Error fetching live history, using generated fallback:", err);
-      setLiveData(generateMockLiveData(appliedSelections));
-    });
 
-  }, [appliedSelections, generateMockLiveData]);
+    const serial = currentTelemetryNode.serial_number;
+    const allSelections = currentTelemetryNode.lecturas.map(l => ({
+      serial_number: serial,
+      nombre_nodo: currentTelemetryNode.nombre,
+      clave_mqtt: l.data_type,
+      nombre_var: l.tipo,
+      unidad: l.unidad
+    }));
 
-  // WebSockets para Telemetría en Vivo
-  useEffect(() => {
-    if (appliedSelections.length === 0) return;
-
-    const channels = [];
-    const groupedByNode = {};
-    
-    appliedSelections.forEach(sel => {
-       if (!groupedByNode[sel.serial_number]) {
-          groupedByNode[sel.serial_number] = [];
-       }
-       groupedByNode[sel.serial_number].push(sel.clave_mqtt);
-    });
-
-    Object.keys(groupedByNode).forEach(serial => {
-      const channelName = `telemetry.${serial}`;
-      const channel = echo.channel(channelName);
-      const varsToListen = groupedByNode[serial];
-      
-      channel.listen('.LecturaRecibida', (e) => {
-        const now = new Date();
-        const pad = (n) => String(n).padStart(2, '0');
-        const nowTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-        const nowFullDateTime = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${nowTime}`;
-        
-        let hasRelevantData = false;
-        let newTick = {};
-
-        varsToListen.forEach(vKey => {
-           if (newData[vKey] !== undefined) {
-              hasRelevantData = true;
-              newTick[`${serial}_${vKey}`] = newData[vKey];
-           }
-        });
-
-        if (hasRelevantData) {
-          setLiveData(prev => {
-            const newHistory = [...prev];
-            if (newHistory.length > 0 && newHistory[newHistory.length - 1].time === nowTime) {
-              const lastItem = newHistory[newHistory.length - 1];
-              newHistory[newHistory.length - 1] = { ...lastItem, ...newTick, fullDateTime: nowFullDateTime };
-            } else {
-              const lastItem = newHistory.length > 0 ? newHistory[newHistory.length - 1] : {};
-              newHistory.push({ ...lastItem, time: nowTime, fullDateTime: nowFullDateTime, ...newTick });
+    if (liveMode) {
+      // ── MODO EN VIVO (WEBSOCKETS PUROS & BUFFER INICIAL) ──
+      const fetchLiveBuffer = async () => {
+        try {
+          const res = await fetchDeduplicated(`${API_BASE_URL}/lecturas/recientes?serial_number=${serial}&live=1&limit=15`);
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data) && data.length > 0) {
+              const formattedPoints = data.map(item => formatTelemetryItemToPoint(item, allSelections));
+              setLiveData(formattedPoints);
+              setAllVarsLiveData(formattedPoints);
             }
-            if (newHistory.length > 30) newHistory.shift(); 
-            return newHistory;
+          }
+        } catch (e) {
+          console.error("Error loading live buffer:", e);
+        }
+      };
+
+      fetchLiveBuffer();
+
+    } else {
+      // ── MODO BASE DE DATOS (HISTORIAL ESTÁTICO POR FECHA - 1 SOLA PETICIÓN PARA TODAS LAS VARIABLES) ──
+      fetchDeduplicated(`${API_BASE_URL}/lecturas/live-history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ selections: allSelections, fecha: selectedDate })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            setLiveData(data);
+            setAllVarsLiveData(data);
+          } else {
+            setLiveData([]);
+            setAllVarsLiveData([]);
+          }
+        })
+        .catch(err => {
+          console.error("Error fetching live history for selected date:", err);
+          setLiveData([]);
+          setAllVarsLiveData([]);
+        });
+    }
+
+  }, [currentTelemetryNode?.serial_number, selectedDate, liveMode, lecturasTypesKey]);
+
+  // WebSockets para Telemetría en Vivo: Suscripción ÚNICA sin duplicaciones
+  useEffect(() => {
+    if (appliedSelections.length === 0 || selectedDate !== todayDateStr) return;
+
+    const serial = currentTelemetryNode?.serial_number;
+    if (!serial) return;
+
+    let channel;
+    try {
+      channel = echo.channel(`telemetry.${serial}`);
+      channel.listen('.LecturaRecibida', (e) => {
+        const newData = e.data || e;
+        if (!newData) return;
+
+        // 1. Actualizar el gráfico de líneas/barras (solo en modo en vivo liveMode)
+        if (liveMode) {
+          const pt = formatTelemetryItemToPoint(newData, appliedSelections);
+          setLiveData(prev => {
+            if (!prev || prev.length === 0) return [pt];
+            const last = prev[prev.length - 1];
+
+            // Si la última lectura tiene la misma hora/fecha, se fusionan los datos
+            if ((pt.fullDateTime && last.fullDateTime === pt.fullDateTime) || (pt.time && last.time === pt.time)) {
+              const updated = [...prev];
+              updated[updated.length - 1] = { ...last, ...pt };
+              return updated;
+            }
+
+            // Evitar duplicados comprobando si ya existe en cualquier punto del historial
+            const existingIdx = prev.findIndex(item =>
+              (pt.fullDateTime && item.fullDateTime === pt.fullDateTime) ||
+              (pt.time && item.time === pt.time)
+            );
+            if (existingIdx !== -1) {
+              const updated = [...prev];
+              updated[existingIdx] = { ...updated[existingIdx], ...pt };
+              return updated;
+            }
+
+            const next = [...prev, pt];
+            return next.length > 15 ? next.slice(-15) : next;
+          });
+        }
+
+        // 2. Actualizar las tarjetas KPI inferiores (todas las variables del nodo)
+        if (currentTelemetryNode?.lecturas && currentTelemetryNode.lecturas.length > 0) {
+          const allSelections = currentTelemetryNode.lecturas.map(l => ({
+            serial_number: currentTelemetryNode.serial_number,
+            nombre_nodo: currentTelemetryNode.nombre,
+            clave_mqtt: l.data_type,
+            nombre_var: l.tipo,
+            unidad: l.unidad
+          }));
+          const ptAll = formatTelemetryItemToPoint(newData, allSelections);
+          setAllVarsLiveData(prev => {
+            if (!prev || prev.length === 0) return [ptAll];
+            const last = prev[prev.length - 1];
+
+            if ((ptAll.fullDateTime && last.fullDateTime === ptAll.fullDateTime) || (ptAll.time && last.time === ptAll.time)) {
+              const updated = [...prev];
+              updated[updated.length - 1] = { ...last, ...ptAll };
+              return updated;
+            }
+
+            const existingIdx = prev.findIndex(item =>
+              (ptAll.fullDateTime && item.fullDateTime === ptAll.fullDateTime) ||
+              (ptAll.time && item.time === ptAll.time)
+            );
+            if (existingIdx !== -1) {
+              const updated = [...prev];
+              updated[existingIdx] = { ...updated[existingIdx], ...ptAll };
+              return updated;
+            }
+
+            const next = [...prev, ptAll];
+            return next.length > 30 ? next.slice(-30) : next;
           });
         }
       });
-      channels.push({ channel, name: channelName });
-    });
+    } catch (err) {
+      console.warn("WebSocket channel error in Dashboard:", err);
+    }
 
     return () => {
-      channels.forEach(ch => {
-        ch.channel.stopListening('.LecturaRecibida');
-        echo.leaveChannel(ch.name);
-      });
-    };
-  }, [appliedSelections]);
-
-  // Pre-seleccionar el primer nodo de la categoría activa y marcar TODAS sus variables por defecto
-  useEffect(() => {
-    if (currentCategoryNodes.length > 0) {
-      if (!selectedTelemetryNodeSerial || !currentCategoryNodes.some(n => n.serial_number === selectedTelemetryNodeSerial)) {
-        const firstNode = currentCategoryNodes[0];
-        setSelectedTelemetryNodeSerial(firstNode.serial_number);
-        if (firstNode.lecturas && firstNode.lecturas.length > 0) {
-          setCheckedVarKeys(firstNode.lecturas.map(l => l.data_type));
-        } else {
-          setCheckedVarKeys([]);
-        }
+      if (channel) {
+        channel.stopListening('.LecturaRecibida');
+        try { echo.leaveChannel(`telemetry.${serial}`); } catch (_) {}
       }
-    } else {
-      setSelectedTelemetryNodeSerial('');
-      setCheckedVarKeys([]);
+    };
+  }, [appliedSelections, selectedDate, todayDateStr, liveMode, currentTelemetryNode?.serial_number, currentTelemetryNode?.lecturas]);
+
+  // Pre-seleccionar la 1ra variable por defecto si no hay ningún nodo telemétrico seleccionado
+  useEffect(() => {
+    if (currentCategoryNodes.length > 0 && !selectedTelemetryNodeSerial) {
+      const firstNode = currentCategoryNodes[0];
+      setSelectedTelemetryNodeSerial(firstNode.serial_number);
+      if (firstNode.lecturas && firstNode.lecturas.length > 0) {
+        setCheckedVarKeys([firstNode.lecturas[0].data_type]);
+      } else {
+        setCheckedVarKeys([]);
+      }
     }
   }, [currentCategoryNodes, selectedTelemetryNodeSerial]);
 
@@ -871,7 +1251,7 @@ export default function Dashboard() {
       const firstNode = catNodes[0];
       setSelectedTelemetryNodeSerial(firstNode.serial_number);
       if (firstNode.lecturas && firstNode.lecturas.length > 0) {
-        setCheckedVarKeys(firstNode.lecturas.map(l => l.data_type));
+        setCheckedVarKeys([firstNode.lecturas[0].data_type]);
       } else {
         setCheckedVarKeys([]);
       }
@@ -895,31 +1275,72 @@ export default function Dashboard() {
     if (nextNode) {
       setSelectedTelemetryNodeSerial(nextNode.serial_number);
       if (nextNode.lecturas && nextNode.lecturas.length > 0) {
-        setCheckedVarKeys(nextNode.lecturas.map(l => l.data_type));
+        setCheckedVarKeys([nextNode.lecturas[0].data_type]);
       } else {
         setCheckedVarKeys([]);
       }
     }
   };
 
-  // Handlers for variable checkboxes
-  const handleToggleVarKey = (varKey) => {
-    setCheckedVarKeys(prev => {
-      if (prev.includes(varKey)) {
-        return prev.filter(k => k !== varKey);
-      } else {
-        return [...prev, varKey];
+  // Resetear selección a la 1ra variable al cambiar de nodo (preservando la fecha elegida)
+  useEffect(() => {
+    if (currentTelemetryNode?.lecturas && currentTelemetryNode.lecturas.length > 0) {
+      const defaultKey = currentTelemetryNode.lecturas[0].data_type;
+      setCheckedVarKeys(prev => {
+        if (prev.length === 1 && prev[0] === defaultKey) return prev;
+        const availableKeys = currentTelemetryNode.lecturas.map(l => l.data_type);
+        const validPrev = prev.filter(k => availableKeys.includes(k));
+        if (validPrev.length > 0) return prev;
+        return [defaultKey];
+      });
+    } else {
+      setCheckedVarKeys(prev => (prev.length === 0 ? prev : []));
+    }
+  }, [currentTelemetryNode?.serial_number]);
+
+  const handleToggleByUnitMode = () => {
+    setIsByUnitMode(prev => {
+      const nextMode = !prev;
+      if (!nextMode) {
+        // Al desmarcar "Marcar por unidad": si hay 1 sola variable marcada, se queda en la actual.
+        // Si hay 2 o más marcadas, redirige a la primera variable del nodo.
+        if (checkedVarKeys.length > 1) {
+          if (currentTelemetryNode?.lecturas && currentTelemetryNode.lecturas.length > 0) {
+            setCheckedVarKeys([currentTelemetryNode.lecturas[0].data_type]);
+          }
+        }
       }
+      return nextMode;
     });
   };
 
-  const handleSelectAllVars = () => {
-    if (!currentTelemetryNode || !currentTelemetryNode.lecturas) return;
-    setCheckedVarKeys(currentTelemetryNode.lecturas.map(l => l.data_type));
-  };
+  // Handler para selección de variables (Navegación libre por defecto vs Multiselección por Unidad)
+  const handleToggleVarKey = (varKey) => {
+    if (!currentTelemetryNode?.lecturas) return;
+    const targetVar = currentTelemetryNode.lecturas.find(l => l.data_type === varKey);
+    if (!targetVar) return;
 
-  const handleDeselectAllVars = () => {
-    setCheckedVarKeys([]);
+    if (!isByUnitMode) {
+      // Modo Navegación Libre por defecto: muestra únicamente la variable seleccionada sin restricciones de unidad
+      setCheckedVarKeys([varKey]);
+    } else {
+      // Modo Multiselección por Unidad: permite marcar múltiples variables sólo si pertenecen a la misma unidad
+      setCheckedVarKeys(prev => {
+        if (prev.includes(varKey)) {
+          const next = prev.filter(k => k !== varKey);
+          if (next.length === 0) {
+            return [varKey]; // Mantener al menos 1 variable seleccionada
+          }
+          return next;
+        } else {
+          const firstSelected = currentTelemetryNode.lecturas.find(l => prev.includes(l.data_type));
+          if (!firstSelected || firstSelected.unidad === targetVar.unidad) {
+            return [...prev, varKey];
+          }
+          return prev;
+        }
+      });
+    }
   };
 
   const handleRemoveFilter = (index) => {
@@ -946,7 +1367,6 @@ export default function Dashboard() {
 
   const totalNodos = nodos.length;
   const totalUbicaciones = ubicaciones.length;
-  const totalUsuarios = usuarios.length;
   const totalNoticias = noticias.length;
 
   // 1. DOUGHNUT RADIAL PERCENTAGE (Right visual card - Dynamic multi-category distribution)
@@ -983,11 +1403,11 @@ export default function Dashboard() {
   // 2. DOUBLE MONTHLY BAR CHART DATA (Center Card)
   // Months Jan to Sep
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
-  
+
   // Real counts derived from node timestamp IDs
   const realSeries1 = Array(9).fill(0); // Primary Category
   const realSeries2 = Array(9).fill(0); // Others
-  
+
   nodos.forEach(nodo => {
     let date;
     try {
@@ -1032,7 +1452,7 @@ export default function Dashboard() {
       if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
         return d.getDate();
       }
-    } catch(e) {}
+    } catch (e) { }
     return null;
   }).filter(Boolean);
 
@@ -1061,73 +1481,81 @@ export default function Dashboard() {
   const navyWaveOffset = Math.min(totalLecturas * 3, 25);
   const orangeWaveOffset = Math.min(totalNodos * 4, 20);
 
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span className="spinner-dot" style={{ width: '14px', height: '14px', borderRadius: '50%', backgroundColor: '#2563eb', animation: 'ping 1s cubic-bezier(0, 0, 0.2, 1) infinite' }}></span>
+          <span style={{ fontSize: '1.05rem', fontWeight: '600', color: '#475569' }}>
+            {language === 'en' ? 'Loading dashboard...' : 'Cargando dashboard general...'}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-container">
-      
-      {/* HEADER */}
-      <div className="dashboard-header">
-        <h1>Análisis e indicadores en tiempo real de la infraestructura IOT</h1>
-      </div>
 
       {/* TOP ROW: 4 KPI CARDS MATCHING MOCKUP */}
       <div className="kpi-row">
         {/* Card 1: Highlighted Navy Card */}
         <div className="kpi-card highlighted">
           <div className="kpi-card-header">
-            <span className="kpi-card-title">Nodos Activos</span>
+            <span className="kpi-card-title">{language === 'en' ? 'Active Nodes' : 'Nodos Activos'}</span>
             <div className="kpi-card-icon">
               <NodesIcon />
             </div>
           </div>
-          <h2 className="kpi-card-value">{totalNodos}</h2>
+          <h2 className="kpi-card-value notranslate" translate="no">{totalNodos}</h2>
         </div>
 
         {/* Card 2: Ubicaciones */}
         <div className="kpi-card">
           <div className="kpi-card-header">
-            <span className="kpi-card-title">Ubicaciones</span>
+            <span className="kpi-card-title">{language === 'en' ? 'Locations' : 'Ubicaciones'}</span>
             <div className="kpi-card-icon">
               <LocationsIcon />
             </div>
           </div>
-          <h2 className="kpi-card-value">{totalUbicaciones}</h2>
+          <h2 className="kpi-card-value notranslate" translate="no">{totalUbicaciones}</h2>
         </div>
 
         {/* Card 3: Usuarios */}
         <div className="kpi-card">
           <div className="kpi-card-header">
-            <span className="kpi-card-title">Usuarios</span>
+            <span className="kpi-card-title">{language === 'en' ? 'Users' : 'Usuarios'}</span>
             <div className="kpi-card-icon">
               <UsersIcon />
             </div>
           </div>
-          <h2 className="kpi-card-value">{totalUsuarios}</h2>
+          <h2 className="kpi-card-value notranslate" translate="no">{totalUsuarios}</h2>
         </div>
 
         {/* Card 4: Artículos/Noticias */}
         <div className="kpi-card">
           <div className="kpi-card-header">
-            <span className="kpi-card-title">Divulgación</span>
+            <span className="kpi-card-title">{language === 'en' ? 'Dissemination' : 'Divulgación'}</span>
             <div className="kpi-card-icon">
               <StarIcon />
             </div>
           </div>
-          <h2 className="kpi-card-value">{totalNoticias}</h2>
+          <h2 className="kpi-card-value notranslate" translate="no">{totalNoticias}</h2>
         </div>
       </div>
 
       {/* MAIN ROW: COMPARATIVE BAR CHART AND CIRCULAR doughnut */}
       <div className="dashboard-main-grid">
-        
+
         {/* CENTER COLUMN: Leaflet Map */}
         <div className="visual-card" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <div className="visual-card-header" style={{ padding: '1.25rem 1.5rem 0.5rem 1.5rem', marginBottom: '0.5rem', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
             <div>
               <h3 className="visual-card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif", fontSize: '1.15rem', fontWeight: 800, color: '#0f2c59', letterSpacing: '-0.01em' }}>
-                Mapa de Nodos
-                {activeNodos.length > 0 && (
-                  <span style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '12px', background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0', fontWeight: 700 }}>
-                    {activeNodos.length} Activo{activeNodos.length !== 1 ? 's' : ''}
+                {language === 'en' ? 'Node Map' : 'Mapa de Nodos'}
+                {nodos.length > 0 && (
+                  <span style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '12px', background: '#f1f5f9', color: '#0f2c59', border: '1px solid #cbd5e1', fontWeight: 700 }}>
+                    {nodos.length} {language === 'en' ? 'Nodes' : 'Nodo'}{nodos.length !== 1 ? 's' : ''} ({activeNodos.length} {language === 'en' ? 'Active' : 'Activo'}{activeNodos.length !== 1 ? 's' : ''})
                   </span>
                 )}
               </h3>
@@ -1136,39 +1564,39 @@ export default function Dashboard() {
                   <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z" />
                   <circle cx="12" cy="10" r="3" fill={targetNavList[selectedActiveNodeIndex]?.is_online ? "#10b981" : "#64748b"} />
                 </svg>
-                <span style={{ color: '#0f2c59', fontWeight: 700 }}>Ubicación:</span> {currentNodeLocationText}
+                <span style={{ color: '#0f2c59', fontWeight: 700 }}>{language === 'en' ? 'Location:' : 'Ubicación:'}</span> {currentNodeLocationText}
               </span>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', marginRight: '2px' }}>Vista de mapa:</span>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', marginRight: '2px' }}>{language === 'en' ? 'Map View:' : 'Vista de mapa:'}</span>
               {/* Map Layer Switcher Tabs: Mapa | Satélite */}
               <div className="dash-map-style-selector">
                 <button
                   type="button"
                   onClick={() => setMapStyle('google')}
                   className={`dash-btn-style ${mapStyle === 'google' ? 'active' : ''}`}
-                  title="Google Maps Estándar"
+                  title={language === 'en' ? "Standard Google Maps" : "Google Maps Estándar"}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13" style={{ marginRight: '4px' }}>
                     <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
                     <line x1="9" y1="3" x2="9" y2="18" />
                     <line x1="15" y1="6" x2="15" y2="21" />
                   </svg>
-                  Mapa
+                  {language === 'en' ? 'Map' : 'Mapa'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setMapStyle('satellite')}
                   className={`dash-btn-style ${mapStyle === 'satellite' ? 'active' : ''}`}
-                  title="Google Maps Satélite (Híbrido)"
+                  title={language === 'en' ? "Satellite Google Maps" : "Google Maps Satélite (Híbrido)"}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13" style={{ marginRight: '4px' }}>
                     <circle cx="12" cy="12" r="10" />
                     <line x1="2" y1="12" x2="22" y2="12" />
                     <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
                   </svg>
-                  Satélite
+                  {language === 'en' ? 'Satellite' : 'Satélite'}
                 </button>
               </div>
             </div>
@@ -1184,7 +1612,7 @@ export default function Dashboard() {
                   type="button"
                   className="dash-map-nav-btn"
                   onClick={() => handleNavigateNode('prev')}
-                  title="Nodo anterior"
+                  title={language === 'en' ? "Previous node" : "Nodo anterior"}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="16" height="16">
                     <polyline points="15 18 9 12 15 6" />
@@ -1194,16 +1622,18 @@ export default function Dashboard() {
                 <div className="dash-map-nav-info">
                   <span className="dash-map-nav-badge">
                     {targetNavList[selectedActiveNodeIndex]?.is_online && activeNodeNumberMap[targetNavList[selectedActiveNodeIndex]?.serial_number || targetNavList[selectedActiveNodeIndex]?.id] ? (
-                      `Nodo #${activeNodeNumberMap[targetNavList[selectedActiveNodeIndex]?.serial_number || targetNavList[selectedActiveNodeIndex]?.id]} (${selectedActiveNodeIndex + 1}/${targetNavList.length})`
+                      `${language === 'en' ? 'Node' : 'Nodo'} #${activeNodeNumberMap[targetNavList[selectedActiveNodeIndex]?.serial_number || targetNavList[selectedActiveNodeIndex]?.id]} (${selectedActiveNodeIndex + 1}/${targetNavList.length})`
                     ) : (
                       `${selectedActiveNodeIndex + 1} / ${targetNavList.length}`
                     )}
                   </span>
                   <span className="dash-map-nav-name">
-                    {targetNavList[selectedActiveNodeIndex]?.nombre || 'Seleccionando nodo...'}
+                    {targetNavList[selectedActiveNodeIndex]?.nombre || (language === 'en' ? 'Selecting node...' : 'Seleccionando nodo...')}
                   </span>
                   <span className={`dash-map-nav-status ${targetNavList[selectedActiveNodeIndex]?.is_online ? 'online' : 'offline'}`}>
-                    {targetNavList[selectedActiveNodeIndex]?.is_online ? '● Activo' : '○ Offline'}
+                    {targetNavList[selectedActiveNodeIndex]?.is_online
+                      ? (language === 'en' ? '● Online' : '● Activo')
+                      : (language === 'en' ? '○ Offline' : '○ Inactivo')}
                   </span>
                 </div>
 
@@ -1211,7 +1641,7 @@ export default function Dashboard() {
                   type="button"
                   className="dash-map-nav-btn"
                   onClick={() => handleNavigateNode('next')}
-                  title="Siguiente nodo"
+                  title={language === 'en' ? "Next node" : "Siguiente nodo"}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="16" height="16">
                     <polyline points="9 18 15 12 9 6" />
@@ -1226,10 +1656,10 @@ export default function Dashboard() {
         <div className="visual-card">
           <div className="visual-card-header" style={{ marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 className="visual-card-title" style={{ fontFamily: "'Outfit', 'Plus Jakarta Sans', sans-serif", fontSize: '1.15rem', fontWeight: 800, color: '#0f2c59', letterSpacing: '-0.01em' }}>
-              Distribución
+              {language === 'en' ? 'Distribution' : 'Distribución'}
             </h3>
             <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 700, background: '#f1f5f9', padding: '2px 8px', borderRadius: '10px' }}>
-              {categorias.length} Categoría{categorias.length !== 1 ? 's' : ''}
+              <span className="notranslate" translate="no">{categorias.length}</span> {language === 'en' ? 'Categories' : `Categoría${categorias.length !== 1 ? 's' : ''}`}
             </span>
           </div>
 
@@ -1237,9 +1667,9 @@ export default function Dashboard() {
             <div className="radial-progress-ring" style={doughnutGradient}>
               <div className="radial-progress-mask">
                 <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1 }}>
-                  <strong style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f2c59' }}>{totalNodos}</strong>
+                  <strong className="notranslate" translate="no" style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f2c59' }}>{totalNodos}</strong>
                   <small style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginTop: '2px' }}>
-                    {totalNodos === 1 ? 'Nodo' : 'Nodos'}
+                    {totalNodos === 1 ? (language === 'en' ? 'Node' : 'Nodo') : (language === 'en' ? 'Nodes' : 'Nodos')}
                   </small>
                 </span>
               </div>
@@ -1260,14 +1690,16 @@ export default function Dashboard() {
                       </span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                      <span className="radial-list-val" style={{ fontWeight: 800 }}>{count}</span>
-                      <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600 }}>({pct}%)</span>
+                      <span className="radial-list-val notranslate" translate="no" style={{ fontWeight: 800 }}>{count}</span>
+                      <span className="notranslate" translate="no" style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600 }}>({pct}%)</span>
                     </div>
                   </div>
                 );
               })}
               {categorias.length === 0 && (
-                <p className="text-xs text-gray-500 italic text-center py-2">No hay categorías registradas.</p>
+                <p className="text-xs text-gray-500 italic text-center py-2">
+                  {language === 'en' ? 'No registered categories.' : 'No hay categorías registradas.'}
+                </p>
               )}
             </div>
           </div>
@@ -1275,606 +1707,991 @@ export default function Dashboard() {
       </div>
 
       {/* BOTTOM SECTION: TELEMETRY CHART AND NODE NAVIGATION */}
-      <div className="bottom-sections-row">
-        <div className="bottom-widget-card" style={{ display: 'block', width: '100%' }}>
-          <div style={{ background: '#fff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-            
-            {/* SECCIÓN 1: CONTROLES DE NAVEGACIÓN DE ESTACIÓN Y CATEGORÍAS EN LA MISMA LÍNEA */}
-            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px', width: '100%', marginBottom: '1.2rem' }}>
-              
-              {/* Fila Única Horizontal en la Misma Línea */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', width: '100%' }}>
-                
-                {/* SELECTOR 1: Categoría Dropdown (Por defecto Categoría 1) */}
-                <div style={{ position: 'relative', flexShrink: 0 }}>
-                  <button
-                    type="button"
-                    className="dash-select-trigger"
-                    onClick={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
-                    style={{
-                      height: '38px',
-                      padding: '0 14px',
-                      borderRadius: '10px',
-                      border: '1.5px solid #0f2c59',
-                      background: '#0f2c59',
-                      color: '#ffffff',
-                      fontFamily: "'Outfit', 'Inter', sans-serif",
-                      fontWeight: 700,
-                      fontSize: '0.86rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 6px rgba(15, 44, 89, 0.2)'
-                    }}
-                    title="Seleccionar Categoría"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="16" height="16">
-                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                    </svg>
-                    <span>Categoría: <strong>{selectedTelemetryCategory || 'Categoría 1'}</strong></span>
-                    <svg className={`dash-select-chevron ${categoryDropdownOpen ? 'rotated' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-                      <polyline points="6 9 12 15 18 9" />
-                    </svg>
-                  </button>
+      <div className="bottom-sections-row" style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+        <div className="bottom-widget-card" style={{ display: 'block', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+          <div style={{ background: '#fff', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
 
-                  {/* Menú Desplegable de Categorías */}
-                  {categoryDropdownOpen && (
-                    <div className="custom-dropdown-menu" style={{ position: 'absolute', top: '105%', left: 0, minWidth: '240px', zIndex: 1000, boxShadow: '0 10px 25px rgba(0,0,0,0.15)', borderRadius: '12px', background: '#fff', border: '1px solid #cbd5e1', padding: '4px' }}>
-                      <div style={{ maxHeight: '220px', overflowY: 'auto' }}>
-                        {categorias.map((cat, idx) => {
-                          const catNodes = nodos.filter(n => n.categoria === cat.nombre);
-                          const isSel = cat.nombre === selectedTelemetryCategory;
-                          return (
-                            <div
-                              key={cat.id || idx}
-                              onClick={() => handleSelectTelemetryCategory(cat.nombre)}
-                              style={{
-                                padding: '8px 12px',
-                                borderRadius: '8px',
-                                fontSize: '0.83rem',
-                                fontWeight: isSel ? 800 : 600,
-                                color: isSel ? '#2563eb' : '#334155',
-                                background: isSel ? '#eff6ff' : 'transparent',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                marginBottom: '2px'
-                              }}
-                            >
-                              <span>{cat.nombre}</span>
-                              <small style={{ fontSize: '0.72rem', color: catNodes.length > 0 ? '#2563eb' : '#94a3b8', fontStyle: catNodes.length === 0 ? 'italic' : 'normal' }}>
-                                {catNodes.length > 0 ? `(${catNodes.length} nodo${catNodes.length !== 1 ? 's' : ''})` : 'Sin nodos'}
-                              </small>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
+            {/* SECCIÓN 1: CONTROLES DE NAVEGACIÓN Y RUTA DE NODO FIJA */}
+            <div style={{ marginBottom: '1.2rem', width: '100%', maxWidth: '100%', minWidth: 0 }}>
 
-                {/* SI LA CATEGORÍA NO TIENE NODOS */}
-                {currentCategoryNodes.length === 0 ? (
-                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8', fontStyle: 'italic', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '6px 14px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span>⚠️</span> No hay nodos en esta categoría
-                  </div>
-                ) : (
-                  /* SI LA CATEGORÍA SÍ TIENE NODOS: En la misma línea Flechas < > + Selector de Nodos + Ruta */
-                  <>
-                    {/* Flecha Anterior < */}
+              {/* Fila 1: Selectores de Categoría y Nodo */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+
+                  {/* SELECTOR 1: Categoría Dropdown */}
+                  <div ref={categoryDropdownRef} style={{ position: 'relative', flexShrink: 0, zIndex: 100 }}>
                     <button
                       type="button"
-                      className="dash-map-nav-btn"
-                      disabled={currentCategoryNodes.length <= 1}
-                      onClick={() => handleNavigateTelemetryNode('prev')}
-                      title={currentCategoryNodes.length <= 1 ? "No hay más nodos en esta categoría" : "Nodo anterior"}
+                      className="dash-select-trigger"
+                      onClick={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
                       style={{
-                        width: '38px',
                         height: '38px',
+                        padding: '0 14px',
                         borderRadius: '10px',
-                        background: currentCategoryNodes.length <= 1 ? '#f1f5f9' : '#ffffff',
-                        border: '1.5px solid #cbd5e1',
-                        color: currentCategoryNodes.length <= 1 ? '#94a3b8' : '#0f2c59',
-                        cursor: currentCategoryNodes.length <= 1 ? 'not-allowed' : 'pointer',
-                        opacity: currentCategoryNodes.length <= 1 ? 0.45 : 1,
+                        border: '1.5px solid #0f2c59',
+                        background: '#0f2c59',
+                        color: '#ffffff',
+                        fontFamily: "'Outfit', 'Inter', sans-serif",
+                        fontWeight: 700,
+                        fontSize: '0.86rem',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: currentCategoryNodes.length <= 1 ? 'none' : '0 2px 4px rgba(0,0,0,0.04)',
-                        flexShrink: 0,
-                        transition: 'all 0.2s ease'
+                        gap: '8px',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 6px rgba(15, 44, 89, 0.2)'
                       }}
+                      title={language === 'en' ? "Select Category" : "Seleccionar Categoría"}
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="16" height="16">
-                        <polyline points="15 18 9 12 15 6" />
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="16" height="16">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                      </svg>
+                      <span>{language === 'en' ? 'Category:' : 'Categoría:'} <strong>{selectedTelemetryCategory || 'Categoría 1'}</strong></span>
+                      <svg className={`dash-select-chevron ${categoryDropdownOpen ? 'rotated' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                        <polyline points="6 9 12 15 18 9" />
                       </svg>
                     </button>
 
-                    {/* SELECTOR 2: Selector de Nodos Dropdown */}
-                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                    {/* Menú Desplegable de Categorías (Montado por encima con alto zIndex) */}
+                    {categoryDropdownOpen && (
+                      <div className="custom-dropdown-menu" style={{ position: 'absolute', top: '105%', left: 0, minWidth: '240px', zIndex: 10000, boxShadow: '0 12px 30px rgba(0,0,0,0.22)', borderRadius: '12px', background: '#fff', border: '1px solid #cbd5e1', padding: '4px' }}>
+                        <div style={{ maxHeight: '220px', overflowY: 'auto' }}>
+                          {categorias.map((cat, idx) => {
+                            const catNodes = nodos.filter(n => n.categoria === cat.nombre);
+                            const isSel = cat.nombre === selectedTelemetryCategory;
+                            return (
+                              <div
+                                key={cat.id || idx}
+                                onClick={() => handleSelectTelemetryCategory(cat.nombre)}
+                                style={{
+                                  padding: '8px 12px',
+                                  borderRadius: '8px',
+                                  fontSize: '0.83rem',
+                                  fontWeight: isSel ? 800 : 600,
+                                  color: isSel ? '#2563eb' : '#334155',
+                                  background: isSel ? '#eff6ff' : 'transparent',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  marginBottom: '2px'
+                                }}
+                              >
+                                <span>{cat.nombre}</span>
+                                <small style={{ fontSize: '0.72rem', color: catNodes.length > 0 ? '#2563eb' : '#94a3b8', fontStyle: catNodes.length === 0 ? 'italic' : 'normal' }}>
+                                  {catNodes.length > 0 ? `(${catNodes.length} ${language === 'en' ? 'nodes' : 'nodos'})` : (language === 'en' ? 'No nodes' : 'Sin nodos')}
+                                </small>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* SI LA CATEGORÍA NO TIENE NODOS */}
+                  {currentCategoryNodes.length === 0 ? (
+                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8', fontStyle: 'italic', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '6px 14px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" width="16" height="16">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                      {language === 'en' ? 'No nodes in this category' : 'No hay nodos en esta categoría'}
+                    </div>
+                  ) : (
+                    <>
+                      {/* Flecha Anterior < */}
                       <button
                         type="button"
-                        className="dash-select-trigger"
-                        onClick={() => setNodeDropdownOpen(!nodeDropdownOpen)}
-                        style={{ height: '38px', padding: '0 14px', borderRadius: '10px', border: '1.5px solid #2563eb', background: '#eff6ff', color: '#0f2c59', fontFamily: "'Outfit', 'Inter', sans-serif", fontWeight: 800, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', boxShadow: '0 2px 6px rgba(37, 99, 235, 0.12)' }}
+                        className="dash-map-nav-btn"
+                        disabled={currentCategoryNodes.length <= 1}
+                        onClick={() => handleNavigateTelemetryNode('prev')}
+                        title={currentCategoryNodes.length <= 1 ? (language === 'en' ? "No more nodes in this category" : "No hay más nodos en esta categoría") : (language === 'en' ? "Previous node" : "Nodo anterior")}
+                        style={{
+                          width: '38px',
+                          height: '38px',
+                          borderRadius: '10px',
+                          background: currentCategoryNodes.length <= 1 ? '#f1f5f9' : '#ffffff',
+                          border: '1.5px solid #cbd5e1',
+                          color: currentCategoryNodes.length <= 1 ? '#94a3b8' : '#0f2c59',
+                          cursor: currentCategoryNodes.length <= 1 ? 'not-allowed' : 'pointer',
+                          opacity: currentCategoryNodes.length <= 1 ? 0.45 : 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: currentCategoryNodes.length <= 1 ? 'none' : '0 2px 4px rgba(0,0,0,0.04)',
+                          flexShrink: 0,
+                          transition: 'all 0.2s ease'
+                        }}
                       >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" width="16" height="16">
-                          <rect x="2" y="2" width="20" height="8" rx="2" />
-                          <rect x="2" y="14" width="20" height="8" rx="2" />
-                        </svg>
-                        <span>{currentTelemetryNode ? currentTelemetryNode.nombre : 'Seleccionar Nodo'}</span>
-                        <svg className={`dash-select-chevron ${nodeDropdownOpen ? 'rotated' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-                          <polyline points="6 9 12 15 18 9" />
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="16" height="16">
+                          <polyline points="15 18 9 12 15 6" />
                         </svg>
                       </button>
 
-                      {/* Menú Desplegable de Nodos de esta Categoría */}
-                      {nodeDropdownOpen && (
-                        <div className="custom-dropdown-menu" style={{ position: 'absolute', top: '105%', left: 0, minWidth: '260px', zIndex: 1000, boxShadow: '0 12px 30px rgba(0,0,0,0.18)', borderRadius: '12px', background: '#fff', border: '1px solid #cbd5e1', padding: '6px' }}>
-                          <div style={{ maxHeight: '220px', overflowY: 'auto' }}>
-                            {currentCategoryNodes.map((n, idx) => {
-                              const ubiName = n.ubicacion_nombre || ubicaciones.find(u => String(u.id) === String(n.ubicacion_id))?.nombre || 'Campus ULEAM';
-                              const isSelected = n.serial_number === selectedTelemetryNodeSerial;
-                              return (
-                                <div
-                                  key={n.serial_number || idx}
-                                  onClick={() => {
-                                    setSelectedTelemetryNodeSerial(n.serial_number);
-                                    if (n.lecturas && n.lecturas.length > 0) {
-                                      setCheckedVarKeys(n.lecturas.map(l => l.data_type));
-                                    } else {
-                                      setCheckedVarKeys([]);
-                                    }
-                                    setNodeDropdownOpen(false);
-                                  }}
-                                  style={{
-                                    padding: '8px 12px',
-                                    borderRadius: '6px',
-                                    fontSize: '0.82rem',
-                                    fontWeight: isSelected ? 800 : 600,
-                                    color: isSelected ? '#2563eb' : '#334155',
-                                    background: isSelected ? '#eff6ff' : 'transparent',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    marginBottom: '2px'
-                                  }}
-                                >
-                                  <span>{n.nombre}</span>
-                                  <small style={{ fontSize: '0.72rem', color: '#94a3b8' }}>({ubiName})</small>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                      {/* SELECTOR 2: Selector de Nodos Dropdown */}
+                      <div ref={nodeDropdownRef} style={{ position: 'relative', flexShrink: 0, zIndex: 100 }}>
+                        <button
+                          type="button"
+                          className="dash-select-trigger"
+                          onClick={() => setNodeDropdownOpen(!nodeDropdownOpen)}
+                          style={{ height: '38px', padding: '0 14px', borderRadius: '10px', border: '1.5px solid #2563eb', background: '#eff6ff', color: '#0f2c59', fontFamily: "'Outfit', 'Inter', sans-serif", fontWeight: 800, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', boxShadow: '0 2px 6px rgba(37, 99, 235, 0.12)' }}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" width="16" height="16">
+                            <rect x="2" y="2" width="20" height="8" rx="2" />
+                            <rect x="2" y="14" width="20" height="8" rx="2" />
+                          </svg>
+                          <span className="notranslate" translate="no">{currentTelemetryNode ? currentTelemetryNode.nombre : (language === 'en' ? 'Select Node' : 'Seleccionar Nodo')}</span>
+                          <svg className={`dash-select-chevron ${nodeDropdownOpen ? 'rotated' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </button>
 
-                    {/* Flecha Siguiente > */}
+                        {/* Menú Desplegable de Nodos de esta Categoría (Montado por encima con alto zIndex) */}
+                        {nodeDropdownOpen && (
+                          <div className="custom-dropdown-menu" style={{ position: 'absolute', top: '105%', left: 0, minWidth: '280px', zIndex: 10000, boxShadow: '0 12px 30px rgba(0,0,0,0.22)', borderRadius: '12px', background: '#fff', border: '1px solid #cbd5e1', padding: '6px' }}>
+                            <div style={{ maxHeight: '220px', overflowY: 'auto' }}>
+                              {currentCategoryNodes.map((n, idx) => {
+                                const ubiName = n.ubicacion_nombre || ubicaciones.find(u => String(u.id) === String(n.ubicacion_id))?.nombre || 'Campus ULEAM';
+                                const isSelected = n.serial_number === selectedTelemetryNodeSerial;
+                                return (
+                                  <div
+                                    key={n.serial_number || idx}
+                                    onClick={() => {
+                                      if (selectedTelemetryNodeSerial !== n.serial_number) {
+                                        triggerContentLoading();
+                                        setSelectedTelemetryNodeSerial(n.serial_number);
+                                        localStorage.setItem('shared_node_id', String(n.id));
+                                        localStorage.setItem('shared_node_serial', String(n.serial_number));
+                                      }
+                                      if (n.lecturas && n.lecturas.length > 0) {
+                                        setCheckedVarKeys([n.lecturas[0].data_type]);
+                                      } else {
+                                        setCheckedVarKeys([]);
+                                      }
+                                      setNodeDropdownOpen(false);
+                                    }}
+                                    style={{
+                                      padding: '8px 12px',
+                                      borderRadius: '6px',
+                                      fontSize: '0.82rem',
+                                      fontWeight: isSelected ? 800 : 600,
+                                      color: isSelected ? '#2563eb' : '#334155',
+                                      background: isSelected ? '#eff6ff' : 'transparent',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      marginBottom: '2px',
+                                      gap: '8px'
+                                    }}
+                                  >
+                                    <span className="notranslate" translate="no">{n.nombre}</span>
+                                    <small className="notranslate" translate="no" style={{ fontSize: '0.72rem', color: '#94a3b8' }}>({ubiName})</small>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Flecha Siguiente > */}
+                      <button
+                        type="button"
+                        className="dash-map-nav-btn"
+                        disabled={currentCategoryNodes.length <= 1}
+                        onClick={() => handleNavigateTelemetryNode('next')}
+                        title={currentCategoryNodes.length <= 1 ? (language === 'en' ? "No more nodes in this category" : "No hay más nodos en esta categoría") : (language === 'en' ? "Next node" : "Siguiente nodo")}
+                        style={{
+                          width: '38px',
+                          height: '38px',
+                          borderRadius: '10px',
+                          background: currentCategoryNodes.length <= 1 ? '#f1f5f9' : '#ffffff',
+                          border: '1.5px solid #cbd5e1',
+                          color: currentCategoryNodes.length <= 1 ? '#94a3b8' : '#0f2c59',
+                          cursor: currentCategoryNodes.length <= 1 ? 'not-allowed' : 'pointer',
+                          opacity: currentCategoryNodes.length <= 1 ? 0.45 : 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: currentCategoryNodes.length <= 1 ? 'none' : '0 2px 4px rgba(0,0,0,0.04)',
+                          flexShrink: 0,
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="16" height="16">
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {/* Insignia de Estado Activo/Inactivo y Botón de Exportar CSV (Fijos a la Derecha) */}
+                {currentTelemetryNode && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                    <span style={{
+                      background: currentTelemetryNode.is_online ? '#ecfdf5' : '#fef2f2',
+                      color: currentTelemetryNode.is_online ? '#047857' : '#dc2626',
+                      border: currentTelemetryNode.is_online ? '1px solid #a7f3d0' : '1px solid #fca5a5',
+                      padding: '6px 14px',
+                      borderRadius: '10px',
+                      fontSize: '0.82rem',
+                      fontWeight: 800,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      flexShrink: 0
+                    }}>
+                      {currentTelemetryNode.is_online ? '● ' : '○ '}
+                      {currentTelemetryNode.is_online
+                        ? (language === 'en' ? 'Online' : 'Activo')
+                        : (language === 'en' ? 'Offline' : 'Inactivo')}
+                    </span>
+
+                    {/* Botón de Exportar CSV */}
                     <button
                       type="button"
-                      className="dash-map-nav-btn"
-                      disabled={currentCategoryNodes.length <= 1}
-                      onClick={() => handleNavigateTelemetryNode('next')}
-                      title={currentCategoryNodes.length <= 1 ? "No hay más nodos en esta categoría" : "Siguiente nodo"}
+                      onClick={() => setShowExportModal(true)}
+                      title={language === 'en' ? "Export node telemetry to CSV" : "Exportar lecturas de este nodo a CSV"}
                       style={{
-                        width: '38px',
-                        height: '38px',
-                        borderRadius: '10px',
-                        background: currentCategoryNodes.length <= 1 ? '#f1f5f9' : '#ffffff',
-                        border: '1.5px solid #cbd5e1',
-                        color: currentCategoryNodes.length <= 1 ? '#94a3b8' : '#0f2c59',
-                        cursor: currentCategoryNodes.length <= 1 ? 'not-allowed' : 'pointer',
-                        opacity: currentCategoryNodes.length <= 1 ? 0.45 : 1,
-                        display: 'flex',
+                        display: 'inline-flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: currentCategoryNodes.length <= 1 ? 'none' : '0 2px 4px rgba(0,0,0,0.04)',
-                        flexShrink: 0,
-                        transition: 'all 0.2s ease'
+                        gap: '8px',
+                        background: '#eff6ff',
+                        color: '#2563eb',
+                        border: '1px solid #93c5fd',
+                        borderRadius: '10px',
+                        padding: '6px 14px',
+                        fontWeight: 700,
+                        fontSize: '0.82rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 2px 5px rgba(37, 99, 235, 0.08)',
+                        flexShrink: 0
                       }}
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="16" height="16">
-                        <polyline points="9 18 15 12 9 6" />
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" width="16" height="16">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
                       </svg>
+                      <span>{language === 'en' ? 'Export CSV' : 'Exportar CSV'}</span>
                     </button>
-
-                    {/* Ruta Detallada: / Categoría / Ubicación / Nombre del Nodo */}
-                    {currentTelemetryNode && (
-                      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                        <span style={{ color: '#cbd5e1', fontWeight: 800 }}>/</span>
-                        <span style={{ color: '#2563eb', fontWeight: 700 }}>{currentTelemetryNode.categoria || 'IoT'}</span>
-                        <span style={{ color: '#cbd5e1', fontWeight: 800 }}>/</span>
-                        <span style={{ color: '#475569' }}>
-                          {currentTelemetryNode.ubicacion_nombre || ubicaciones.find(u => String(u.id) === String(currentTelemetryNode.ubicacion_id))?.nombre || 'Campus ULEAM'}
-                        </span>
-                        <span style={{ color: '#cbd5e1', fontWeight: 800 }}>/</span>
-                        <strong style={{ color: '#0f2c59' }}>{currentTelemetryNode.nombre}</strong>
-                      </div>
-                    )}
-                  </>
+                  </div>
                 )}
-
               </div>
+
+              {/* Fila 2: BARRA DE RUTA/BREADCRUMB FIJA EN SU PROPIA LÍNEA (SIEMPRE FIJA ABAJO) */}
+              {currentTelemetryNode && (
+                <div style={{ width: '100%', marginTop: '0.75rem', paddingTop: '0.6rem', borderTop: '1px solid #f1f5f9', fontSize: '0.85rem', fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <span style={{ color: '#cbd5e1', fontWeight: 800 }}>/</span>
+                  <span style={{ color: '#2563eb', fontWeight: 700 }}>{currentTelemetryNode.categoria || 'IoT'}</span>
+                  <span style={{ color: '#cbd5e1', fontWeight: 800 }}>/</span>
+                  <span className="notranslate" translate="no" style={{ color: '#475569' }}>
+                    {currentTelemetryNode.ubicacion_nombre || ubicaciones.find(u => String(u.id) === String(currentTelemetryNode.ubicacion_id))?.nombre || 'Campus ULEAM'}
+                  </span>
+                  <span style={{ color: '#cbd5e1', fontWeight: 800 }}>/</span>
+                  <strong className="notranslate" translate="no" style={{ color: '#0f2c59' }}>{currentTelemetryNode.nombre}</strong>
+                </div>
+              )}
+
             </div>
 
-            {/* SECCIÓN 2: CHECKBOXES DE VARIABLES INTERACTIVAS + BOTONES MARCAR TODAS / DESMARCAR (MARCADAS TODAS POR DEFECTO) */}
-            <div style={{ borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', paddingTop: '0.85rem', paddingBottom: '0.85rem', marginBottom: '1.25rem' }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '8px' }}>
-                <label style={{ fontSize: '0.83rem', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span>Variables disponibles:</span>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: '10px' }}>
-                    {checkedVarKeys.length} de {currentTelemetryNode?.lecturas?.length || 0} marcadas
-                  </span>
-                </label>
+            {/* SECCIÓN 2: SELECCIÓN DE VARIABLES EN ÚNICA LÍNEA CON SCROLL + MENÚ DE FECHA SELECCIONABLE */}
+            <div style={{ borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', paddingTop: '0.85rem', paddingBottom: '0.85rem', marginBottom: '1.25rem', width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <label style={{ fontSize: '0.83rem', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>{language === 'en' ? 'Available variables:' : 'Variables disponibles:'}</span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0f2c59', background: '#f1f5f9', padding: '2px 8px', borderRadius: '10px' }}>
+                      <strong className="notranslate" translate="no">{checkedVarKeys.length}</strong> {language === 'en' ? 'of' : 'de'} <strong className="notranslate" translate="no">{currentTelemetryNode?.lecturas?.length || 0}</strong> {language === 'en' ? 'selected' : 'marcadas'}
+                    </span>
+                  </label>
 
-                {/* Botones Marcar Todas / Desmarcar */}
-                {currentTelemetryNode && (currentTelemetryNode.lecturas?.length > 0) && (
-                  (() => {
-                    const allSelected = checkedVarKeys.length === currentTelemetryNode.lecturas.length;
-                    return (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <button
-                          type="button"
-                          onClick={handleSelectAllVars}
-                          style={{
-                            padding: '6px 14px',
-                            borderRadius: '8px',
-                            border: allSelected ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
-                            background: allSelected ? '#2563eb' : '#ffffff',
-                            color: allSelected ? '#ffffff' : '#64748b',
-                            fontSize: '0.78rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            boxShadow: allSelected ? '0 2px 8px rgba(37, 99, 235, 0.25)' : 'none',
-                            transition: 'all 0.2s ease'
-                          }}
-                          title="Marcar todas las variables"
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="12" height="12">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                          Marcar Todas
-                        </button>
+                  {/* Menú Interactivo de Selección de Fecha (Superficie 100% interactiva sin anidamientos de HTML inválidos) */}
+                  <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                    <div
+                      onClick={handleOpenDatePicker}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        background: '#eff6ff',
+                        border: '1.5px solid #2563eb',
+                        padding: '6px 14px',
+                        borderRadius: '10px',
+                        boxShadow: '0 2px 6px rgba(37, 99, 235, 0.12)',
+                        cursor: 'pointer',
+                        fontWeight: 800,
+                        fontSize: '0.82rem',
+                        color: '#0f2c59',
+                        userSelect: 'none',
+                        transition: 'all 0.2s ease',
+                        position: 'relative'
+                      }}
+                      title={language === 'en' ? "Click to select date" : "Click para seleccionar fecha"}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" width="16" height="16" style={{ pointerEvents: 'none' }}>
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                        <line x1="16" y1="2" x2="16" y2="6" />
+                        <line x1="8" y1="2" x2="8" y2="6" />
+                        <line x1="3" y1="10" x2="21" y2="10" />
+                      </svg>
+                      <span className="notranslate" translate="no" style={{ pointerEvents: 'none' }}>
+                        {language === 'en' ? 'Date:' : 'Fecha:'} <strong style={{ color: '#2563eb', pointerEvents: 'none' }}>{selectedDate}</strong>
+                      </span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.5" width="14" height="14" style={{ pointerEvents: 'none' }}>
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
 
-                        <button
-                          type="button"
-                          onClick={handleDeselectAllVars}
-                          style={{
-                            padding: '6px 14px',
-                            borderRadius: '8px',
-                            border: '1px solid #cbd5e1',
-                            background: '#ffffff',
-                            color: '#64748b',
-                            fontSize: '0.78rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease'
-                          }}
-                          title="Desmarcar todas"
-                        >
-                          Desmarcar
-                        </button>
-                      </div>
-                    );
-                  })()
-                )}
+                      <input
+                        ref={dateInputRef}
+                        id="dash-date-picker"
+                        type="date"
+                        value={selectedDate}
+                        max={todayDateStr}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            setSelectedDate(e.target.value);
+                          }
+                        }}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%',
+                          opacity: 0,
+                          cursor: 'pointer',
+                          zIndex: 10
+                        }}
+                      />
+                    </div>
+                    {selectedDate !== todayDateStr && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDate(todayDateStr)}
+                        style={{
+                          marginLeft: '6px',
+                          border: '1px solid #bfdbfe',
+                          background: '#ffffff',
+                          color: '#2563eb',
+                          fontSize: '0.75rem',
+                          fontWeight: 800,
+                          padding: '5px 10px',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                        }}
+                        title={language === 'en' ? 'Reset to today' : 'Volver a la fecha actual'}
+                      >
+                        {language === 'en' ? 'Today' : 'Hoy'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {/* Botón Marcar por Unidad (Alternador de modo Navegación Libre vs Multiselección) */}
+                  {currentTelemetryNode && (currentTelemetryNode.lecturas?.length > 0) && (
+                    <button
+                      type="button"
+                      onClick={handleToggleByUnitMode}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        border: isByUnitMode ? '1.5px solid #2563eb' : '1px solid #cbd5e1',
+                        background: isByUnitMode ? '#2563eb' : '#ffffff',
+                        color: isByUnitMode ? '#ffffff' : '#475569',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: isByUnitMode ? '0 2px 8px rgba(37, 99, 235, 0.25)' : 'none',
+                        transition: 'all 0.2s ease'
+                      }}
+                      title={isByUnitMode ? (language === 'en' ? "Disable unit multi-selection" : "Desactivar multiselección por unidad") : (language === 'en' ? "Enable unit multi-selection" : "Marcar variables por misma unidad de medida")}
+                    >
+                      <span style={{
+                        width: '14px',
+                        height: '14px',
+                        borderRadius: '3px',
+                        border: isByUnitMode ? '1.5px solid #ffffff' : '1.5px solid #64748b',
+                        background: isByUnitMode ? '#2563eb' : '#ffffff',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#ffffff',
+                        fontSize: '10px',
+                        fontWeight: 900
+                      }}>
+                        {isByUnitMode ? '✕' : ''}
+                      </span>
+                      {isByUnitMode
+                        ? (language === 'en' ? 'Mark by Unit (Active)' : 'Marcar por unidad (Activo)')
+                        : (language === 'en' ? 'Mark by Unit' : 'Marcar por unidad')}
+                    </button>
+                  )}
+
+                  {isByUnitMode && activeSelectedUnit && (
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#047857', background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '3px 10px', borderRadius: '8px' }}>
+                      {language === 'en' ? `Active Unit: ${activeSelectedUnit}` : `Unidad activa: ${activeSelectedUnit}`}
+                    </span>
+                  )}
+                </div>
               </div>
 
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+              {/* Lista de Variables en una Sola Línea con Scroll Horizontal Garantizado + Cuadraditos solo si Marcar por Unidad está Activo */}
+              <div className="custom-horizontal-scrollbar" style={{
+                display: 'flex',
+                flexWrap: 'nowrap',
+                overflowX: 'auto',
+                gap: '8px',
+                alignItems: 'center',
+                paddingBottom: '10px',
+                width: '100%',
+                maxWidth: '100%',
+                boxSizing: 'border-box',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'auto',
+                scrollbarColor: '#cbd5e1 #f1f5f9'
+              }}>
                 {currentTelemetryNode?.lecturas && currentTelemetryNode.lecturas.length > 0 ? (
                   currentTelemetryNode.lecturas.map((l, idx) => {
                     const isChecked = checkedVarKeys.includes(l.data_type);
+                    const isSameUnit = !activeSelectedUnit || l.unidad === activeSelectedUnit;
                     const palette = ['#10b981', '#3b82f6', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308', '#6366f1'];
                     const mainColor = palette[idx % palette.length];
+
+                    // Bloqueo de mouse sólo aplica en modo Multiselección "Marcar por Unidad"
+                    const isBlocked = isByUnitMode && !isChecked && !isSameUnit;
+                    const tooltipText = isBlocked
+                      ? (language === 'en' ? `Different measurement units (${l.unidad} vs ${activeSelectedUnit})` : `Unidades de medidas diferentes (${l.unidad} vs ${activeSelectedUnit})`)
+                      : isByUnitMode
+                        ? (isChecked
+                          ? (language === 'en' ? 'Click to deselect variable' : 'Click para desmarcar variable')
+                          : (language === 'en' ? 'Click to select and compare variable' : 'Click para seleccionar y comparar variable'))
+                        : (language === 'en' ? `Show ${l.tipo} (${l.unidad})` : `Mostrar ${l.tipo} (${l.unidad})`);
+
                     return (
-                      <button key={l.data_type} type="button" onClick={() => handleToggleVarKey(l.data_type)} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 14px', borderRadius: '20px', border: `1.5px solid ${isChecked ? mainColor : '#cbd5e1'}`, background: isChecked ? `${mainColor}14` : '#ffffff', color: isChecked ? '#0f2c59' : '#64748b', fontSize: '0.83rem', fontWeight: isChecked ? 800 : 600, cursor: 'pointer' }}>
-                        <span style={{ width: '16px', height: '16px', borderRadius: '4px', border: `1.5px solid ${isChecked ? mainColor : '#94a3b8'}`, background: isChecked ? mainColor : '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', fontSize: '10px', fontWeight: 900 }}>{isChecked && '✓'}</span>
+                      <button
+                        key={l.data_type}
+                        type="button"
+                        disabled={isBlocked}
+                        onClick={() => !isBlocked && handleToggleVarKey(l.data_type)}
+                        title={tooltipText}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '6px 14px',
+                          borderRadius: '20px',
+                          border: `1.5px solid ${isBlocked ? '#cbd5e1' : isChecked ? mainColor : '#cbd5e1'}`,
+                          background: isBlocked ? '#f8fafc' : isChecked ? `${mainColor}14` : '#ffffff',
+                          color: isBlocked ? '#94a3b8' : isChecked ? '#0f2c59' : '#475569',
+                          fontSize: '0.83rem',
+                          fontWeight: isChecked ? 800 : 600,
+                          cursor: isBlocked ? 'not-allowed' : 'pointer',
+                          opacity: isBlocked ? 0.6 : 1,
+                          boxShadow: isChecked ? `0 2px 6px ${mainColor}25` : 'none',
+                          transition: 'all 0.2s ease',
+                          flexShrink: 0,
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {/* El cuadradito de selección solo aparece cuando "Marcar por unidad" está ACTIVO */}
+                        {isByUnitMode && (
+                          <span style={{ width: '16px', height: '16px', borderRadius: '4px', border: `1.5px solid ${isBlocked ? '#cbd5e1' : isChecked ? mainColor : '#94a3b8'}`, background: isBlocked ? '#f1f5f9' : isChecked ? mainColor : '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', fontSize: '10px', fontWeight: 900 }}>
+                            {isChecked ? '✓' : isBlocked ? '✕' : ''}
+                          </span>
+                        )}
                         <span>{l.tipo} <small style={{ opacity: 0.75, fontWeight: 700 }}>({l.unidad})</small></span>
                       </button>
                     );
                   })
                 ) : (
-                  <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>Este nodo no tiene variables de telemetría registradas.</span>
+                  <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                    {language === 'en' ? 'This node has no registered telemetry variables.' : 'Este nodo no tiene variables de telemetría registradas.'}
+                  </span>
                 )}
               </div>
             </div>
 
-            {/* SECCIÓN 3: GRÁFICO RECHARTS Y CONMUTADOR DE VISTA EN LA MISMA LÍNEA DEL ENCABEZADO */}
-            <div style={{ background: '#fff', borderRadius: '12px', padding: '1.2rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-              
-              {/* Encabezado del gráfico: Leyendas + Conmutador de Vista (Área, Barras, Líneas) en la misma línea */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.85rem' }}>
+            {/* SECCIÓN 3: GRÁFICO RECHARTS DUAL-AXIS Y LEYENDAS MULTIVARIABLE */}
+            <div className="dashboard-chart-card" style={{ background: '#fff', borderRadius: '12px', padding: '1.2rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+
+              {/* Encabezado del gráfico: Leyendas claras para cada variable + Paginación + Conmutador de Vista */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.85rem', flexWrap: 'wrap', gap: '10px' }}>
                 <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                   {appliedSelections.map((sel, idx) => {
                     const palette = ['#10b981', '#3b82f6', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308', '#6366f1'];
-                    const color = palette[idx % palette.length];
+                    const origIdx = currentTelemetryNode?.lecturas?.findIndex(l => l.data_type === sel.clave_mqtt) ?? -1;
+                    const color = origIdx >= 0 ? palette[origIdx % palette.length] : palette[idx % palette.length];
+                    const axisId = getAxisForSelection(sel);
                     return (
                       <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.88rem', fontWeight: '600', color: '#334155' }}>
                         <div style={{ width: '12px', height: '12px', borderRadius: '3px', backgroundColor: color }} />
                         <span>{sel.nombre_var} <small style={{ opacity: 0.75, fontWeight: 700 }}>({sel.unidad})</small></span>
+                        {hasRightAxisVariables && (
+                          <span style={{ fontSize: '0.68rem', padding: '1px 5px', borderRadius: '6px', background: axisId === 'right' ? '#ffedd5' : '#d1fae5', color: axisId === 'right' ? '#c2410c' : '#047857', fontWeight: 800 }}>
+                            {axisId === 'right' ? (language === 'en' ? 'Right Axis' : 'Eje Der.') : (language === 'en' ? 'Left Axis' : 'Eje Izq.')}
+                          </span>
+                        )}
                       </div>
                     );
                   })}
                   {appliedSelections.length === 0 && (
-                    <span style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 600 }}>Sin métricas marcadas</span>
+                    <span style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 600 }}>
+                      {language === 'en' ? 'No variables checked' : 'Sin métricas marcadas'}
+                    </span>
                   )}
                 </div>
 
-                {/* Conmutador de Modo de Gráfico en la misma línea del gráfico */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', padding: '4px 8px', borderRadius: '10px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', marginRight: '4px' }}>Vista:</span>
-                  
-                  <button
-                    type="button"
-                    onClick={() => setChartMode('area')}
-                    className={`dash-btn-style ${chartMode === 'area' ? 'active' : ''}`}
-                    style={{ padding: '5px 10px', borderRadius: '7px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
-                    title="Gráfico de Área"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="16" height="16">
-                      <path d="M3 3v18h18" />
-                      <path d="M7 15l4-5 4 3 5-7v9H7z" fill="currentColor" fillOpacity="0.25" />
-                      <path d="M7 15l4-5 4 3 5-7" />
-                    </svg>
-                  </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  {/* Selector de Lecturas a Mostrar */}
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '3px 10px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', whiteSpace: 'nowrap' }}>
+                      {language === 'en' ? 'Readings to show:' : 'Lecturas a mostrar:'}
+                    </span>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '7px', padding: '1px 3px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setMaxReadingsToShow(prev => Math.max(1, prev - 1))}
+                        disabled={maxReadingsToShow <= 1}
+                        style={{ border: 'none', background: 'none', color: maxReadingsToShow <= 1 ? '#cbd5e1' : '#0f2c59', fontWeight: 900, cursor: maxReadingsToShow <= 1 ? 'not-allowed' : 'pointer', padding: '1px 5px', fontSize: '0.78rem' }}
+                      >
+                        ▼
+                      </button>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 900, color: '#2563eb', minWidth: '20px', textAlign: 'center' }}>
+                        {maxReadingsToShow}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setMaxReadingsToShow(prev => Math.min(15, prev + 1))}
+                        disabled={maxReadingsToShow >= 15}
+                        style={{ border: 'none', background: 'none', color: maxReadingsToShow >= 15 ? '#cbd5e1' : '#0f2c59', fontWeight: 900, cursor: maxReadingsToShow >= 15 ? 'not-allowed' : 'pointer', padding: '1px 5px', fontSize: '0.78rem' }}
+                      >
+                        ▲
+                      </button>
+                    </div>
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setChartMode('bar')}
-                    className={`dash-btn-style ${chartMode === 'bar' ? 'active' : ''}`}
-                    style={{ padding: '5px 10px', borderRadius: '7px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
-                    title="Gráfico de Barras"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="16" height="16">
-                      <rect x="5" y="11" width="3" height="9" rx="1" fill="currentColor" fillOpacity="0.3" />
-                      <rect x="11" y="6" width="3" height="14" rx="1" fill="currentColor" fillOpacity="0.3" />
-                      <rect x="17" y="14" width="3" height="6" rx="1" fill="currentColor" fillOpacity="0.3" />
-                      <path d="M3 21h18" />
-                    </svg>
-                  </button>
+                  {/* Paginador */}
+                  {showPagination && (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '3px 10px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                      <button
+                        type="button"
+                        onClick={handlePrevPage}
+                        disabled={!canGoPrev}
+                        style={{ padding: '3px 8px', fontSize: '0.78rem', fontWeight: 700, borderRadius: '6px', border: '1px solid #cbd5e1', background: canGoPrev ? '#ffffff' : '#f1f5f9', color: canGoPrev ? '#0f2c59' : '#94a3b8', cursor: canGoPrev ? 'pointer' : 'not-allowed' }}
+                      >
+                        ◀ {language === 'en' ? 'Prev' : 'Ant.'}
+                      </button>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', whiteSpace: 'nowrap' }}>
+                        {startIndex} - {endIndex} / {liveData.length}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleNextPage}
+                        disabled={!canGoNext}
+                        style={{ padding: '3px 8px', fontSize: '0.78rem', fontWeight: 700, borderRadius: '6px', border: '1px solid #cbd5e1', background: canGoNext ? '#ffffff' : '#f1f5f9', color: canGoNext ? '#0f2c59' : '#94a3b8', cursor: canGoNext ? 'pointer' : 'not-allowed' }}
+                      >
+                        {language === 'en' ? 'Next' : 'Sig.'} ▶
+                      </button>
+                    </div>
+                  )}
 
-                  <button
-                    type="button"
-                    onClick={() => setChartMode('line')}
-                    className={`dash-btn-style ${chartMode === 'line' ? 'active' : ''}`}
-                    style={{ padding: '5px 10px', borderRadius: '7px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
-                    title="Gráfico de Líneas"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
-                      <path d="M3 3v18h18" />
-                      <polyline points="6 15 11 9 15 13 21 6" />
-                      <circle cx="6" cy="15" r="2" fill="currentColor" />
-                      <circle cx="11" cy="9" r="2" fill="currentColor" />
-                      <circle cx="15" cy="13" r="2" fill="currentColor" />
-                      <circle cx="21" cy="6" r="2" fill="currentColor" />
-                    </svg>
-                  </button>
+                  {/* Conmutador de Modo de Gráfico & Botón Reloj (En vivo / BD) */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', padding: '4px 8px', borderRadius: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setLiveMode(prev => !prev)}
+                      className={`dash-btn-style ${liveMode ? 'active' : ''}`}
+                      style={{ 
+                        padding: '5px 10px', 
+                        borderRadius: '7px', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '4px', 
+                        cursor: 'pointer',
+                        backgroundColor: liveMode ? '#2563eb' : '#ffffff',
+                        color: liveMode ? '#ffffff' : '#2563eb',
+                        border: '1px solid #2563eb',
+                        transition: 'all 0.2s ease'
+                      }}
+                      title={
+                        liveMode
+                          ? (language === 'en' ? 'Showing Live Data (Click for DB data)' : 'Mostrando Datos en Vivo (Clic para ver Base de Datos)')
+                          : (language === 'en' ? 'Showing DB Data (Click for Live data)' : 'Mostrando Base de Datos (Clic para ver Datos en Vivo)')
+                      }
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                      </svg>
+                    </button>
+
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', margin: '0 2px 0 4px' }}>{language === 'en' ? 'View:' : 'Vista:'}</span>
+                    <button type="button" onClick={() => setChartMode('area')} className={`dash-btn-style ${chartMode === 'area' ? 'active' : ''}`} style={{ padding: '5px 10px', borderRadius: '7px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }} title={language === 'en' ? "Area Chart" : "Gráfico de Área"}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="16" height="16"><path d="M3 3v18h18" /><path d="M7 15l4-5 4 3 5-7v9H7z" fill="currentColor" fillOpacity="0.25" /><path d="M7 15l4-5 4 3 5-7" /></svg>
+                    </button>
+                    <button type="button" onClick={() => setChartMode('bar')} className={`dash-btn-style ${chartMode === 'bar' ? 'active' : ''}`} style={{ padding: '5px 10px', borderRadius: '7px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }} title={language === 'en' ? "Bar Chart" : "Gráfico de Barras"}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="16" height="16"><rect x="5" y="11" width="3" height="9" rx="1" fill="currentColor" fillOpacity="0.3" /><rect x="11" y="6" width="3" height="14" rx="1" fill="currentColor" fillOpacity="0.3" /><rect x="17" y="14" width="3" height="6" rx="1" fill="currentColor" fillOpacity="0.3" /><path d="M3 21h18" /></svg>
+                    </button>
+                    <button type="button" onClick={() => setChartMode('line')} className={`dash-btn-style ${chartMode === 'line' ? 'active' : ''}`} style={{ padding: '5px 10px', borderRadius: '7px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }} title={language === 'en' ? "Line Chart" : "Gráfico de Líneas"}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16"><path d="M3 3v18h18" /><polyline points="6 15 11 9 15 13 21 6" /><circle cx="6" cy="15" r="2" fill="currentColor" /><circle cx="11" cy="9" r="2" fill="currentColor" /><circle cx="15" cy="13" r="2" fill="currentColor" /><circle cx="21" cy="6" r="2" fill="currentColor" /></svg>
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Área del Gráfico */}
-              <div style={{ width: '100%', height: '350px', position: 'relative' }}>
+              {/* Área del Gráfico con Leyenda Recharts Incluida */}
+              <div style={{ width: '100%', maxWidth: '100%', minWidth: 0, height: '380px', position: 'relative', overflow: 'hidden' }}>
                 {appliedSelections.length === 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', background: '#f8fafc', borderRadius: '12px', border: '2px dashed #cbd5e1', color: '#64748b', gap: '12px', padding: '2rem', textAlign: 'center' }}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.8" width="48" height="48"><path d="M3 3v18h18" /><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" strokeDasharray="3 3" /><circle cx="12" cy="12" r="9" stroke="#cbd5e1" strokeDasharray="2 2" /></svg>
                     <div>
-                      <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f2c59' }}>Sin variables seleccionadas</h4>
-                      <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>Selecciona un nodo y marca una o varias de sus variables arriba para visualizar sus curvas en tiempo real.</p>
+                      <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f2c59' }}>{language === 'en' ? 'No variables selected' : 'Sin variables seleccionadas'}</h4>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>{language === 'en' ? 'Select a node and check one or more variables above with the same measurement unit to visualize.' : 'Selecciona un nodo y marca una o varias de sus variables arriba con la misma unidad de medida para visualizar.'}</p>
+                    </div>
+                  </div>
+                ) : visibleLiveData.length === 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1', color: '#64748b', gap: '10px', padding: '2rem', textAlign: 'center' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.8" width="44" height="44">
+                      <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+                      <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+                    </svg>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#0f2c59' }}>
+                        {selectedDate === todayDateStr
+                          ? (language === 'en' ? 'No readings received today' : 'El día de hoy no se han recibido lecturas')
+                          : (language === 'en' ? `No readings received on ${selectedDate}` : `En la fecha ${selectedDate} no se han recibido lecturas`)}
+                      </h4>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: '#64748b' }}>
+                        {language === 'en' ? 'Try selecting another date from the date picker menu above.' : 'Prueba seleccionando otra fecha desde el menú de fecha de arriba.'}
+                      </p>
                     </div>
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    {chartMode === 'area' ? (
-                      <AreaChart data={liveData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="time" tick={{fontSize: 11, fill: '#94a3b8'}} tickMargin={10} axisLine={{stroke: '#e2e8f0'}} tickLine={false} />
-                        <YAxis tick={{fontSize: 11, fill: '#64748b'}} axisLine={false} tickLine={false} />
-                        <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
-                        {appliedSelections.map((sel, idx) => {
-                          const palette = ['#10b981', '#3b82f6', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308', '#6366f1'];
-                          const color = palette[idx % palette.length];
-                          return <Area key={sel.clave_mqtt} connectNulls={true} type="monotone" name={`${sel.nombre_var} (${sel.unidad})`} dataKey={`${sel.serial_number}_${sel.clave_mqtt}`} stroke={color} fillOpacity={0.2} fill={color} strokeWidth={2.5} isAnimationActive={false} />;
-                        })}
-                      </AreaChart>
-                    ) : chartMode === 'bar' ? (
-                      <BarChart data={liveData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="time" tick={{fontSize: 11, fill: '#94a3b8'}} tickMargin={10} axisLine={{stroke: '#e2e8f0'}} tickLine={false} />
-                        <YAxis tick={{fontSize: 11, fill: '#64748b'}} axisLine={false} tickLine={false} />
-                        <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
-                        {appliedSelections.map((sel, idx) => {
-                          const palette = ['#10b981', '#3b82f6', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308', '#6366f1'];
-                          const color = palette[idx % palette.length];
-                          return <Bar key={sel.clave_mqtt} name={`${sel.nombre_var} (${sel.unidad})`} dataKey={`${sel.serial_number}_${sel.clave_mqtt}`} fill={color} radius={[4, 4, 0, 0]} isAnimationActive={false} />;
-                        })}
-                      </BarChart>
-                    ) : (
-                      <LineChart data={liveData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="time" tick={{fontSize: 11, fill: '#94a3b8'}} tickMargin={10} axisLine={{stroke: '#e2e8f0'}} tickLine={false} />
-                        <YAxis tick={{fontSize: 11, fill: '#64748b'}} axisLine={false} tickLine={false} />
-                        <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
-                        {appliedSelections.map((sel, idx) => {
-                          const palette = ['#10b981', '#3b82f6', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308', '#6366f1'];
-                          const color = palette[idx % palette.length];
-                          return <Line key={sel.clave_mqtt} connectNulls={true} type="monotone" name={`${sel.nombre_var} (${sel.unidad})`} dataKey={`${sel.serial_number}_${sel.clave_mqtt}`} stroke={color} strokeWidth={2.5} dot={{ r: 3, fill: color }} isAnimationActive={false} />;
-                        })}
-                      </LineChart>
-                    )}
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    {(() => {
+                      const palette = ['#10b981', '#3b82f6', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308', '#6366f1'];
+                      const firstSel = appliedSelections[0];
+                      const firstOrigIdx = firstSel ? (currentTelemetryNode?.lecturas?.findIndex(l => l.data_type === firstSel.clave_mqtt) ?? 0) : 0;
+                      const leftAxisColor = palette[(firstOrigIdx >= 0 ? firstOrigIdx : 0) % palette.length];
+
+                      return chartMode === 'area' ? (
+                        <AreaChart data={visibleLiveData} margin={{ top: 10, right: hasRightAxisVariables ? 15 : 10, left: 0, bottom: 25 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={true} stroke="#f1f5f9" />
+                          <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#475569', fontWeight: 600 }} angle={-35} textAnchor="end" height={55} tickMargin={10} axisLine={{ stroke: '#64748b', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.5 }} padding={{ left: 0, right: 0 }} />
+                          <YAxis yAxisId="left" orientation="left" tick={{ fontSize: 11, fill: leftAxisColor, fontWeight: 700 }} axisLine={{ stroke: '#64748b', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.5 }} width={45} />
+                          {hasRightAxisVariables && <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#f97316', fontWeight: 700 }} axisLine={{ stroke: '#64748b', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.5 }} width={50} />}
+                          <Tooltip contentStyle={{ borderRadius: '10px', border: '1px solid #cbd5e1', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', background: '#ffffff', fontWeight: 700 }} labelStyle={{ fontWeight: 800, color: '#0f2c59', marginBottom: '4px' }} cursor={{ stroke: '#2563eb', strokeWidth: 1.5, strokeDasharray: '4 4' }} />
+                          <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '0.82rem', fontWeight: 700 }} />
+                          {appliedSelections.map((sel, idx) => {
+                            const origIdx = currentTelemetryNode?.lecturas?.findIndex(l => l.data_type === sel.clave_mqtt) ?? -1;
+                            const color = origIdx >= 0 ? palette[origIdx % palette.length] : palette[idx % palette.length];
+                            const axisId = getAxisForSelection(sel);
+                            return (
+                              <Area
+                                key={sel.clave_mqtt}
+                                yAxisId={axisId}
+                                connectNulls={true}
+                                type="monotone"
+                                name={`${sel.nombre_var} (${sel.unidad})`}
+                                dataKey={`${sel.serial_number}_${sel.clave_mqtt}`}
+                                stroke={color}
+                                fillOpacity={0.2}
+                                fill={color}
+                                strokeWidth={2.5}
+                                dot={{ r: 4, fill: color, strokeWidth: 1.5, stroke: '#ffffff' }}
+                                activeDot={{ r: 8, fill: color, strokeWidth: 3, stroke: '#ffffff' }}
+                                isAnimationActive={false}
+                              />
+                            );
+                          })}
+                        </AreaChart>
+                      ) : chartMode === 'bar' ? (
+                        <BarChart data={visibleLiveData} margin={{ top: 10, right: hasRightAxisVariables ? 15 : 10, left: 0, bottom: 25 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={true} stroke="#f1f5f9" />
+                          <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#475569', fontWeight: 600 }} angle={-35} textAnchor="end" height={55} tickMargin={10} axisLine={{ stroke: '#64748b', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.5 }} padding={{ left: 0, right: 0 }} />
+                          <YAxis yAxisId="left" orientation="left" tick={{ fontSize: 11, fill: leftAxisColor, fontWeight: 700 }} axisLine={{ stroke: '#64748b', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.5 }} width={45} />
+                          {hasRightAxisVariables && <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#f97316', fontWeight: 700 }} axisLine={{ stroke: '#64748b', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.5 }} width={50} />}
+                          <Tooltip contentStyle={{ borderRadius: '10px', border: '1px solid #cbd5e1', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', background: '#ffffff', fontWeight: 700 }} labelStyle={{ fontWeight: 800, color: '#0f2c59', marginBottom: '4px' }} cursor={{ fill: 'rgba(37, 99, 235, 0.06)' }} />
+                          <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '0.82rem', fontWeight: 700 }} />
+                          {appliedSelections.map((sel, idx) => {
+                            const origIdx = currentTelemetryNode?.lecturas?.findIndex(l => l.data_type === sel.clave_mqtt) ?? -1;
+                            const color = origIdx >= 0 ? palette[origIdx % palette.length] : palette[idx % palette.length];
+                            const axisId = getAxisForSelection(sel);
+                            return (
+                              <Bar
+                                key={sel.clave_mqtt}
+                                yAxisId={axisId}
+                                name={`${sel.nombre_var} (${sel.unidad})`}
+                                dataKey={`${sel.serial_number}_${sel.clave_mqtt}`}
+                                fill={color}
+                                radius={[4, 4, 0, 0]}
+                                activeBar={{ stroke: '#0f2c59', strokeWidth: 2, fillOpacity: 0.95 }}
+                                isAnimationActive={false}
+                              />
+                            );
+                          })}
+                        </BarChart>
+                      ) : (
+                        <LineChart data={visibleLiveData} margin={{ top: 10, right: hasRightAxisVariables ? 15 : 10, left: 0, bottom: 25 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#64748b" strokeOpacity={0.4} />
+                          <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#475569', fontWeight: 600 }} angle={-35} textAnchor="end" height={55} tickMargin={10} axisLine={{ stroke: '#64748b', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.5 }} padding={{ left: 0, right: 0 }} />
+                          <YAxis yAxisId="left" orientation="left" tick={{ fontSize: 11, fill: leftAxisColor, fontWeight: 700 }} axisLine={{ stroke: '#64748b', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.5 }} width={45} />
+                          {hasRightAxisVariables && <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#f97316', fontWeight: 700 }} axisLine={{ stroke: '#64748b', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.5 }} width={50} />}
+                          <Tooltip contentStyle={{ borderRadius: '10px', border: '1px solid #cbd5e1', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', background: '#ffffff', fontWeight: 700 }} labelStyle={{ fontWeight: 800, color: '#0f2c59', marginBottom: '4px' }} cursor={{ stroke: '#2563eb', strokeWidth: 1.5, strokeDasharray: '4 4' }} />
+                          <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '0.82rem', fontWeight: 700 }} />
+                          {appliedSelections.map((sel, idx) => {
+                            const origIdx = currentTelemetryNode?.lecturas?.findIndex(l => l.data_type === sel.clave_mqtt) ?? -1;
+                            const color = origIdx >= 0 ? palette[origIdx % palette.length] : palette[idx % palette.length];
+                            const axisId = getAxisForSelection(sel);
+                            return (
+                              <Line
+                                key={sel.clave_mqtt}
+                                yAxisId={axisId}
+                                connectNulls={true}
+                                type="monotone"
+                                name={`${sel.nombre_var} (${sel.unidad})`}
+                                dataKey={`${sel.serial_number}_${sel.clave_mqtt}`}
+                                stroke={color}
+                                strokeWidth={2.5}
+                                dot={{ r: 4, fill: color, strokeWidth: 1.5, stroke: '#ffffff' }}
+                                activeDot={{ r: 8, fill: color, strokeWidth: 3, stroke: '#ffffff' }}
+                                isAnimationActive={false}
+                              />
+                            );
+                          })}
+                        </LineChart>
+                      );
+                    })()}
                   </ResponsiveContainer>
                 )}
               </div>
             </div>
 
-            {/* SECCIÓN 4: TARJETAS DE ESTADÍSTICAS (KPIs Con SVG de Alerta Exclusivo Identico a VisualizarMapa) */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginTop: '2rem' }}>
-              {appliedSelections.map((sel, idx) => {
-                const palette = ['#10b981', '#3b82f6', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#eab308', '#6366f1'];
-                const color = palette[idx % palette.length];
-                const dataKey = `${sel.serial_number}_${sel.clave_mqtt}`;
-                let current = 0;
-                let lastTimestampStr = '';
+            {/* SECCIÓN 4: TARJETAS DE ESTADÍSTICAS PARA TODAS LAS VARIABLES SEGÚN FECHA SELECCIONADA (ESTILO EN VIVO) */}
+            <div style={{ marginTop: '2rem' }}>
+              <div style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f2c59', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" width="20" height="20">
+                    <line x1="18" y1="20" x2="18" y2="10" />
+                    <line x1="12" y1="20" x2="12" y2="4" />
+                    <line x1="6" y1="20" x2="6" y2="14" />
+                  </svg>
+                  <span>
+                    {language === 'en' ? 'Readings for all node variables (' : 'Lecturas de todas las variables ('}
+                    <strong className="notranslate" translate="no" style={{ color: '#2563eb' }}>
+                      {selectedDate === todayDateStr ? (language === 'en' ? 'Today' : 'Día de hoy') : selectedDate}
+                    </strong>
+                    )
+                  </span>
+                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>
+                    {language === 'en' ? 'Node:' : 'Nodo:'} <strong className="notranslate" translate="no" style={{ color: '#2563eb' }}>{currentTelemetryNode?.nombre}</strong>
+                  </span>
+                  <span style={{
+                    background: currentTelemetryNode?.is_online ? '#ecfdf5' : '#fef2f2',
+                    color: currentTelemetryNode?.is_online ? '#047857' : '#dc2626',
+                    border: currentTelemetryNode?.is_online ? '1px solid #a7f3d0' : '1px solid #fca5a5',
+                    padding: '2px 8px',
+                    borderRadius: '8px',
+                    fontSize: '0.72rem',
+                    fontWeight: 800,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '3px'
+                  }}>
+                    {currentTelemetryNode?.is_online ? '● ' : '○ '}
+                    {currentTelemetryNode?.is_online
+                      ? (language === 'en' ? 'Online' : 'Activo')
+                      : (language === 'en' ? 'Offline' : 'Inactivo')}
+                  </span>
+                </div>
+              </div>
 
-                if (liveData.length > 0) {
-                  for (let k = liveData.length - 1; k >= 0; k--) {
-                    const item = liveData[k];
-                    if (item && item[dataKey] !== undefined && item[dataKey] !== null) {
-                      current = item[dataKey];
-                      if (item.fullDateTime) {
-                        lastTimestampStr = item.fullDateTime;
-                      } else {
-                        lastTimestampStr = formatEcuadorDateTime(item.fecha || item.created_at || item.dateTime || item.timestamp || item.time);
+              <div className="monitor-kpi-grid">
+                {currentTelemetryNode?.lecturas && currentTelemetryNode.lecturas.length > 0 ? (
+                  currentTelemetryNode.lecturas.map((lecturaObj, idx) => {
+                    const theme = getTheme(lecturaObj.data_type, lecturaObj.icono);
+                    const dataKey = `${currentTelemetryNode.serial_number}_${lecturaObj.data_type}`;
+
+                    let currentVal = null;
+                    let lastTimestampStr = '';
+
+                    if (allVarsLiveData && allVarsLiveData.length > 0) {
+                      for (let k = allVarsLiveData.length - 1; k >= 0; k--) {
+                        const item = allVarsLiveData[k];
+                        if (item && item[dataKey] !== undefined && item[dataKey] !== null) {
+                          currentVal = item[dataKey];
+                          if (item.fullDateTime) {
+                            lastTimestampStr = item.fullDateTime;
+                          } else {
+                            lastTimestampStr = formatEcuadorDateTime(item.fecha || item.created_at || item.dateTime || item.timestamp || item.time);
+                          }
+                          break;
+                        }
                       }
-                      break;
                     }
-                  }
-                }
 
-                // Obtener objeto de lectura para evaluar rangos y alertas idéntico a VisualizarMapa.jsx
-                const lecturaObj = currentTelemetryNode?.lecturas?.find(l => l.data_type === sel.clave_mqtt);
-                
-                if (!lastTimestampStr && lecturaObj) {
-                  lastTimestampStr = formatEcuadorDateTime(lecturaObj.created_at || lecturaObj.updated_at || lecturaObj.fecha || lecturaObj.time);
-                }
-                
-                const minExp = (lecturaObj?.minExpected !== undefined && lecturaObj?.minExpected !== null && lecturaObj?.minExpected !== '')
-                  ? parseFloat(lecturaObj.minExpected)
-                  : (lecturaObj?.min_expected !== undefined && lecturaObj?.min_expected !== null && lecturaObj?.min_expected !== '')
-                    ? parseFloat(lecturaObj.min_expected)
-                    : (lecturaObj?.min_alerta !== undefined && lecturaObj?.min_alerta !== null && lecturaObj?.min_alerta !== '')
-                      ? parseFloat(lecturaObj.min_alerta)
-                      : (lecturaObj?.valor_minimo !== undefined && lecturaObj?.valor_minimo !== null && lecturaObj?.valor_minimo !== '')
-                        ? parseFloat(lecturaObj.valor_minimo)
-                        : (lecturaObj?.min !== undefined && lecturaObj?.min !== null && lecturaObj?.min !== '')
-                          ? parseFloat(lecturaObj.min)
-                          : null;
+                    const hasReading = currentVal !== null && currentVal !== undefined;
 
-                const maxExp = (lecturaObj?.maxExpected !== undefined && lecturaObj?.maxExpected !== null && lecturaObj?.maxExpected !== '')
-                  ? parseFloat(lecturaObj.maxExpected)
-                  : (lecturaObj?.max_expected !== undefined && lecturaObj?.max_expected !== null && lecturaObj?.max_expected !== '')
-                    ? parseFloat(lecturaObj.max_expected)
-                    : (lecturaObj?.max_alerta !== undefined && lecturaObj?.max_alerta !== null && lecturaObj?.max_alerta !== '')
-                      ? parseFloat(lecturaObj.max_alerta)
-                      : (lecturaObj?.valor_maximo !== undefined && lecturaObj?.valor_maximo !== null && lecturaObj?.valor_maximo !== '')
-                        ? parseFloat(lecturaObj.valor_maximo)
-                        : (lecturaObj?.max !== undefined && lecturaObj?.max !== null && lecturaObj?.max !== '')
-                          ? parseFloat(lecturaObj.max)
-                          : null;
+                    if (!hasReading) {
+                      const noReadingsMsg = selectedDate === todayDateStr
+                        ? (language === 'en' ? 'No readings received today' : 'El día de hoy no se han recibido lecturas')
+                        : (language === 'en' ? 'No readings on this date' : 'En esta fecha no se han recibido lecturas');
 
-                const numVal = Number(current);
-                let isLowAlert = false;
-                let isHighAlert = false;
+                      return (
+                        <div key={lecturaObj.data_type || idx} className={`monitor-kpi-card ${theme.class}`}>
+                          <div className="kpi-card-header">
+                            <div className="kpi-title-area">
+                              <div className="kpi-icon-wrapper">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                                  {theme.icon}
+                                </svg>
+                              </div>
+                              <div className="kpi-title-text">
+                                <strong>{lecturaObj.tipo}</strong>
+                                <span>{lecturaObj.unidad || ''}</span>
+                              </div>
+                            </div>
+                          </div>
 
-                if (minExp !== null && !isNaN(minExp) && numVal < minExp) {
-                  isLowAlert = true;
-                } else if (maxExp !== null && !isNaN(maxExp) && numVal > maxExp) {
-                  isHighAlert = true;
-                }
+                          <div className="kpi-main-value">
+                            <h2>
+                              <span className="notranslate" translate="no">--</span>{' '}
+                              <span className="kpi-unit notranslate" translate="no">{lecturaObj.unidad || ''}</span>
+                            </h2>
+                            <div style={{ marginTop: '8px' }}>
+                              <span className="kpi-status-badge" style={{ background: '#fffbe6', color: '#d97706', border: '1px solid #fde68a', padding: '4px 12px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12">
+                                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                  <line x1="12" y1="9" x2="12" y2="13" />
+                                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                                </svg>
+                                {noReadingsMsg}
+                              </span>
+                            </div>
+                          </div>
 
-                const alertMsg = isLowAlert
-                  ? `Nivel Bajo: El valor registrado (${numVal} ${sel.unidad || ''}) está por debajo del mínimo esperado (${minExp} ${sel.unidad || ''})`
-                  : isHighAlert
-                  ? `Nivel Alto: El valor registrado (${numVal} ${sel.unidad || ''}) sobrepasó el máximo esperado (${maxExp} ${sel.unidad || ''})`
-                  : `Estado Normal: El valor (${numVal} ${sel.unidad || ''}) se encuentra dentro del rango seguro.`;
+                          <div className="kpi-card-footer">
+                            <span>{language === 'en' ? 'Last reading:' : 'Última lectura:'}</span>
+                            <span className="notranslate" translate="no" style={{ color: '#94a3b8', fontSize: '0.78rem', fontWeight: 600 }}>
+                              {language === 'en' ? 'No data' : 'Sin datos'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
 
-                return (
-                  <div key={idx} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderLeft: `4px solid ${color}` }}>
-                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                      <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '1.1rem', fontWeight: 'bold' }}>{sel.unidad || '-'}</div>
-                      <div>
-                        <h4 style={{ margin: 0, fontSize: '0.85rem', color: '#1e293b', fontWeight: '700' }}>{sel.nombre_var}</h4>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.3rem' }}><span style={{ fontSize: '1.8rem', fontWeight: '800', color: '#0f172a' }}>{current}</span></div>
-                        <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600, display: 'block' }}>Último Valor</span>
-                        {lastTimestampStr && (
-                          <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500, display: 'block', marginTop: '2px' }}>
-                            {lastTimestampStr}
+                    const numVal = Number(currentVal);
+                    const minExp = (lecturaObj?.minExpected !== undefined && lecturaObj?.minExpected !== null && lecturaObj?.minExpected !== '')
+                      ? parseFloat(lecturaObj.minExpected)
+                      : (lecturaObj?.min_expected !== undefined && lecturaObj?.min_expected !== null && lecturaObj?.min_expected !== '')
+                        ? parseFloat(lecturaObj.min_expected)
+                        : (lecturaObj?.min_alerta !== undefined && lecturaObj?.min_alerta !== null && lecturaObj?.min_alerta !== '')
+                          ? parseFloat(lecturaObj.min_alerta)
+                          : (lecturaObj?.valor_minimo !== undefined && lecturaObj?.valor_minimo !== null && lecturaObj?.valor_minimo !== '')
+                            ? parseFloat(lecturaObj.valor_minimo)
+                            : (lecturaObj?.min !== undefined && lecturaObj?.min !== null && lecturaObj?.min !== '')
+                              ? parseFloat(lecturaObj.min)
+                              : null;
+
+                    const maxExp = (lecturaObj?.maxExpected !== undefined && lecturaObj?.maxExpected !== null && lecturaObj?.maxExpected !== '')
+                      ? parseFloat(lecturaObj.maxExpected)
+                      : (lecturaObj?.max_expected !== undefined && lecturaObj?.max_expected !== null && lecturaObj?.max_expected !== '')
+                        ? parseFloat(lecturaObj.max_expected)
+                        : (lecturaObj?.max_alerta !== undefined && lecturaObj?.max_alerta !== null && lecturaObj?.max_alerta !== '')
+                          ? parseFloat(lecturaObj.max_alerta)
+                          : (lecturaObj?.valor_maximo !== undefined && lecturaObj?.valor_maximo !== null && lecturaObj?.valor_maximo !== '')
+                            ? parseFloat(lecturaObj.valor_maximo)
+                            : (lecturaObj?.max !== undefined && lecturaObj?.max !== null && lecturaObj?.max !== '')
+                              ? parseFloat(lecturaObj.max)
+                              : null;
+
+                    let isLowAlert = false;
+                    let isHighAlert = false;
+
+                    if (minExp !== null && !isNaN(minExp) && numVal < minExp) {
+                      isLowAlert = true;
+                    } else if (maxExp !== null && !isNaN(maxExp) && numVal > maxExp) {
+                      isHighAlert = true;
+                    }
+
+                    const alertMsg = isLowAlert
+                      ? (language === 'en' ? `Low Level: Value (${numVal} ${lecturaObj.unidad || ''}) is below min (${minExp} ${lecturaObj.unidad || ''})` : `Nivel Bajo: El valor registrado (${numVal} ${lecturaObj.unidad || ''}) está por debajo del mínimo esperado (${minExp} ${lecturaObj.unidad || ''})`)
+                      : isHighAlert
+                        ? (language === 'en' ? `High Level: Value (${numVal} ${lecturaObj.unidad || ''}) exceeded max (${maxExp} ${lecturaObj.unidad || ''})` : `Nivel Alto: El valor registrado (${numVal} ${lecturaObj.unidad || ''}) sobrepasó el máximo esperado (${maxExp} ${lecturaObj.unidad || ''})`)
+                        : (language === 'en' ? `Normal: Value (${numVal} ${lecturaObj.unidad || ''}) is in safe range.` : `Estado Normal: El valor (${numVal} ${lecturaObj.unidad || ''}) se encuentra dentro del rango seguro.`);
+
+                    return (
+                      <div key={lecturaObj.data_type || idx} className={`monitor-kpi-card ${theme.class}`}>
+                        <div className="kpi-card-header">
+                          <div className="kpi-title-area">
+                            <div className="kpi-icon-wrapper">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                                {theme.icon}
+                              </svg>
+                            </div>
+                            <div className="kpi-title-text">
+                              <strong>{lecturaObj.tipo}</strong>
+                              <span>{language === 'en' ? 'Recorded Value' : 'Valor Registrado'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="kpi-main-value">
+                          <h2>
+                            <span className="notranslate" translate="no">{currentVal}</span>{' '}
+                            <span className="kpi-unit notranslate" translate="no">{lecturaObj.unidad || ''}</span>
+                          </h2>
+
+                          <div style={{ marginTop: '8px' }}>
+                            {isLowAlert ? (
+                              <span title={alertMsg} className="kpi-status-badge" style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #93c5fd', padding: '4px 12px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 700, cursor: 'help', display: 'inline-block' }}>
+                                {language === 'en' ? 'Stability: Low' : 'Estabilidad: Baja'}
+                              </span>
+                            ) : isHighAlert ? (
+                              <span title={alertMsg} className="kpi-status-badge" style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', padding: '4px 12px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 700, cursor: 'help', display: 'inline-block' }}>
+                                {language === 'en' ? 'Stability: High' : 'Estabilidad: Alta'}
+                              </span>
+                            ) : (
+                              <span title={alertMsg} className="kpi-status-badge" style={{ background: '#ecfdf5', color: '#059669', border: '1px solid #6ee7b7', padding: '4px 12px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 700, cursor: 'help', display: 'inline-block' }}>
+                                {language === 'en' ? 'Stability: Normal' : 'Estabilidad: Normal'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="kpi-card-footer">
+                          <span>{language === 'en' ? 'Last update:' : 'Última actualización:'}</span>
+                          <span className="notranslate" translate="no" style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#0f172a', fontWeight: 600, fontSize: '0.78rem' }}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12">
+                              <circle cx="12" cy="12" r="10" />
+                              <polyline points="12 6 12 12 16 14" />
+                            </svg>
+                            {lastTimestampStr || '--:--'}
                           </span>
-                        )}
+                        </div>
                       </div>
-                    </div>
-
-                    {/* ÍCONO SVG EXCLUSIVO DE ESTADO: Azul para Bajo, Verde para Normal, Rojo para Alto */}
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                      {isLowAlert ? (
-                        <div
-                          title={alertMsg}
-                          style={{
-                            width: '40px',
-                            height: '40px',
-                            borderRadius: '50%',
-                            background: '#eff6ff',
-                            border: '1.5px solid #3b82f6',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'help',
-                            boxShadow: '0 2px 8px rgba(59, 130, 246, 0.25)',
-                            transition: 'transform 0.2s ease'
-                          }}
-                        >
-                          {/* SVG Triángulo Azul para Bajo */}
-                          <svg viewBox="0 0 24 24" fill="#3b82f6" width="22" height="22">
-                            <path d="M12 2L1 21h22L12 2zm0 3.5L20.5 19h-17L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z" />
-                          </svg>
-                        </div>
-                      ) : isHighAlert ? (
-                        <div
-                          title={alertMsg}
-                          style={{
-                            width: '40px',
-                            height: '40px',
-                            borderRadius: '50%',
-                            background: '#fef2f2',
-                            border: '1.5px solid #ef4444',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'help',
-                            boxShadow: '0 2px 8px rgba(239, 68, 68, 0.25)',
-                            transition: 'transform 0.2s ease'
-                          }}
-                        >
-                          {/* SVG Rojo para Alto */}
-                          <svg viewBox="0 0 24 24" fill="#ef4444" width="22" height="22">
-                            <path d="M12 2L1 21h22L12 2zm0 3.5L20.5 19h-17L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z" />
-                          </svg>
-                        </div>
-                      ) : (
-                        <div
-                          title={alertMsg}
-                          style={{
-                            width: '40px',
-                            height: '40px',
-                            borderRadius: '50%',
-                            background: '#ecfdf5',
-                            border: '1.5px solid #10b981',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'help',
-                            boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)',
-                            transition: 'transform 0.2s ease'
-                          }}
-                        >
-                          {/* SVG Verde para Normal */}
-                          <svg viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3" width="20" height="20">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        </div>
-                      )}
-                    </div>
+                    );
+                  })
+                ) : (
+                  <div style={{ gridColumn: '1 / -1', padding: '1.5rem', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1', color: '#94a3b8' }}>
+                    {language === 'en' ? 'No telemetry variables available for this node.' : 'No hay variables de telemetría disponibles para este nodo.'}
                   </div>
-                );
-              })}
+                )}
+              </div>
             </div>
-            
+
           </div>
         </div>
       </div>
@@ -1951,6 +2768,13 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
+      {/* Modal de Exportación CSV */}
+      <ModalExportarCSV
+        show={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        nodo={currentTelemetryNode}
+      />
     </div>
   );
 }

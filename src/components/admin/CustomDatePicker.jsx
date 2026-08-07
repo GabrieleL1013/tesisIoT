@@ -90,9 +90,9 @@ export default function CustomDatePicker({ value, onChange, label, shortcutHint,
         onClick={() => setIsOpen(!isOpen)}
         style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', userSelect: 'none' }}
       >
-        <span style={{ color: displayFormat ? '#0f172a' : '#94a3b8', display: 'flex', alignItems: 'center' }}>
+        <span key={displayFormat || 'empty'} className="notranslate" translate="no" style={{ color: displayFormat ? '#0f172a' : '#94a3b8', display: 'flex', alignItems: 'center' }}>
           {label && <span style={{ color: '#64748b', marginRight: '6px', fontWeight: '600' }}>{label}:</span>}
-          {displayFormat || 'Seleccionar fecha'}
+          <span>{displayFormat || 'Seleccionar fecha'}</span>
         </span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ color: '#64748b' }}>
           <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>

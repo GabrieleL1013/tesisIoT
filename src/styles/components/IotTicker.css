@@ -20,7 +20,8 @@
 
 .iot-ticker-container {
   width: 100%;
-  overflow: hidden;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
   position: relative;
   display: flex;
   align-items: center;
@@ -28,18 +29,22 @@
   /* Smooth fading gradient at both edges */
   mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
   -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+  cursor: grab;
+  scroll-behavior: auto;
+}
+
+.iot-ticker-container::-webkit-scrollbar {
+  display: none; /* Safari and Chrome */
+}
+
+.iot-ticker-container:active {
+  cursor: grabbing;
 }
 
 .iot-ticker-track {
   display: flex;
   gap: 5rem;
   width: max-content;
-  animation: iot-ticker-slide 28s linear infinite;
-}
-
-/* Pause scroll when user hovers */
-.iot-ticker-container:hover .iot-ticker-track {
-  animation-play-state: paused;
 }
 
 .iot-ticker-item {
@@ -84,14 +89,7 @@
   color: #1e293b;
 }
 
-@keyframes iot-ticker-slide {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
-}
+
 
 @keyframes pulse {
   0% {

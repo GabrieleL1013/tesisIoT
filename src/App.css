@@ -9,3 +9,13 @@ body, html {
   width: 100%;
   overflow-x: hidden; /* Evita que aparezca una barra de desplazamiento horizontal innecesaria */
 }
+
+.main-content-wrapper {
+  padding-top: 85px;
+}
+
+@media (max-width: 768px) {
+  .main-content-wrapper {
+    padding-top: 75px;
+  }
+}

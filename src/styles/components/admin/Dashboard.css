@@ -2,10 +2,13 @@
 .dashboard-container {
   padding: 1.5rem;
   max-width: 1400px;
+  width: 100%;
   margin: 0 auto;
   font-family: 'Outfit', 'Inter', system-ui, sans-serif;
   background-color: #f3f6f9; /* Light grey backdrop as shown in the image */
   min-height: 100vh;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .dashboard-header {
@@ -367,9 +370,11 @@
 
 /* Bottom visual section: Wave chart and Calendar combined */
 .bottom-sections-row {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1.5rem;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .bottom-widget-card {
@@ -377,15 +382,12 @@
   border-radius: 12px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
   padding: 1.5rem;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1.5rem;
-}
-
-@media (min-width: 768px) {
-  .bottom-widget-card {
-    grid-template-columns: 1.2fr 0.8fr; /* Wave chart on left, Calendar on right */
-  }
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .wave-chart-section {
@@ -1028,5 +1030,166 @@
   }
   100% {
     filter: drop-shadow(0 0 12px rgba(16, 185, 129, 0.95));
+  }
+}
+
+/* ── Responsive adjustments for 100% full screen width on mobile ── */
+@media (max-width: 768px) {
+  .dashboard-container {
+    padding: 0.5rem 0.4rem !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .dashboard-container {
+    padding: 0.75rem 0.5rem !important;
+  }
+
+  .dashboard-header {
+    margin-bottom: 1rem !important;
+  }
+
+  .dashboard-header h1 {
+    font-size: 1.3rem !important;
+  }
+
+  /* ── 1. Tarjetas de resumen del sistema principales (2 por fila, 2x2 compacto) ── */
+  .kpi-row {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.5rem !important;
+    margin-bottom: 1.25rem !important;
+  }
+
+  .kpi-card {
+    padding: 0.75rem 0.85rem !important;
+    border-radius: 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .kpi-card-header {
+    margin-bottom: 0.35rem !important;
+  }
+
+  .kpi-card-title {
+    font-size: 0.72rem !important;
+  }
+
+  .kpi-card-icon {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 0.8rem !important;
+  }
+
+  .kpi-card-icon svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+
+  .kpi-card-value {
+    font-size: 1.55rem !important;
+    line-height: 1.1 !important;
+  }
+
+  /* ── 2. Grid principal y tarjetas de mapa/gráficos ── */
+  .dashboard-main-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+    margin-bottom: 1rem !important;
+  }
+
+  .grid-2col {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+
+  .visual-card,
+  .card {
+    padding: 0.85rem !important;
+    width: 100% !important;
+    border-radius: 12px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* ── 3. Chips de variables de telemetría desplegables en fila scrolleable ── */
+  .available-variables-chips {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: 6px !important;
+    gap: 6px !important;
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .var-chip-item,
+  .available-variables-chips button {
+    flex-shrink: 0 !important;
+    padding: 5px 11px !important;
+    font-size: 0.76rem !important;
+  }
+
+  .dashboard-chart-card {
+    padding: 0.75rem 0.5rem !important;
+    border-radius: 12px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* ── 4. Tarjetas inferiores de lecturas por métrica (1 por fila en celular) ── */
+  .monitor-kpi-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.75rem !important;
+  }
+
+  .monitor-kpi-card {
+    padding: 0.65rem 0.75rem !important;
+    border-radius: 10px !important;
+  }
+
+  .monitor-kpi-card .kpi-card-header {
+    margin-bottom: 0.25rem !important;
+  }
+
+  .monitor-kpi-card .kpi-icon-wrapper {
+    width: 26px !important;
+    height: 26px !important;
+  }
+
+  .monitor-kpi-card .kpi-icon-wrapper svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+
+  .monitor-kpi-card .kpi-title-text strong {
+    font-size: 0.75rem !important;
+  }
+
+  .monitor-kpi-card .kpi-title-text span {
+    font-size: 0.65rem !important;
+  }
+
+  .monitor-kpi-card .kpi-main-value h2 {
+    font-size: 1.25rem !important;
+  }
+
+  .monitor-kpi-card .kpi-unit {
+    font-size: 0.72rem !important;
+  }
+
+  .monitor-kpi-card .kpi-status-badge {
+    padding: 2px 6px !important;
+    font-size: 0.68rem !important;
+    border-radius: 8px !important;
+  }
+
+  .monitor-kpi-card .kpi-card-footer {
+    margin-top: 0.35rem !important;
+    padding-top: 0.35rem !important;
+    font-size: 0.68rem !important;
   }
 }

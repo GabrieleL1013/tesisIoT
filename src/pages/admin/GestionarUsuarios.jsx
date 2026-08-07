@@ -1,7 +1,126 @@
 import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
+import { useLanguage } from '../../context/LanguageContext';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import '../../styles/components/admin/GestionarUsuarios.css';
+
+const CustomItemsPerPageSelect = ({ value, onChange, options = [5, 10, 20, 50], language = 'es' }) => {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const suffix = language === 'en' ? 'page' : 'pág';
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '6px 12px',
+          borderRadius: '8px',
+          border: '1px solid #cbd5e1',
+          background: '#ffffff',
+          color: '#1e293b',
+          fontSize: '0.82rem',
+          fontWeight: '700',
+          cursor: 'pointer',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+          transition: 'all 0.2s ease',
+          outline: 'none'
+        }}
+      >
+        <span>{value} / {suffix}</span>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          width="12"
+          height="12"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 'calc(100% + 6px)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#ffffff',
+            border: '1.5px solid #e2e8f0',
+            borderRadius: '12px',
+            boxShadow: '0 12px 28px rgba(15, 23, 42, 0.18)',
+            padding: '6px',
+            minWidth: '115px',
+            zIndex: 1100,
+            maxWidth: '90vw',
+            boxSizing: 'border-box'
+          }}
+        >
+          {options.map((opt) => {
+            const isSelected = Number(opt) === Number(value);
+            return (
+              <div
+                key={opt}
+                onClick={() => {
+                  onChange(Number(opt));
+                  setOpen(false);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  width: '100%',
+                  padding: '7px 10px',
+                  borderRadius: '6px',
+                  background: isSelected ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                  color: isSelected ? '#1e40af' : '#334155',
+                  fontWeight: isSelected ? '800' : '600',
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'background 0.15s ease',
+                  boxSizing: 'border-box'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = '#f8fafc';
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <span>{opt} / {suffix}</span>
+                {isSelected && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#1e40af" strokeWidth="3" width="12" height="12">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const CustomRoleSelect = ({ value, onChange, options, disabled, placeholder = "-- Seleccionar Rol --" }) => {
   const [open, setOpen] = useState(false);
@@ -33,7 +152,7 @@ const CustomRoleSelect = ({ value, onChange, options, disabled, placeholder = "-
               {selectedOpt.color && (
                 <span className="role-color-dot" style={{ backgroundColor: selectedOpt.color }} />
               )}
-              <span className="role-select-name">{selectedOpt.name || selectedOpt.label}</span>
+              <span className="role-select-name">{selectedOpt.translatedName || selectedOpt.name || selectedOpt.label}</span>
               {selectedOpt.level_permission !== undefined && (
                 <span className="role-level-pill">Nivel: {selectedOpt.level_permission}</span>
               )}
@@ -93,15 +212,17 @@ const CustomRoleSelect = ({ value, onChange, options, disabled, placeholder = "-
   );
 };
 
-const CustomUserRoleFilterSelect = ({ value, onChange, roles }) => {
+const CustomUserRoleFilterSelect = ({ value, onChange, roles = [], allRolesText = "Todos los Roles" }) => {
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
 
+  const safeRoles = Array.isArray(roles) ? roles : [];
+
   const filterOptions = [
-    { value: 'todos', label: 'Todos los Roles', color: '#64748b' },
-    ...roles.map(r => ({
+    { value: 'todos', label: allRolesText, color: '#64748b' },
+    ...safeRoles.map(r => ({
       value: String(r.id),
-      label: r.name || r.nombre,
+      label: r.translatedName || r.name || r.nombre,
       color: r.color || '#3b82f6',
       level_permission: r.level_permission
     }))
@@ -196,9 +317,26 @@ const CustomUserRoleFilterSelect = ({ value, onChange, roles }) => {
 };
 
 export default function GestionarUsuarios() {
+  const { language, t } = useLanguage();
+  usePageTitle({ es: 'Gestionar Usuarios', en: 'Manage Users' }, 'Admin · IoT ULEAM');
   const [usuarios, setUsuarios] = useState([]);
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Estados de Paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  const getRoleDisplayName = (rName) => {
+    if (!rName) return '';
+    const key = `roles.${rName.toLowerCase().replace(/\s+/g, '_')}`;
+    return t(key, rName);
+  };
+
+  const translatedRoles = roles.map(r => ({
+    ...r,
+    translatedName: getRoleDisplayName(r.name || r.nombre)
+  }));
   
   // Obtener rol del usuario actualmente autenticado
   const [currentUser, setCurrentUser] = useState(null);
@@ -206,6 +344,11 @@ export default function GestionarUsuarios() {
   // Filtros y búsquedas
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRole, setFilterRole] = useState('todos');
+
+  // Resetear página actual al filtrar o buscar
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterRole]);
 
   // Estado del Modal
   const [showModal, setShowModal] = useState(false);
@@ -437,7 +580,7 @@ export default function GestionarUsuarios() {
                 color: '#ffffff',
                 confirmButtonColor: '#ef4444'
               }).then(() => {
-                window.location.href = '/login';
+                window.location.href = '/es/login';
               });
               return;
             }
@@ -487,6 +630,11 @@ export default function GestionarUsuarios() {
     );
   });
 
+  // Paginación
+  const totalPages = Math.ceil(usuariosFiltrados.length / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedUsuarios = usuariosFiltrados.slice(startIndex, startIndex + itemsPerPage);
+
   const isEditingAnotherSuperuser = editandoId && 
     editandoId.toString() !== currentUser?.id?.toString() && 
     (usuarios.find(u => u.id === editandoId)?.role?.name === 'Superusuario' || usuarios.find(u => u.id === editandoId)?.role_id === 1);
@@ -494,29 +642,6 @@ export default function GestionarUsuarios() {
   return (
     <div className="gestionar-usuarios-container">
       
-      {/* HEADER DE LA SECCIÓN */}
-      <div className="users-header">
-        <div className="users-header-info">
-          <h2 className="users-page-title">
-            <svg className="title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
-            Directorio de Usuarios y Credenciales
-          </h2>
-          <p className="users-page-subtitle">
-            Gestión y parametrización de accesos del personal académico para la administración de la red IoT.
-          </p>
-        </div>
-
-        {/* INDICADOR DE ROL ACTUAL */}
-        <div className={`role-badge-indicator ${isSuperadmin ? 'is-admin' : 'is-user'}`}>
-          <span className="role-dot"></span>
-          <span>Rol: {userRoleName || 'Visitante (Solo Lectura)'}</span>
-        </div>
-      </div>
 
       {/* CONTROLES DE BÚSQUEDA, FILTRO Y AGREGAR (ARRIBA DE LA TABLA) */}
       <div className="users-controls-row">
@@ -528,7 +653,7 @@ export default function GestionarUsuarios() {
           <input
             type="text"
             className="search-input-field"
-            placeholder="Buscar por nombre o correo..."
+            placeholder={t("users.search_placeholder", "Buscar por nombre o correo...")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -538,7 +663,8 @@ export default function GestionarUsuarios() {
           <CustomUserRoleFilterSelect
             value={filterRole}
             onChange={(val) => setFilterRole(val)}
-            roles={roles}
+            roles={translatedRoles}
+            allRolesText={t("users.all_roles", "Todos los Roles")}
           />
 
           {isSuperadmin && (
@@ -551,7 +677,7 @@ export default function GestionarUsuarios() {
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
-              Agregar Usuario
+              {t("users.add_user", "Agregar Usuario")}
             </button>
           )}
         </div>
@@ -565,7 +691,7 @@ export default function GestionarUsuarios() {
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
           </svg>
           <p className="restricted-notice-text">
-            <strong>Modo de Solo Lectura:</strong> Tu rol actual es <strong>{userRoleName || 'Visitante'}</strong>. No dispones de permisos de Superusuario para modificar credenciales o contraseñas.
+            <strong>{language === 'en' ? 'Read-Only Mode:' : 'Modo de Solo Lectura:'}</strong> {t("users.readonly_banner", "Tu rol actual es {{role}}. No dispones de permisos de Superusuario para modificar credenciales o contraseñas.", { role: getRoleDisplayName(userRoleName) || 'Visitante' })}
           </p>
         </div>
       )}
@@ -577,106 +703,170 @@ export default function GestionarUsuarios() {
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
           </svg>
-          Directorio del Personal de Red
+          {t("users.network_staff_directory", "Directorio del Personal de Red")}
         </h3>
         
         {loading ? (
           <div className="users-loading-spinner">
             <span className="spinner-dot"></span>
-            <span>Cargando directorio de usuarios...</span>
+            <span>{t("users.loading", "Cargando directorio de usuarios...")}</span>
           </div>
         ) : (
-          <div className="table-responsive">
-            <table className="custom-users-table">
-              <thead>
-                <tr>
-                  <th>Nombre</th>
-                  <th>Correo Electrónico</th>
-                  <th>Rol Asignado</th>
-                  {isSuperadmin && <th className="text-right-align">Operaciones de Escritura</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {usuariosFiltrados.length > 0 ? (
-                  usuariosFiltrados.map((userItem) => {
-                    const rName = userItem.role?.name || (userItem.role_id === 1 ? 'Superusuario' : 'Técnico de Soporte');
-                    const rColor = userItem.role?.color || (rName === 'Superusuario' ? '#10b981' : '#3b82f6');
+          <>
+            <div className="table-responsive">
+              <table className="custom-users-table">
+                <thead>
+                  <tr>
+                    <th>{t("users.col_name", "Nombre")}</th>
+                    <th>{t("users.col_email", "Correo Electrónico")}</th>
+                    <th>{t("users.col_role", "Rol Asignado")}</th>
+                    {isSuperadmin && <th className="text-right-align">{t("users.col_write_ops", "Operaciones de Escritura")}</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedUsuarios.length > 0 ? (
+                    paginatedUsuarios.map((userItem) => {
+                      const rName = userItem.role?.name || (userItem.role_id === 1 ? 'Superusuario' : 'Técnico de Soporte');
+                      const rColor = userItem.role?.color || (rName === 'Superusuario' ? '#10b981' : '#3b82f6');
+                      const displayRoleName = getRoleDisplayName(rName);
 
-                    return (
-                      <tr key={userItem.id}>
-                        <td>
-                          <div className="user-avatar-row">
-                            <div className="avatar-circle" style={{ backgroundColor: rColor }}>
-                              {userItem.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div>
-                              <span className="user-fullname">{userItem.name}</span>
-                              <span className="user-nickname">ID: #{userItem.id}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          <span className="user-email-text">{userItem.email}</span>
-                        </td>
-                        <td>
-                          <span className="role-badge-indicator" style={{ 
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            background: 'rgba(241, 245, 249, 0.8)', 
-                            color: '#1e293b', 
-                            border: `1px solid ${rColor}60`,
-                            padding: '4px 10px',
-                            borderRadius: '8px',
-                            fontWeight: 700,
-                            fontSize: '12px'
-                          }}>
-                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: rColor }}></span>
-                            {rName}
-                          </span>
-                        </td>
-                        {isSuperadmin && (
-                          <td className="text-right-align">
-                            <div className="table-actions">
-                              <button
-                                onClick={() => abrirEditarModal(userItem)}
-                                className="table-btn-edit"
-                                title="Editar credenciales y rol"
-                              >
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
-                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                  <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z" />
-                                </svg>
-                                Editar
-                              </button>
-                              <button
-                                onClick={() => eliminarUsuario(userItem.id)}
-                                className="table-btn-delete"
-                                title="Eliminar cuenta de red"
-                                disabled={userItem.id === 1 || userItem.id === '1'}
-                              >
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
-                                  <polyline points="3 6 5 6 21 6" />
-                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                </svg>
-                                Eliminar
-                              </button>
+                      return (
+                        <tr key={userItem.id}>
+                          <td>
+                            <div className="user-avatar-row">
+                              <div className="avatar-circle" style={{ backgroundColor: rColor }}>
+                                {userItem.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <span className="user-fullname">{userItem.name}</span>
+                                <span className="user-nickname">ID: #{userItem.id}</span>
+                              </div>
                             </div>
                           </td>
-                        )}
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={isSuperadmin ? 4 : 3} className="table-empty-message">
-                      No se encontraron usuarios que coincidan con la búsqueda o filtro.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                          <td>
+                            <span className="user-email-text">{userItem.email}</span>
+                          </td>
+                          <td>
+                            <span className="role-badge-indicator" style={{ 
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              background: 'rgba(241, 245, 249, 0.8)', 
+                              color: '#1e293b', 
+                              border: `1px solid ${rColor}60`,
+                              padding: '4px 10px',
+                              borderRadius: '8px',
+                              fontWeight: 700,
+                              fontSize: '12px'
+                            }}>
+                              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: rColor }}></span>
+                              {displayRoleName}
+                            </span>
+                          </td>
+                          {isSuperadmin && (
+                            <td className="text-right-align">
+                              <div className="table-actions">
+                                <button
+                                  onClick={() => abrirEditarModal(userItem)}
+                                  className="table-btn-edit"
+                                  title={t("admin.edit", "Editar")}
+                                >
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                    <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z" />
+                                  </svg>
+                                  {t("users.edit_credentials", "Editar")}
+                                </button>
+                                <button
+                                  onClick={() => eliminarUsuario(userItem.id)}
+                                  className="table-btn-delete"
+                                  title={t("admin.delete", "Eliminar")}
+                                  disabled={userItem.id === 1 || userItem.id === '1'}
+                                >
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
+                                    <polyline points="3 6 5 6 21 6" />
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                  </svg>
+                                  {t("users.delete_user", "Eliminar")}
+                                </button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={isSuperadmin ? 4 : 3} className="table-empty-message">
+                        {t("users.no_users", "No se encontraron usuarios que coincidan con la búsqueda o filtro.")}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* CONTROLES DE PAGINACIÓN */}
+            {usuariosFiltrados.length > 0 && (
+              <div className="users-pagination-bar">
+                <div className="pagination-info-text">
+                  {language === 'en' 
+                    ? `Showing ${Math.min(startIndex + 1, usuariosFiltrados.length)} to ${Math.min(startIndex + itemsPerPage, usuariosFiltrados.length)} of ${usuariosFiltrados.length} users`
+                    : `Mostrando ${Math.min(startIndex + 1, usuariosFiltrados.length)} a ${Math.min(startIndex + itemsPerPage, usuariosFiltrados.length)} de ${usuariosFiltrados.length} usuarios`}
+                </div>
+
+                <div className="pagination-controls-group">
+                  <CustomItemsPerPageSelect
+                    value={itemsPerPage}
+                    onChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+                    options={[5, 10, 20, 50]}
+                    language={language}
+                  />
+
+                  <div className="pagination-buttons-wrapper">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className={`pagination-nav-btn prev-btn ${currentPage === 1 ? 'disabled' : ''}`}
+                      title={language === 'en' ? 'Previous page' : 'Página anterior'}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                        <polyline points="15 18 9 12 15 6" />
+                      </svg>
+                      <span className="pagination-btn-label">{language === 'en' ? 'Prev' : 'Anterior'}</span>
+                    </button>
+
+                    <div className="pagination-number-list">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => setCurrentPage(p)}
+                          className={`pagination-num-btn ${p === currentPage ? 'active' : ''}`}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className={`pagination-nav-btn next-btn ${currentPage === totalPages ? 'disabled' : ''}`}
+                      title={language === 'en' ? 'Next page' : 'Página siguiente'}
+                    >
+                      <span className="pagination-btn-label">{language === 'en' ? 'Next' : 'Siguiente'}</span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -702,7 +892,7 @@ export default function GestionarUsuarios() {
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                       <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z" />
                     </svg>
-                    Modificar Credencial de Usuario
+                    {t("users.edit_modal_title", "Modificar Credencial de Usuario")}
                   </>
                 ) : (
                   <>
@@ -712,7 +902,7 @@ export default function GestionarUsuarios() {
                       <line x1="19" y1="8" x2="19" y2="14" />
                       <line x1="22" y1="11" x2="16" y2="11" />
                     </svg>
-                    Registrar Nuevo Miembro de Red
+                    {t("users.new_modal_title", "Registrar Nuevo Miembro de Red")}
                   </>
                 )}
               </h3>
@@ -720,7 +910,7 @@ export default function GestionarUsuarios() {
                 type="button" 
                 className="modal-close-btn"
                 onClick={() => setShowModal(false)}
-                title="Cerrar modal"
+                title={t("common.close", "Cerrar modal")}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="18" height="18">
                   <line x1="18" y1="6" x2="6" y2="18" />
@@ -734,24 +924,24 @@ export default function GestionarUsuarios() {
               <div className="modal-fields-stack">
                 
                 <div className="modal-input-group">
-                  <label className="modal-label">Nombre Completo</label>
+                  <label className="modal-label">{t("users.full_name", "Nombre Completo")}</label>
                   <input
                     type="text"
                     value={nombre}
                     onChange={(e) => setNombre(e.target.value)}
-                    placeholder="Nombre y apellido del usuario"
+                    placeholder={t("users.full_name_ph", "Nombre y apellido del usuario")}
                     className="modal-text-input"
                     required
                   />
                 </div>
 
                 <div className="modal-input-group">
-                  <label className="modal-label">Correo Institucional (Email)</label>
+                  <label className="modal-label">{t("users.email", "Correo Institucional (Email)")}</label>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Correo electrónico institucional"
+                    placeholder={t("users.email_ph", "Correo electrónico institucional")}
                     className="modal-text-input"
                     required
                   />
@@ -759,14 +949,14 @@ export default function GestionarUsuarios() {
 
                 <div className="modal-input-group">
                   <label className="modal-label">
-                    {editandoId ? 'Nueva Contraseña (dejar en blanco para conservar)' : 'Contraseña de Acceso'}
+                    {editandoId ? t("users.password_new", "Nueva Contraseña (dejar en blanco para conservar)") : t("users.password_access", "Contraseña de Acceso")}
                   </label>
                   <div className="password-input-wrapper" style={{ position: 'relative' }}>
                     <input
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder={editandoId ? "Dejar vacío para conservar la actual" : "Contraseña de acceso"}
+                      placeholder={editandoId ? t("users.password_edit_ph", "Dejar vacío para conservar la actual") : t("users.password_ph", "Contraseña de acceso")}
                       className="modal-text-input"
                       style={{ width: '100%', paddingRight: '2.5rem' }}
                       required={!editandoId}
@@ -807,13 +997,13 @@ export default function GestionarUsuarios() {
 
                 {/* SELECTOR DE ROL ASIGNADO */}
                 <div className="modal-input-group">
-                  <label className="modal-label">Rol Asignado en el Sistema</label>
+                  <label className="modal-label">{t("users.col_role", "Rol Asignado")}</label>
                   <CustomRoleSelect 
                     value={roleId}
                     onChange={(val) => setRoleId(parseInt(val, 10))}
-                    options={roles}
+                    options={translatedRoles}
                     disabled={isEditingAnotherSuperuser}
-                    placeholder="-- Seleccionar Rol --"
+                    placeholder={t("users.select_role_ph", "-- Seleccionar Rol --")}
                   />
                   {isEditingAnotherSuperuser && (
                     <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '0.25rem', fontWeight: '600' }}>
@@ -835,7 +1025,7 @@ export default function GestionarUsuarios() {
                     <line x1="18" y1="6" x2="6" y2="18" />
                     <line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
-                  Cancelar
+                  {t("admin.cancel", "Cancelar")}
                 </button>
                 <button type="submit" className="btn-modal-save">
                   {editandoId ? (
@@ -844,7 +1034,7 @@ export default function GestionarUsuarios() {
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                         <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z" />
                       </svg>
-                      Actualizar
+                      {t("admin.save", "Actualizar")}
                     </>
                   ) : (
                     <>
@@ -853,7 +1043,7 @@ export default function GestionarUsuarios() {
                         <polyline points="17 21 17 13 7 13 7 21" />
                         <polyline points="7 3 7 8 15 8" />
                       </svg>
-                      Guardar
+                      {t("users.create_user", "Guardar")}
                     </>
                   )}
                 </button>

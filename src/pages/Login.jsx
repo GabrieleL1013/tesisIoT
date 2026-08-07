@@ -1,14 +1,15 @@
 import { API_BASE_URL } from '../config/api';
 import React, { useState } from 'react';
-import { useNavigate, Link, Navigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
+import { usePageTitle } from '../hooks/usePageTitle';
 import Swal from 'sweetalert2';
 import LogoImg from '../assets/LOGO.png';
 import IotLogoImg from '../assets/ULEAM-FONDO.jpg';
 import IotBrandLogo from '../assets/IOT-LOGO.png';
 import '../styles/Login.css';
 
-// SVG Icons
 const ArrowLeftIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16" style={{ marginRight: "6px", display: "inline-block", verticalAlign: "middle" }}>
     <line x1="19" y1="12" x2="5" y2="12"></line>
@@ -32,11 +33,12 @@ const EyeOffIcon = () => (
 
 export default function Login() {
   const { login, isLoggedIn } = useAuth();
+  const { language, t } = useLanguage();
+  usePageTitle(language === 'en' ? 'Login' : 'Iniciar Sesión');
   const session = localStorage.getItem('iot_sesion_activa') || localStorage.getItem('iot_token_seguro');
 
-  // Si el usuario ya está autenticado, no debe poder ver el formulario de login y se le redirige al panel de administración
   if (session || isLoggedIn) {
-    return <Navigate to="/admin/dashboard" replace />;
+    return <Navigate to={`/${language}/admin/dashboard`} replace />;
   }
 
   const [email, setEmail] = useState('');
@@ -44,12 +46,13 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
   const handleBackToHome = (e) => {
     e.preventDefault();
     setEmail('');
     setPassword('');
     setTimeout(() => {
-      navigate('/');
+      navigate(`/${language}`);
     }, 50);
   };
 
@@ -59,8 +62,8 @@ export default function Login() {
 
     if (!email || !password) {
       Swal.fire({
-        title: 'Atención',
-        text: 'Por favor, completa todos los campos.',
+        title: t("common.warning", "Atención"),
+        text: t("login.fill_fields", "Por favor, completa todos los campos."),
         icon: 'warning',
         background: '#0b0f19',
         color: '#ffffff',
@@ -71,11 +74,12 @@ export default function Login() {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/login`, {
+      const response = await fetch(`${API_BASE_URL}/login?lang=${language}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          'Accept-Language': language
         },
         body: JSON.stringify({ email, password }),
       });
@@ -87,8 +91,8 @@ export default function Login() {
         localStorage.setItem('iot_sesion_activa', JSON.stringify(data.user));
 
         Swal.fire({
-          title: '¡Acceso Concedido!',
-          text: `Bienvenido al Panel, ${data.user.name}`,
+          title: t("login.access_granted", "¡Acceso Concedido!"),
+          text: `${t("login.welcome", "Bienvenido al Panel")}, ${data.user.name}`,
           icon: 'success',
           background: '#0b0f19',
           color: '#ffffff',
@@ -100,13 +104,13 @@ export default function Login() {
           if (login) {
             login(email, password);
           }
-          navigate('/admin/nodos');
+          navigate(`/${language}/admin/dashboard`);
           window.location.reload();
         });
       } else {
         Swal.fire({
-          title: 'Error de Acceso',
-          text: data.message || 'Credenciales inválidas.',
+          title: t("login.error_title", "Error de Acceso"),
+          text: data.message || t("login.invalid_credentials", "Credenciales inválidas."),
           icon: 'error',
           background: '#0b0f19',
           color: '#ffffff',
@@ -116,8 +120,8 @@ export default function Login() {
     } catch (error) {
       console.error('Error de conexión con la API:', error);
       Swal.fire({
-        title: 'Error de Conexión',
-        text: 'No se pudo establecer conexión con el servidor. Por favor, verifica tu conexión a internet o intenta más tarde.',
+        title: t("common.error", "Error de Conexión"),
+        text: t("contact.error_message", "No se pudo establecer conexión con el servidor."),
         icon: 'error',
         background: '#0b0f19',
         color: '#ffffff',
@@ -130,7 +134,6 @@ export default function Login() {
 
   return (
     <div className="login-page-container">
-      {/* Left Column: Image & Overlay */}
       <div className="login-image-column" style={{ backgroundImage: `url(${IotLogoImg})` }}>
         <div className="login-image-overlay"></div>
         <div className="login-brand-info">
@@ -144,16 +147,14 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right Column: Form Container */}
       <div className="login-form-column">
         <div className="login-form-wrapper">
-          {/* Back button */}
           <button type="button" onClick={handleBackToHome} className="login-back-btn">
-            <ArrowLeftIcon /> Volver al Inicio
+            <ArrowLeftIcon /> {t("login.back_to_portal", "Volver al Portal Público")}
           </button>
 
           <div className="login-form-header">
-            <h2 className="login-form-title">INICIAR SESIÓN</h2>
+            <h2 className="login-form-title">{t("login.title", "INICIAR SESIÓN")}</h2>
             <div className="login-logo-wrapper">
               <img src={LogoImg} alt="Universidad Logo" className="login-assets-logo" />
             </div>
@@ -165,7 +166,7 @@ export default function Login() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Correo Institucional"
+                placeholder={t("login.email", "Correo Electrónico")}
                 required
                 disabled={loading}
               />
@@ -177,7 +178,7 @@ export default function Login() {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Contraseña"
+                  placeholder={t("login.password", "Contraseña")}
                   required
                   disabled={loading}
                   style={{ width: "100%", paddingRight: "3rem" }}
@@ -194,13 +195,9 @@ export default function Login() {
             </div>
 
             <button type="submit" className="login-submit-action-btn" disabled={loading}>
-              {loading ? 'Validando en Base de Datos...' : 'Ingresar al Panel'}
+              {loading ? t("login.authenticating", "Autenticando...") : t("login.submit", "Ingresar")}
             </button>
           </form>
-
-          <div className="login-form-footer">
-            <p>Solo personal de red o de investigación de tesis autorizado.</p>
-          </div>
         </div>
       </div>
     </div>

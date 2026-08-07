@@ -1,6 +1,9 @@
+import SEO from "../../components/SEO";
 import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
+import { useLanguage } from '../../context/LanguageContext';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import '../../styles/components/admin/GestionarCategorias.css';
 import '../../styles/components/admin/GestionarUsuarios.css';
 
@@ -311,9 +314,133 @@ const PrettyColorPicker = ({ value, onChange }) => {
   );
 };
 
+const CustomItemsPerPageSelect = ({ value, onChange, options = [5, 10, 20, 50], language = 'es' }) => {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const suffix = language === 'en' ? 'page' : 'pág';
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '6px 14px',
+          borderRadius: '10px',
+          border: '1.5px solid #cbd5e1',
+          background: '#ffffff',
+          color: '#0f2c59',
+          fontWeight: '700',
+          fontSize: '0.82rem',
+          cursor: 'pointer',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.04)',
+          transition: 'all 0.2s ease',
+          outline: 'none'
+        }}
+      >
+        <span>{value} / {suffix}</span>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          width="12"
+          height="12"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 'calc(100% + 6px)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#ffffff',
+            border: '1.5px solid #e2e8f0',
+            borderRadius: '12px',
+            boxShadow: '0 12px 28px rgba(15, 23, 42, 0.18)',
+            padding: '6px',
+            minWidth: '115px',
+            zIndex: 1100,
+            maxWidth: '90vw',
+            boxSizing: 'border-box'
+          }}
+        >
+          {options.map((opt) => {
+            const isSelected = Number(opt) === Number(value);
+            return (
+              <div
+                key={opt}
+                onClick={() => {
+                  onChange(Number(opt));
+                  setOpen(false);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  width: '100%',
+                  padding: '7px 10px',
+                  borderRadius: '8px',
+                  background: isSelected ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                  color: isSelected ? '#1e40af' : '#334155',
+                  fontWeight: isSelected ? '800' : '600',
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'background 0.15s ease',
+                  boxSizing: 'border-box'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = '#f8fafc';
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <span>{opt} / {suffix}</span>
+                {isSelected && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#1e40af" strokeWidth="3" width="12" height="12">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function GestionarCategorias() {
+  const { language } = useLanguage();
+  const isEn = language === 'en';
+
+  usePageTitle({ es: 'Gestionar Categorías', en: 'Manage Categories' }, 'Admin · IoT ULEAM');
   const [categorias, setCategorias] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [busqueda, setBusqueda] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Inline new row state
   const [addingRow, setAddingRow] = useState(false);
@@ -325,10 +452,23 @@ export default function GestionarCategorias() {
   const [editNombre, setEditNombre] = useState('');
   const [editColorHex, setEditColorHex] = useState('#3b82f6');
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [busqueda, itemsPerPage]);
+
+  const categoriasFiltradas = categorias.filter(c => {
+    if (!busqueda.trim()) return true;
+    return c.nombre.toLowerCase().includes(busqueda.toLowerCase().trim());
+  });
+
+  const totalPages = Math.ceil(categoriasFiltradas.length / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const categoriasPaginadas = categoriasFiltradas.slice(startIndex, startIndex + itemsPerPage);
+
   const fetchCategorias = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/categorias`);
+      const res = await fetch(`${API_BASE_URL}/categorias?lang=${language}`);
       const data = await res.json();
       setCategorias(Array.isArray(data) ? data : []);
     } catch (e) {
@@ -338,7 +478,7 @@ export default function GestionarCategorias() {
     }
   };
 
-  useEffect(() => { fetchCategorias(); }, []);
+  useEffect(() => { fetchCategorias(); }, [language]);
 
   /* ---------- helpers ---------- */
   const cancelAdd = () => { setAddingRow(false); setNewNombre(''); setNewColorHex('#3b82f6'); };
@@ -347,11 +487,11 @@ export default function GestionarCategorias() {
   /* ---------- create ---------- */
   const handleCreate = async () => {
     if (!newNombre.trim()) {
-      Swal.fire({ icon: 'warning', title: 'Campo vacío', text: 'Ingresa el nombre de la categoría.', confirmButtonColor: '#2563eb' });
+      Swal.fire({ icon: 'warning', title: isEn ? 'Empty field' : 'Campo vacío', text: isEn ? 'Enter category name.' : 'Ingresa el nombre de la categoría.', confirmButtonColor: '#2563eb' });
       return;
     }
     try {
-      const res = await fetchWithAuth(`${API_BASE_URL}/categorias`, {
+      const res = await fetchWithAuth(`${API_BASE_URL}/categorias?lang=${language}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: newNombre.trim(), color: newColorHex, colorHex: newColorHex })
@@ -361,10 +501,10 @@ export default function GestionarCategorias() {
         fetchCategorias();
       } else {
         const err = await res.json();
-        Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'No se pudo crear la categoría.', confirmButtonColor: '#2563eb' });
+        Swal.fire({ icon: 'error', title: 'Error', text: err.message || (isEn ? 'Could not create category.' : 'No se pudo crear la categoría.'), confirmButtonColor: '#2563eb' });
       }
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Error de red', text: 'No se pudo conectar con el servidor.', confirmButtonColor: '#2563eb' });
+      Swal.fire({ icon: 'error', title: isEn ? 'Network error' : 'Error de red', text: isEn ? 'Could not connect to server.' : 'No se pudo conectar con el servidor.', confirmButtonColor: '#2563eb' });
     }
   };
 
@@ -378,11 +518,11 @@ export default function GestionarCategorias() {
 
   const handleUpdate = async () => {
     if (!editNombre.trim()) {
-      Swal.fire({ icon: 'warning', title: 'Campo vacío', text: 'El nombre no puede estar en blanco.', confirmButtonColor: '#2563eb' });
+      Swal.fire({ icon: 'warning', title: isEn ? 'Empty field' : 'Campo vacío', text: isEn ? 'Name cannot be blank.' : 'El nombre no puede estar en blanco.', confirmButtonColor: '#2563eb' });
       return;
     }
     try {
-      const res = await fetchWithAuth(`${API_BASE_URL}/categorias/${editId}`, {
+      const res = await fetchWithAuth(`${API_BASE_URL}/categorias/${editId}?lang=${language}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: editNombre.trim(), color: editColorHex, colorHex: editColorHex })
@@ -392,10 +532,10 @@ export default function GestionarCategorias() {
         fetchCategorias();
       } else {
         const err = await res.json();
-        Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'No se pudo actualizar.', confirmButtonColor: '#2563eb' });
+        Swal.fire({ icon: 'error', title: 'Error', text: err.message || (isEn ? 'Could not update.' : 'No se pudo actualizar.'), confirmButtonColor: '#2563eb' });
       }
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Error de red', text: 'No se pudo conectar con el servidor.', confirmButtonColor: '#2563eb' });
+      Swal.fire({ icon: 'error', title: isEn ? 'Network error' : 'Error de red', text: isEn ? 'Could not connect to server.' : 'No se pudo conectar con el servidor.', confirmButtonColor: '#2563eb' });
     }
   };
 
@@ -403,14 +543,14 @@ export default function GestionarCategorias() {
   const handleDelete = (id) => {
     const cat = categorias.find(c => c.id === id);
     Swal.fire({
-      title: '¿Eliminar categoría?',
-      text: `"${cat?.nombre}" será eliminada permanentemente.`,
+      title: isEn ? 'Delete category?' : '¿Eliminar categoría?',
+      text: isEn ? `"${cat?.nombre}" will be permanently deleted.` : `"${cat?.nombre}" será eliminada permanentemente.`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#ef4444',
       cancelButtonColor: '#4b5563',
-      confirmButtonText: 'Sí, eliminar',
-      cancelButtonText: 'Cancelar'
+      confirmButtonText: isEn ? 'Yes, delete' : 'Sí, eliminar',
+      cancelButtonText: isEn ? 'Cancel' : 'Cancelar'
     }).then(async (result) => {
       if (!result.isConfirmed) return;
       try {
@@ -419,10 +559,10 @@ export default function GestionarCategorias() {
           if (editId === id) cancelEdit();
           fetchCategorias();
         } else {
-          Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo eliminar la categoría.', confirmButtonColor: '#2563eb' });
+          Swal.fire({ icon: 'error', title: 'Error', text: isEn ? 'Could not delete category.' : 'No se pudo eliminar la categoría.', confirmButtonColor: '#2563eb' });
         }
       } catch (e) {
-        Swal.fire({ icon: 'error', title: 'Error de red', text: 'No se pudo conectar con el servidor.', confirmButtonColor: '#2563eb' });
+        Swal.fire({ icon: 'error', title: isEn ? 'Network error' : 'Error de red', text: isEn ? 'Could not connect to server.' : 'No se pudo conectar con el servidor.', confirmButtonColor: '#2563eb' });
       }
     });
   };
@@ -430,19 +570,23 @@ export default function GestionarCategorias() {
   /* ---------- render ---------- */
   return (
     <div className="cat-page">
+      <SEO 
+        title={isEn ? "Categories - IoT ULEAM" : "Categorías - IoT ULEAM"}
+        description={isEn ? "Manage and view IoT node categories." : "Gestiona y visualiza las categorías de los nodos IoT."}
+      />
 
       {/* ── Header ── */}
       <div className="cat-header">
         <div>
-          <h1 className="cat-heading">Líneas de Investigación</h1>
-          <p className="cat-subheading">Clasifica tus nodos sensores por área académica.</p>
+          <h1 className="cat-heading">{isEn ? 'Research Lines' : 'Líneas de Investigación'}</h1>
+          <p className="cat-subheading">{isEn ? 'Classify your sensor nodes by academic area.' : 'Clasifica tus nodos sensores por área académica.'}</p>
         </div>
         {!addingRow && (
           <button className="cat-btn-add" onClick={() => { setAddingRow(true); setEditId(null); }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="15" height="15">
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            Agregar Categoría
+            {isEn ? 'Add Category' : 'Agregar Categoría'}
           </button>
         )}
       </div>
@@ -453,31 +597,31 @@ export default function GestionarCategorias() {
           <thead>
             <tr>
               <th>#</th>
-              <th>Nombre de Línea</th>
-              <th>Color</th>
-              <th style={{ textAlign: 'right' }}>Acciones</th>
+              <th>{isEn ? 'Line Name' : 'Nombre de Línea'}</th>
+              <th>{isEn ? 'Color' : 'Color'}</th>
+              <th style={{ textAlign: 'right' }}>{isEn ? 'Actions' : 'Acciones'}</th>
             </tr>
           </thead>
           <tbody>
 
             {/* Loading */}
             {loading && (
-              <tr><td colSpan="4" className="cat-empty-cell">Cargando datos...</td></tr>
+              <tr><td colSpan="4" className="cat-empty-cell">{isEn ? 'Loading data...' : 'Cargando datos...'}</td></tr>
             )}
 
             {/* Existing rows */}
-            {!loading && categorias.map((cat, idx) =>
+            {!loading && categoriasPaginadas.map((cat, idx) =>
               editId === cat.id ? (
                 /* ── Inline Edit Row ── */
                 <tr key={cat.id} className="cat-row-editing">
-                  <td className="cat-idx">{idx + 1}</td>
+                  <td className="cat-idx">{startIndex + idx + 1}</td>
                   <td>
                     <input
                       autoFocus
                       className="cat-inline-input"
                       value={editNombre}
                       onChange={e => setEditNombre(e.target.value)}
-                      placeholder="Nombre de categoría"
+                      placeholder={isEn ? 'Category name' : 'Nombre de categoría'}
                       onKeyDown={e => e.key === 'Enter' && handleUpdate()}
                     />
                   </td>
@@ -487,13 +631,13 @@ export default function GestionarCategorias() {
                   <td>
                     <div className="cat-inline-actions">
                       {/* ✔ Save */}
-                      <button className="cat-btn-confirm" title="Guardar cambios" onClick={handleUpdate}>
+                      <button className="cat-btn-confirm" title={isEn ? "Save changes" : "Guardar cambios"} onClick={handleUpdate}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="16" height="16">
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
                       </button>
                       {/* ✕ Cancel */}
-                      <button className="cat-btn-cancel-inline" title="Cancelar" onClick={cancelEdit}>
+                      <button className="cat-btn-cancel-inline" title={isEn ? "Cancel" : "Cancelar"} onClick={cancelEdit}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="16" height="16">
                           <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                         </svg>
@@ -504,7 +648,7 @@ export default function GestionarCategorias() {
               ) : (
                 /* ── Normal Row ── */
                 <tr key={cat.id} className="cat-row">
-                  <td className="cat-idx">{idx + 1}</td>
+                  <td className="cat-idx">{startIndex + idx + 1}</td>
                   <td className="cat-name">{cat.nombre}</td>
                   <td>
                     <div className="cat-badge" style={{ borderColor: cat.colorHex + '55' }}>
@@ -514,19 +658,19 @@ export default function GestionarCategorias() {
                   </td>
                   <td>
                     <div className="cat-row-actions">
-                      <button className="cat-btn-edit" onClick={() => startEdit(cat)} title="Editar">
+                      <button className="cat-btn-edit" onClick={() => startEdit(cat)} title={isEn ? "Edit" : "Editar"}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                           <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                         </svg>
-                        Editar
+                        {isEn ? 'Edit' : 'Editar'}
                       </button>
-                      <button className="cat-btn-delete" onClick={() => handleDelete(cat.id)} title="Eliminar">
+                      <button className="cat-btn-delete" onClick={() => handleDelete(cat.id)} title={isEn ? "Delete" : "Eliminar"}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
                           <polyline points="3 6 5 6 21 6" />
                           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                         </svg>
-                        Eliminar
+                        {isEn ? 'Delete' : 'Eliminar'}
                       </button>
                     </div>
                   </td>
@@ -536,7 +680,7 @@ export default function GestionarCategorias() {
 
             {/* Empty state */}
             {!loading && categorias.length === 0 && !addingRow && (
-              <tr><td colSpan="4" className="cat-empty-cell">No hay categorías registradas aún.</td></tr>
+              <tr><td colSpan="4" className="cat-empty-cell">{isEn ? 'No categories registered yet.' : 'No hay categorías registradas aún.'}</td></tr>
             )}
 
             {/* ── Inline New Row ── */}
@@ -549,7 +693,7 @@ export default function GestionarCategorias() {
                     className="cat-inline-input"
                     value={newNombre}
                     onChange={e => setNewNombre(e.target.value)}
-                    placeholder="Nombre de la categoría"
+                    placeholder={isEn ? 'Category name' : 'Nombre de la categoría'}
                     onKeyDown={e => e.key === 'Enter' && handleCreate()}
                   />
                 </td>
@@ -559,13 +703,13 @@ export default function GestionarCategorias() {
                 <td>
                   <div className="cat-inline-actions">
                     {/* ✔ Save */}
-                    <button className="cat-btn-confirm" title="Guardar categoría" onClick={handleCreate}>
+                    <button className="cat-btn-confirm" title={isEn ? "Save category" : "Guardar categoría"} onClick={handleCreate}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="16" height="16">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
                     </button>
                     {/* ✕ Cancel */}
-                    <button className="cat-btn-cancel-inline" title="Cancelar" onClick={cancelAdd}>
+                    <button className="cat-btn-cancel-inline" title={isEn ? "Cancel" : "Cancelar"} onClick={cancelAdd}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="16" height="16">
                         <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                       </svg>
@@ -578,6 +722,67 @@ export default function GestionarCategorias() {
           </tbody>
         </table>
       </div>
+
+      {/* CONTROLES DE PAGINACIÓN */}
+      {!loading && categoriasFiltradas.length > 0 && (
+        <div className="cat-pagination-bar">
+          <div className="pagination-info-text">
+            {isEn 
+              ? `Showing ${Math.min(startIndex + 1, categoriasFiltradas.length)} to ${Math.min(startIndex + itemsPerPage, categoriasFiltradas.length)} of ${categoriasFiltradas.length} categories`
+              : `Mostrando ${Math.min(startIndex + 1, categoriasFiltradas.length)} a ${Math.min(startIndex + itemsPerPage, categoriasFiltradas.length)} de ${categoriasFiltradas.length} categorías`}
+          </div>
+
+          <div className="pagination-controls-group">
+            <CustomItemsPerPageSelect
+              value={itemsPerPage}
+              onChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+              options={[5, 10, 20, 50]}
+              language={language}
+            />
+
+            <div className="pagination-buttons-wrapper">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className={`pagination-nav-btn prev-btn ${currentPage === 1 ? 'disabled' : ''}`}
+                title={isEn ? 'Previous page' : 'Página anterior'}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+                <span className="pagination-btn-label">{isEn ? 'Prev' : 'Anterior'}</span>
+              </button>
+
+              <div className="pagination-number-list">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setCurrentPage(p)}
+                    className={`pagination-num-btn ${p === currentPage ? 'active' : ''}`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className={`pagination-nav-btn next-btn ${currentPage === totalPages ? 'disabled' : ''}`}
+                title={isEn ? 'Next page' : 'Página siguiente'}
+              >
+                <span className="pagination-btn-label">{isEn ? 'Next' : 'Siguiente'}</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

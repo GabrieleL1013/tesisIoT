@@ -1,3 +1,4 @@
+import SEO from "../components/SEO";
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
@@ -8,12 +9,11 @@ import EditableImage from "../components/EditableImage";
 import { useInterfaceText } from "../context/InterfaceTextContext";
 import { useInterfaceImage } from "../context/InterfaceImageContext";
 import { checkEditPermission } from "../utils/checkEditPermission";
+import { useLanguage } from "../context/LanguageContext";
+import { usePageTitle } from "../hooks/usePageTitle";
 
 import LogoIoTDark from "../assets/uleam_iot_oscuro.svg";
 import ArchitectureImg from "../assets/architecture_iotuleam.jpeg";
-import WZamoraImg from "../assets/wzamora.png";
-import MMachucaImg from "../assets/mikemachuca.jpeg";
-import EToalaImg from "../assets/erick.jpeg";
 
 // ── Social Icons Map ──
 const SocialIcons = {
@@ -144,7 +144,7 @@ function EditableSocials({ textKey, defaultData = {}, canEdit = false }) {
 
   return (
     <>
-      <div className="dev-social-row" style={{ alignItems: "center", minHeight: "28px", marginTop: "8px" }}>
+      <div className="dev-social-row" style={{ display: "inline-flex", alignItems: "center", gap: "5px", verticalAlign: "middle" }}>
         {activeKeys.map((key) => (
           <a
             key={key}
@@ -182,7 +182,7 @@ function EditableSocials({ textKey, defaultData = {}, canEdit = false }) {
                 <code className="eimg-modal-key">{textKey}</code>
               </div>
               <button type="button" className="eimg-modal-close" onClick={() => setShowModal(false)}>
-                ✕
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
               </button>
             </div>
 
@@ -206,7 +206,16 @@ function EditableSocials({ textKey, defaultData = {}, canEdit = false }) {
                   Cancelar
                 </button>
                 <button type="submit" className="eimg-btn eimg-btn-primary" disabled={saving}>
-                  {saving ? "Guardando…" : "💾 Guardar Redes"}
+                  {saving ? "Guardando…" : (
+                    <>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', verticalAlign: 'text-bottom' }}>
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                        <polyline points="7 3 7 8 15 8"></polyline>
+                      </svg>
+                      Guardar Redes
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -219,36 +228,19 @@ function EditableSocials({ textKey, defaultData = {}, canEdit = false }) {
 }
 
 // Initial default member lists
-const DEFAULT_TEACHERS = [
-  "Robert Wilfrido Moreira Centeno",
-  "Edison Ernesto Almeida Zambrano",
-  "Oscar Armando González López",
-  "Luis Jacinto Mendoza Cuzme",
-  "Henry Neurio Mero Briones",
-];
 
-const DEFAULT_COLLABS = [
-  { name: "Carlos Tavares Calafate", link: "https://grc.webs.upv.es/members/calafate/" },
-  { name: "Pietro Manzoni", link: "https://pmanzoni.notion.site/" },
-];
 
-const DEFAULT_STUDENTS = [
-  "Joseline Malena Cedeño Rivera",
-  "Stefany Michelle Alonzo Merizaldes",
-  "Tomy Arnol Anchundia Triviño",
-  "Luis Alfredo Sánchez Briones",
-  "Edwin Dennis Rivadeniera Salvatierra",
-];
 
-const DEFAULT_INTERNS = [
-  "Rómulo Manuel Palacios Rivas",
-  "Anthony Adrian Zamora Villaruel",
-];
+
+
+
+
 
 export default function AcercaDe() {
+  const { language } = useLanguage();
+  usePageTitle(language === 'en' ? 'About Us' : 'Acerca de');
   const { texts, updateText, editMode } = useInterfaceText();
-  const { images } = useInterfaceImage();
-  const [isAdmin, setIsAdmin] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
 
   // SVG placeholder for new members without a photo yet
   const USER_SVG_PLACEHOLDER = `data:image/svg+xml;utf8,${encodeURIComponent(
@@ -256,9 +248,6 @@ export default function AcercaDe() {
     + '</svg>'
   )}`;
 
-  useEffect(() => {
-    document.title = "IoT ULEAM - Investigación Multidisciplinaria con IoT e IA";
-  }, []);
 
   // Check admin role or /modo-edicion permission for edit mode
   useEffect(() => {
@@ -276,14 +265,7 @@ export default function AcercaDe() {
 
   const canEdit = editMode && isAdmin;
 
-  const getAvatarSrc = (key, fallback) => {
-    const dbEntry = images?.[key];
-    if (dbEntry?.image_data) {
-      return `data:${dbEntry.mime_type};base64,${dbEntry.image_data.replace(/^data:[^;]+;base64,/, "")}`;
-    }
-    return fallback;
-  };
-
+  
   // Counts from DB or defaults
   const leadsCount = parseInt(texts["ad-leads-count"] || "2", 10);
   const devsCount = parseInt(texts["ad-devs-count"] || "1", 10);
@@ -293,11 +275,23 @@ export default function AcercaDe() {
   const internsCount = parseInt(texts["ad-interns-count"] || "2", 10);
 
   // Add a new member to a category
-  const handleAddMember = async (countKey, currentCount, defaultText, keyPrefix) => {
+  const handleAddMember = async (countKey, currentCount, defaultText, keyPrefix, categoryType) => {
     const newCount = currentCount + 1;
-    const newKey = `${keyPrefix}${newCount}`;
-    await updateText(newKey, `${defaultText} ${newCount}`);
+    let newKey = `${keyPrefix}${newCount}`;
+    let socialsKey = `${keyPrefix}${newCount}-socials`;
+
+    if (categoryType === 'devs') {
+      newKey = `ad-dev${newCount}-name`;
+      socialsKey = `ad-dev${newCount}-socials`;
+    } else if (categoryType === 'leads') {
+      newKey = `ad-lead${newCount}-name`;
+      socialsKey = `ad-lead${newCount}-socials`;
+    }
+
     await updateText(countKey, String(newCount));
+    await updateText(newKey, `${defaultText} ${newCount}`);
+    await updateText(socialsKey, ""); // Clean initial socials state
+
     Swal.fire({
       toast: true,
       position: 'top-end',
@@ -309,7 +303,7 @@ export default function AcercaDe() {
   };
 
   // Remove a member from a category at a specific index
-  const handleRemoveMember = async (countKey, currentCount, removeIndex, keyPrefix) => {
+  const handleRemoveMember = async (categoryType, currentCount, removeIndex) => {
     if (currentCount <= 1) {
       Swal.fire({
         toast: true,
@@ -335,16 +329,65 @@ export default function AcercaDe() {
 
     if (!res.isConfirmed) return;
 
-    // Shift keys down if removing from middle
+    // Helper to get text keys for a specific member index in a category
+    const getKeysForIndex = (type, i) => {
+      if (type === 'leads') {
+        return [
+          `ad-lead${i}-name`,
+          `ad-lead${i}-role`,
+          `ad-lead${i}-email`,
+          `ad-lead${i}-socials`,
+        ];
+      }
+      if (type === 'devs') {
+        const p = i === 1 ? 'ad-dev' : `ad-dev${i}`;
+        return [
+          `${p}-name`,
+          `${p}-role`,
+          `${p}-email`,
+          `${p}-bio`,
+          `${p}-socials`,
+        ];
+      }
+      if (type === 'teachers') return [`ad-teacher${i}`, `ad-teacher${i}-socials` ];
+      if (type === 'collabs') return [`ad-collab${i}`, `ad-collab${i}-socials` ];
+      if (type === 'students') return [`ad-student${i}`, `ad-student${i}-socials` ];
+      if (type === 'interns') return [`ad-intern${i}`, `ad-intern${i}-socials` ];
+      return [];
+    };
+
+    const countKeyMap = {
+      leads: 'ad-leads-count',
+      devs: 'ad-devs-count',
+      teachers: 'ad-teachers-count',
+      collabs: 'ad-collabs-count',
+      students: 'ad-students-count',
+      interns: 'ad-interns-count',
+    };
+    const countKey = countKeyMap[categoryType];
+
+    // Shift all member keys down from removeIndex to currentCount - 1
     for (let i = removeIndex; i < currentCount; i++) {
-      const nextKey = `${keyPrefix}${i + 1}`;
-      const curKey = `${keyPrefix}${i}`;
-      if (texts[nextKey] !== undefined) {
-        await updateText(curKey, texts[nextKey]);
+      const curKeys = getKeysForIndex(categoryType, i);
+      const nextKeys = getKeysForIndex(categoryType, i + 1);
+
+      for (let k = 0; k < curKeys.length; k++) {
+        const curK = curKeys[k];
+        const nextK = nextKeys[k];
+        const nextVal = texts[nextK] !== undefined ? texts[nextK] : '';
+        await updateText(curK, nextVal);
       }
     }
 
+    // Clear the last member's old keys completely
+    const lastKeys = getKeysForIndex(categoryType, currentCount);
+    for (const lk of lastKeys) {
+      await updateText(lk, '');
+    }
+
+    // Finally update count key
     await updateText(countKey, String(currentCount - 1));
+
     Swal.fire({
       toast: true,
       position: 'top-end',
@@ -357,6 +400,10 @@ export default function AcercaDe() {
 
   return (
     <div className="about-page">
+      <SEO 
+        title={language === 'en' ? "About Us / Software - IoT ULEAM" : "Acerca de / Software - IoT ULEAM"}
+        description={language === 'en' ? "Learn about the developers and the technology behind the IoT ULEAM telemetry project." : "Conoce a los desarrolladores y la tecnología detrás del proyecto de telemetría IoT ULEAM."}
+      />
       <main className="about-main-container">
 
         {/* ── SECCIÓN HÉROE / LOGO PRINCIPAL ── */}
@@ -375,10 +422,10 @@ export default function AcercaDe() {
           </div>
           <div className="about-header-text">
             <h1 className="about-title-main">
-              <EditableText textKey="ad-main-title" defaultText="Acerca de IoT ULEAM" />
+              <EditableText textKey="ad-main-title" />
             </h1>
             <p className="about-subtitle-main">
-              <EditableText textKey="ad-main-subtitle" defaultText="Plataforma de Investigación Multidisciplinaria con IoT" />
+              <EditableText textKey="ad-main-subtitle" />
             </p>
           </div>
         </div>
@@ -386,12 +433,12 @@ export default function AcercaDe() {
         {/* ── ¿DE QUÉ TRATA ESTE PROYECTO? ── */}
         <section className="about-section">
           <h2 className="about-section-heading">
-            <EditableText textKey="ad-about-title" defaultText="¿De qué trata este proyecto?" />
+            <EditableText textKey="ad-about-title" />
           </h2>
           <p className="about-paragraph">
             <EditableText
               textKey="ad-about-description"
-              defaultText="IoT ULEAM es una plataforma desarrollada por estudiantes y docentes de la Universidad Laica Eloy Alfaro de Manabí, enfocada en la investigación multidisciplinaria mediante el uso de sensores inteligentes, redes inalámbricas y análisis de datos. Su objetivo es integrar áreas como ingeniería, salud, medio ambiente y educación a través de tecnologías IoT."
+             
               isTextArea={true}
             />
           </p>
@@ -400,7 +447,7 @@ export default function AcercaDe() {
         {/* ── TECNOLOGÍAS UTILIZADAS ── */}
         <section className="about-section">
           <h2 className="about-section-heading">
-            <EditableText textKey="ad-tech-title" defaultText="Tecnologías Utilizadas" />
+            <EditableText textKey="ad-tech-title" />
           </h2>
 
           <div className="about-tech-grid">
@@ -423,7 +470,7 @@ export default function AcercaDe() {
                 hint="Ícono de Next.js en la sección Tecnologías Utilizadas."
               />
               <span className="tech-card-label">
-                <EditableText textKey="ad-tech-1" defaultText="Next.js" />
+                <EditableText textKey="ad-tech-1" />
               </span>
             </div>
 
@@ -444,7 +491,7 @@ export default function AcercaDe() {
                 hint="Ícono de Django en la sección Tecnologías Utilizadas."
               />
               <span className="tech-card-label">
-                <EditableText textKey="ad-tech-2" defaultText="Django" />
+                <EditableText textKey="ad-tech-2" />
               </span>
             </div>
 
@@ -467,7 +514,7 @@ export default function AcercaDe() {
                 hint="Ícono de PostgreSQL en la sección Tecnologías Utilizadas."
               />
               <span className="tech-card-label">
-                <EditableText textKey="ad-tech-3" defaultText="PostgreSQL" />
+                <EditableText textKey="ad-tech-3" />
               </span>
             </div>
 
@@ -488,7 +535,7 @@ export default function AcercaDe() {
                 hint="Ícono de SCRUM en la sección Tecnologías Utilizadas."
               />
               <span className="tech-card-label">
-                <EditableText textKey="ad-tech-4" defaultText="SCRUM" />
+                <EditableText textKey="ad-tech-4" />
               </span>
             </div>
 
@@ -509,7 +556,7 @@ export default function AcercaDe() {
                 hint="Ícono de Sensores IoT en la sección Tecnologías Utilizadas."
               />
               <span className="tech-card-label">
-                <EditableText textKey="ad-tech-5" defaultText="Sensores IoT" />
+                <EditableText textKey="ad-tech-5" />
               </span>
             </div>
 
@@ -530,7 +577,7 @@ export default function AcercaDe() {
                 hint="Ícono de Gráficas ChartJS en la sección Tecnologías Utilizadas."
               />
               <span className="tech-card-label">
-                <EditableText textKey="ad-tech-6" defaultText="Gráficas ChartJS" />
+                <EditableText textKey="ad-tech-6" />
               </span>
             </div>
 
@@ -552,7 +599,7 @@ export default function AcercaDe() {
                 hint="Ícono de Mapas Leaflet.js en la sección Tecnologías Utilizadas."
               />
               <span className="tech-card-label">
-                <EditableText textKey="ad-tech-7" defaultText="Mapas Leaflet.js" />
+                <EditableText textKey="ad-tech-7" />
               </span>
             </div>
 
@@ -573,7 +620,7 @@ export default function AcercaDe() {
                 hint="Ícono de Configuración Modular en la sección Tecnologías Utilizadas."
               />
               <span className="tech-card-label">
-                <EditableText textKey="ad-tech-8" defaultText="Configuración Modular" />
+                <EditableText textKey="ad-tech-8" />
               </span>
             </div>
 
@@ -584,7 +631,7 @@ export default function AcercaDe() {
         <section className="about-section">
           <div className="about-arch-box">
             <h2 className="about-arch-title">
-              <EditableText textKey="ad-arch-title" defaultText="Arquitectura IoT ULEAM" />
+              <EditableText textKey="ad-arch-title" />
             </h2>
             <div className="about-arch-img-wrapper">
               <EditableImage
@@ -592,7 +639,7 @@ export default function AcercaDe() {
                 defaultSrc={ArchitectureImg}
                 alt="Arquitectura IoT ULEAM"
                 className="about-arch-img"
-                wrapperStyle={{ minHeight: '300px', borderRadius: '10px' }}
+                wrapperStyle={{ borderRadius: '10px' }}
                 recommendedWidth={900}
                 recommendedHeight={500}
                 hint="Diagrama de arquitectura de la plataforma IoT ULEAM que ilustra el flujo de datos desde los sensores hasta la nube."
@@ -604,17 +651,17 @@ export default function AcercaDe() {
         {/* ── OBJETIVOS DEL PROYECTO ── */}
         <section className="about-section">
           <h2 className="about-section-heading">
-            <EditableText textKey="ad-obj-title" defaultText="Objetivos del Proyecto" />
+            <EditableText textKey="ad-obj-title" />
           </h2>
           <ul className="about-bullet-list">
             <li>
-              <EditableText textKey="ad-obj-item1" defaultText="Desarrollar una plataforma web para la adquisición y análisis de datos en tiempo real." />
+              <EditableText textKey="ad-obj-item1" />
             </li>
             <li>
-              <EditableText textKey="ad-obj-item2" defaultText="Facilitar la investigación multidisciplinaria mediante el uso de tecnologías IoT e IA." />
+              <EditableText textKey="ad-obj-item2" />
             </li>
             <li>
-              <EditableText textKey="ad-obj-item3" defaultText="Promover la colaboración entre estudiantes, docentes e investigadores en diversas áreas del conocimiento." />
+              <EditableText textKey="ad-obj-item3" />
             </li>
           </ul>
         </section>
@@ -626,7 +673,7 @@ export default function AcercaDe() {
             {/* Características Principales */}
             <div className="about-info-card">
               <h3 className="about-info-card-title">
-                <EditableText textKey="ad-feat-title" defaultText="Características Principales" />
+                <EditableText textKey="ad-feat-title" />
               </h3>
               <div className="about-info-card-list">
 
@@ -637,7 +684,7 @@ export default function AcercaDe() {
                     </svg>
                   </span>
                   <p className="info-item-text">
-                    <EditableText textKey="ad-feat-1" defaultText="Integración de sensores IoT para la captura de datos ambientales." />
+                    <EditableText textKey="ad-feat-1" />
                   </p>
                 </div>
 
@@ -649,7 +696,7 @@ export default function AcercaDe() {
                     </svg>
                   </span>
                   <p className="info-item-text">
-                    <EditableText textKey="ad-feat-2" defaultText="Presenta los datos con gráficos dinámicos y mapas interactivos." />
+                    <EditableText textKey="ad-feat-2" />
                   </p>
                 </div>
 
@@ -661,7 +708,7 @@ export default function AcercaDe() {
                     </svg>
                   </span>
                   <p className="info-item-text">
-                    <EditableText textKey="ad-feat-3" defaultText="Muestra la ubicación de los sensores con un resumen de los datos." />
+                    <EditableText textKey="ad-feat-3" />
                   </p>
                 </div>
 
@@ -672,7 +719,7 @@ export default function AcercaDe() {
                     </svg>
                   </span>
                   <p className="info-item-text">
-                    <EditableText textKey="ad-feat-4" defaultText="Procesamiento y almacenamiento de datos en una base de datos organizada por tiempo y ubicación." />
+                    <EditableText textKey="ad-feat-4" />
                   </p>
                 </div>
 
@@ -682,7 +729,7 @@ export default function AcercaDe() {
             {/* Metodología de Desarrollo */}
             <div className="about-info-card">
               <h3 className="about-info-card-title">
-                <EditableText textKey="ad-method-title" defaultText="Metodología de Desarrollo" />
+                <EditableText textKey="ad-method-title" />
               </h3>
               <div className="about-info-card-list">
 
@@ -693,7 +740,7 @@ export default function AcercaDe() {
                     </svg>
                   </span>
                   <p className="info-item-text">
-                    <EditableText textKey="ad-method-1" defaultText="Ágil (Scrum)." />
+                    <EditableText textKey="ad-method-1" />
                   </p>
                 </div>
 
@@ -710,7 +757,7 @@ export default function AcercaDe() {
                     </svg>
                   </span>
                   <p className="info-item-text">
-                    <EditableText textKey="ad-method-2" defaultText="Levantamiento de requerimientos, desarrollo, pruebas y despliegue." />
+                    <EditableText textKey="ad-method-2" />
                   </p>
                 </div>
 
@@ -721,7 +768,7 @@ export default function AcercaDe() {
                     </svg>
                   </span>
                   <p className="info-item-text">
-                    <EditableText textKey="ad-method-3" defaultText="Ciclos iterativos con revisiones continuas" />
+                    <EditableText textKey="ad-method-3" />
                   </p>
                 </div>
 
@@ -734,7 +781,7 @@ export default function AcercaDe() {
         {/* ── EQUIPO DE TRABAJO ── */}
         <section className="about-section about-team-box">
           <h2 className="about-team-main-heading">
-            <EditableText textKey="ad-team-title" defaultText="Equipo de Trabajo" />
+            <EditableText textKey="ad-team-title" />
           </h2>
 
           {/* Líderes de Proyecto */}
@@ -742,15 +789,6 @@ export default function AcercaDe() {
             <div className="about-leads-grid">
               {Array.from({ length: leadsCount }).map((_, idx) => {
                 const i = idx + 1;
-                const isFirst = i === 1;
-                const isSecond = i === 2;
-                const defaultPhoto = isFirst ? WZamoraImg : isSecond ? MMachucaImg : USER_SVG_PLACEHOLDER;
-                const defaultName = isFirst ? "Willian Zamora" : isSecond ? "Mike Machuca" : `Líder ${i}`;
-                const defaultRole = isFirst ? "Líder de Proyecto" : isSecond ? "Co-Líder del Proyecto" : "Líder de Proyecto";
-                const defaultEmail = isFirst ? "willian.zamora@uleam.edu.ec" : isSecond ? "mike.machuca@uleam.edu.ec" : "correo@uleam.edu.ec";
-                const defaultLink = isFirst ? "https://sites.google.com/view/willianzamora/home" : isSecond ? "https://sites.google.com/view/mike-machuca-avalos" : undefined;
-                const avatarSrc = getAvatarSrc(`ad-lead${i}-photo`, defaultPhoto);
-
                 return (
                   <div className="lead-card" key={`lead-${i}`} style={{ position: "relative" }}>
                     {canEdit && leadsCount > 1 && (
@@ -758,15 +796,15 @@ export default function AcercaDe() {
                         type="button"
                         className="card-delete-btn"
                         title="Eliminar este líder"
-                        onClick={() => handleRemoveMember('ad-leads-count', leadsCount, i, 'ad-lead-name-')}
+                        onClick={() => handleRemoveMember('leads', leadsCount, i)}
                       >
-                        ✕
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                       </button>
                     )}
                     <div className="lead-avatar-wrapper">
                       <EditableImage
                         imageKey={`ad-lead${i}-photo`}
-                        defaultSrc={defaultPhoto}
+                        defaultSrc={USER_SVG_PLACEHOLDER}
                         alt={`Líder ${i}`}
                         className="lead-avatar-img"
                         wrapperStyle={{ width: '100%', height: '100%', borderRadius: '50%' }}
@@ -777,26 +815,18 @@ export default function AcercaDe() {
                       />
                     </div>
                     <div className="lead-card-body">
-                      {defaultLink ? (
-                        <a href={defaultLink} target="_blank" rel="noopener noreferrer" className="lead-name-link">
-                          <EditableText textKey={`ad-lead${i}-name`} defaultText={defaultName} />
-                        </a>
-                      ) : (
-                        <span className="lead-name-link">
-                          <EditableText textKey={`ad-lead${i}-name`} defaultText={defaultName} />
-                        </span>
-                      )}
+                      <span className="lead-name-link"><EditableText textKey={`ad-lead${i}-name`} /></span>
                       <p className="lead-role">
-                        <EditableText textKey={`ad-lead${i}-role`} defaultText={defaultRole} />
+                        <EditableText textKey={`ad-lead${i}-role`} />
                       </p>
                       <p className="lead-email">
-                        <EditableText textKey={`ad-lead${i}-email`} defaultText={defaultEmail} />
+                        <EditableText textKey={`ad-lead${i}-email`} />
                       </p>
 
                       {/* Redes Sociales del Líder */}
                       <EditableSocials
                         textKey={`ad-lead${i}-socials`}
-                        defaultData={defaultLink ? { web: defaultLink } : {}}
+                        defaultData={{}}
                         canEdit={canEdit}
                       />
                     </div>
@@ -810,9 +840,9 @@ export default function AcercaDe() {
                   type="button"
                   className="add-member-btn"
                   title="Añadir líder de proyecto"
-                  onClick={() => handleAddMember("ad-leads-count", leadsCount, "Nuevo Líder", "ad-lead-name-")}
+                  onClick={() => handleAddMember("ad-leads-count", leadsCount, "Nuevo Líder", "ad-lead", "leads")}
                 >
-                  +
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="18" height="18" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 </button>
               </div>
             )}
@@ -821,26 +851,12 @@ export default function AcercaDe() {
           {/* Estudiante a cargo del desarrollo */}
           <div className="about-dev-section">
             <h3 className="about-dev-section-title">
-              <EditableText textKey="ad-dev-header" defaultText="Estudiante a cargo del desarrollo de la plataforma" />
+              <EditableText textKey="ad-dev-header" />
             </h3>
             <div className="about-dev-cards-grid">
               {Array.from({ length: devsCount }).map((_, idx) => {
                 const i = idx + 1;
-                const isFirst = i === 1;
-                const defaultPhoto = isFirst ? EToalaImg : USER_SVG_PLACEHOLDER;
-                const defaultName = isFirst ? "Erick Alexander Toala Intriago" : `Desarrollador ${i}`;
-                const defaultRole = isFirst ? "Desarrollador Full Stack" : "Desarrollador";
-                const defaultEmail = isFirst ? "e0803413111@live.uleam.edu.ec" : "correo@uleam.edu.ec";
-                const defaultBio = isFirst ? "Desarrollador de la plataforma web. Encargado de todo el sistema backend con Django REST y la interfaz frontend con Next.js." : "Descripción del desarrollador...";
-                const defaultDevSocials = isFirst ? {
-                  web: "https://erick-dev-zeta.vercel.app/",
-                  github: "https://github.com/Erick-Toala",
-                  facebook: "https://www.facebook.com/erick.toala.92",
-                  instagram: "https://www.instagram.com/toalaerick56/"
-                } : {};
-                const devAvatarKey = isFirst ? "ad-dev-photo" : `ad-dev${i}-photo`;
-                const avatarSrc = getAvatarSrc(devAvatarKey, defaultPhoto);
-
+                const devAvatarKey = i === 1 ? "ad-dev-photo" : `ad-dev${i}-photo`;
                 return (
                   <div className="dev-card" key={`dev-${i}`} style={{ position: "relative" }}>
                     {canEdit && devsCount > 1 && (
@@ -848,16 +864,16 @@ export default function AcercaDe() {
                         type="button"
                         className="card-delete-btn"
                         title="Eliminar este desarrollador"
-                        onClick={() => handleRemoveMember('ad-devs-count', devsCount, i, 'ad-dev-name-')}
+                        onClick={() => handleRemoveMember('devs', devsCount, i)}
                       >
-                        ✕
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                       </button>
                     )}
                     <div className="dev-avatar-wrapper">
                       <EditableImage
                         imageKey={devAvatarKey}
-                        defaultSrc={defaultPhoto}
-                        alt={defaultName}
+                        defaultSrc={USER_SVG_PLACEHOLDER}
+                        alt={`Miembro ${i}`}
                         className="dev-avatar-img"
                         wrapperStyle={{ width: '100%', height: '100%', borderRadius: '50%' }}
                         recommendedWidth={200}
@@ -867,26 +883,25 @@ export default function AcercaDe() {
                       />
                     </div>
                     <h3 className="dev-name">
-                      <EditableText textKey={isFirst ? "ad-dev-name" : `ad-dev${i}-name`} defaultText={defaultName} />
+                      <EditableText textKey={i === 1 ? "ad-dev-name" : `ad-dev${i}-name`} />
                     </h3>
                     <p className="dev-role">
-                      <EditableText textKey={isFirst ? "ad-dev-role" : `ad-dev${i}-role`} defaultText={defaultRole} />
+                      <EditableText textKey={i === 1 ? "ad-dev-role" : `ad-dev${i}-role`} />
                     </p>
                     <p className="dev-email">
-                      <EditableText textKey={isFirst ? "ad-dev-email" : `ad-dev${i}-email`} defaultText={defaultEmail} />
+                      <EditableText textKey={i === 1 ? "ad-dev-email" : `ad-dev${i}-email`} />
                     </p>
                     <p className="dev-bio">
                       <EditableText
-                        textKey={isFirst ? "ad-dev-bio" : `ad-dev${i}-bio`}
-                        defaultText={defaultBio}
+                        textKey={i === 1 ? "ad-dev-bio" : `ad-dev${i}-bio`}
                         isTextArea={true}
                       />
                     </p>
 
                     {/* Redes Sociales del Desarrollador */}
                     <EditableSocials
-                      textKey={isFirst ? "ad-dev-socials" : `ad-dev${i}-socials`}
-                      defaultData={defaultDevSocials}
+                      textKey={i === 1 ? "ad-dev-socials" : `ad-dev${i}-socials`}
+                      defaultData={{}}
                       canEdit={canEdit}
                     />
                   </div>
@@ -899,9 +914,9 @@ export default function AcercaDe() {
                   type="button"
                   className="add-member-btn"
                   title="Añadir desarrollador"
-                  onClick={() => handleAddMember("ad-devs-count", devsCount, "Nuevo Desarrollador", "ad-dev-name-")}
+                  onClick={() => handleAddMember("ad-devs-count", devsCount, "Nuevo Desarrollador", "ad-dev", "devs")}
                 >
-                  +
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="18" height="18" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 </button>
               </div>
             )}
@@ -920,21 +935,25 @@ export default function AcercaDe() {
                   </svg>
                 </span>
                 <h3 className="members-category-title">
-                  <EditableText textKey="ad-teachers-title" defaultText="Docentes del grupo de investigación" />
+                  <EditableText textKey="ad-teachers-title" />
                 </h3>
               </div>
               <div className="members-chips-wrap">
                 {Array.from({ length: teachersCount }).map((_, idx) => {
                   const i = idx + 1;
-                  const defaultName = DEFAULT_TEACHERS[idx] || `Docente ${i}`;
                   return (
                     <span className="chip-wrapper-editable" key={`teacher-${i}`}>
-                      <span className="member-chip">
-                        <EditableText textKey={`ad-teacher${i}`} defaultText={defaultName} />
+                      <span className="member-chip" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <EditableText textKey={`ad-teacher${i}`} />
+                        <EditableSocials
+                          textKey={`ad-teacher${i}-socials`}
+                          defaultData={{}}
+                          canEdit={canEdit}
+                        />
                       </span>
                       {canEdit && teachersCount > 1 && (
                         <button type="button" className="chip-delete-btn" title="Eliminar este docente"
-                          onClick={() => handleRemoveMember("ad-teachers-count", teachersCount, i, "ad-teacher")}>✕</button>
+                          onClick={() => handleRemoveMember('teachers', teachersCount, i)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
                       )}
                     </span>
                   );
@@ -943,12 +962,12 @@ export default function AcercaDe() {
               {canEdit && (
                 <div className="add-member-btn-wrap">
                   <button type="button" className="add-member-btn" title="Añadir docente"
-                    onClick={() => handleAddMember("ad-teachers-count", teachersCount, "Nuevo docente", "ad-teacher")}>+</button>
+                    onClick={() => handleAddMember("ad-teachers-count", teachersCount, "Nuevo docente", "ad-teacher", "teachers")}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="18" height="18" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
                 </div>
               )}
             </div>
 
-            {/* Colaboradores externos — diseño distinto: lista con líneas */}
+            {/* Colaboradores externos */}
             <div className="members-category-box collabs-box">
               <div className="members-category-header">
                 <span className="members-category-icon">
@@ -959,30 +978,26 @@ export default function AcercaDe() {
                   </svg>
                 </span>
                 <h3 className="members-category-title">
-                  <EditableText textKey="ad-collab-title" defaultText="Colaboradores externos" />
+                  <EditableText textKey="ad-collab-title" />
                 </h3>
               </div>
               <ul className="collabs-list">
                 {Array.from({ length: collabsCount }).map((_, idx) => {
                   const i = idx + 1;
-                  const item = DEFAULT_COLLABS[idx];
-                  const defaultName = item ? item.name : `Colaborador ${i}`;
-                  const link = item ? item.link : undefined;
                   return (
                     <li className="collab-list-item chip-wrapper-editable" key={`collab-${i}`}>
                       <span className="collab-dot"/>
-                      {link ? (
-                        <a href={link} target="_blank" rel="noopener noreferrer" className="collab-list-link">
-                          <EditableText textKey={`ad-collab${i}`} defaultText={defaultName} />
-                        </a>
-                      ) : (
-                        <span className="collab-list-text">
-                          <EditableText textKey={`ad-collab${i}`} defaultText={defaultName} />
-                        </span>
-                      )}
+                      <span className="collab-list-text" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <EditableText textKey={`ad-collab${i}`} />
+                        <EditableSocials
+                          textKey={`ad-collab${i}-socials`}
+                          defaultData={{}}
+                          canEdit={canEdit}
+                        />
+                      </span>
                       {canEdit && collabsCount > 1 && (
                         <button type="button" className="chip-delete-btn" title="Eliminar este colaborador"
-                          onClick={() => handleRemoveMember("ad-collabs-count", collabsCount, i, "ad-collab")}>✕</button>
+                          onClick={() => handleRemoveMember('collabs', collabsCount, i)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
                       )}
                     </li>
                   );
@@ -991,7 +1006,7 @@ export default function AcercaDe() {
               {canEdit && (
                 <div className="add-member-btn-wrap">
                   <button type="button" className="add-member-btn" title="Añadir colaborador"
-                    onClick={() => handleAddMember("ad-collabs-count", collabsCount, "Nuevo colaborador", "ad-collab")}>+</button>
+                    onClick={() => handleAddMember("ad-collabs-count", collabsCount, "Nuevo colaborador", "ad-collab", "collabs")}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="18" height="18" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
                 </div>
               )}
             </div>
@@ -1007,21 +1022,25 @@ export default function AcercaDe() {
                   </svg>
                 </span>
                 <h3 className="members-category-title">
-                  <EditableText textKey="ad-students-title" defaultText="Estudiantes" />
+                  <EditableText textKey="ad-students-title" />
                 </h3>
               </div>
               <div className="members-chips-wrap">
                 {Array.from({ length: studentsCount }).map((_, idx) => {
                   const i = idx + 1;
-                  const defaultName = DEFAULT_STUDENTS[idx] || `Estudiante ${i}`;
                   return (
                     <span className="chip-wrapper-editable" key={`student-${i}`}>
-                      <span className="member-chip">
-                        <EditableText textKey={`ad-student${i}`} defaultText={defaultName} />
+                      <span className="member-chip" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <EditableText textKey={`ad-student${i}`} />
+                        <EditableSocials
+                          textKey={`ad-student${i}-socials`}
+                          defaultData={{}}
+                          canEdit={canEdit}
+                        />
                       </span>
                       {canEdit && studentsCount > 1 && (
                         <button type="button" className="chip-delete-btn" title="Eliminar este estudiante"
-                          onClick={() => handleRemoveMember("ad-students-count", studentsCount, i, "ad-student")}>✕</button>
+                          onClick={() => handleRemoveMember('students', studentsCount, i)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
                       )}
                     </span>
                   );
@@ -1030,7 +1049,7 @@ export default function AcercaDe() {
               {canEdit && (
                 <div className="add-member-btn-wrap">
                   <button type="button" className="add-member-btn" title="Añadir estudiante"
-                    onClick={() => handleAddMember("ad-students-count", studentsCount, "Nuevo estudiante", "ad-student")}>+</button>
+                    onClick={() => handleAddMember("ad-students-count", studentsCount, "Nuevo estudiante", "ad-student", "students")}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="18" height="18" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
                 </div>
               )}
             </div>
@@ -1045,21 +1064,25 @@ export default function AcercaDe() {
                   </svg>
                 </span>
                 <h3 className="members-category-title">
-                  <EditableText textKey="ad-interns-title" defaultText="Estudiantes de prácticas profesionales" />
+                  <EditableText textKey="ad-interns-title" />
                 </h3>
               </div>
               <div className="members-chips-wrap">
                 {Array.from({ length: internsCount }).map((_, idx) => {
                   const i = idx + 1;
-                  const defaultName = DEFAULT_INTERNS[idx] || `Practicante ${i}`;
                   return (
                     <span className="chip-wrapper-editable" key={`intern-${i}`}>
-                      <span className="member-chip">
-                        <EditableText textKey={`ad-intern${i}`} defaultText={defaultName} />
+                      <span className="member-chip" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <EditableText textKey={`ad-intern${i}`} />
+                        <EditableSocials
+                          textKey={`ad-intern${i}-socials`}
+                          defaultData={{}}
+                          canEdit={canEdit}
+                        />
                       </span>
                       {canEdit && internsCount > 1 && (
                         <button type="button" className="chip-delete-btn" title="Eliminar este practicante"
-                          onClick={() => handleRemoveMember("ad-interns-count", internsCount, i, "ad-intern")}>✕</button>
+                          onClick={() => handleRemoveMember('interns', internsCount, i)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
                       )}
                     </span>
                   );
@@ -1068,7 +1091,7 @@ export default function AcercaDe() {
               {canEdit && (
                 <div className="add-member-btn-wrap">
                   <button type="button" className="add-member-btn" title="Añadir practicante"
-                    onClick={() => handleAddMember("ad-interns-count", internsCount, "Nuevo practicante", "ad-intern")}>+</button>
+                    onClick={() => handleAddMember("ad-interns-count", internsCount, "Nuevo practicante", "ad-intern", "interns")}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="18" height="18" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
                 </div>
               )}
             </div>
@@ -1086,17 +1109,17 @@ export default function AcercaDe() {
                 <polyline points="22,6 12,13 2,6"/>
               </svg>
             </span>
-            <span>¿Tienes preguntas o te interesa colaborar?</span>
+            <span><EditableText textKey="ad-cta-badge" /></span>
           </div>
           <h3 className="about-cta-title">
-            <EditableText textKey="ad-cta-title" defaultText="¿Quieres saber más sobre IoT ULEAM?" />
+            <EditableText textKey="ad-cta-title" />
           </h3>
           <p className="about-cta-subtext">
-            Ponte en contacto con nuestro equipo de investigación y desarrollo para conocer más sobre los nodos de monitoreo, alianzas científicas o proyectos de titulación.
+            <EditableText textKey="ad-cta-subtext" isTextArea={true} />
           </p>
           <div className="about-cta-btn-wrap">
-            <Link to="/contacto" className="about-cta-btn">
-              <EditableText textKey="ad-cta-btn" defaultText="Contáctanos" />
+            <Link to={language === 'en' ? '/en/contact' : '/es/contacto'} className="about-cta-btn">
+              <EditableText textKey="ad-cta-btn" />
               <span className="cta-arrow-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
                   <line x1="5" y1="12" x2="19" y2="12"/>

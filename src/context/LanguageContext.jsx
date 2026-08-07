@@ -1,60 +1,106 @@
 import { createContext, useState, useContext, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import i18n from "../i18n";
+import { getUrlLanguage, getEquivalentRoute } from "../utils/routeMapping";
+import { API_BASE_URL } from "../config/api";
 
 const LanguageContext = createContext();
 
 export function LanguageProvider({ children }) {
-  const [language, setLanguage] = useState(() => {
-    // 1. Check localStorage first
-    const saved = localStorage.getItem("app_lang");
-    if (saved) return saved;
+  const { t: i18nT } = useTranslation();
+  const [language, setLanguageState] = useState(() => getUrlLanguage());
+  const [isContentLoading, setIsContentLoading] = useState(false);
 
-    // 2. Check Google Translate cookie
-    const match = document.cookie.match(/googtrans=\/(?:es|auto)\/([^;]+)/);
-    if (match && match[1]) {
-      return match[1];
+  // Sincronizar i18next y html lang attribute con el idioma detectado en la URL
+  useEffect(() => {
+    const currentUrlLang = getUrlLanguage();
+    if (currentUrlLang !== language) {
+      setLanguageState(currentUrlLang);
     }
+    i18n.changeLanguage(currentUrlLang);
+    document.documentElement.setAttribute("lang", currentUrlLang);
+  }, [language]);
 
-    // 3. Default to English ("en") if no saved preference
-    return "en";
-  });
+  /**
+   * Cambiar idioma y navegar a la versión mapeada equivalente en la URL
+   */
+  const changeLanguage = async (targetLang) => {
+    if (targetLang !== "es" && targetLang !== "en") return;
 
-  const applyGoogleTranslateCookie = (lang) => {
-    const cookieDomain = window.location.hostname;
-    document.cookie = `googtrans=/es/${lang}; path=/`;
-    document.cookie = `googtrans=/es/${lang}; path=/; domain=${cookieDomain}`;
-    document.cookie = `googtrans=/es/${lang}; path=/; domain=.${cookieDomain}`;
-    
-    if (cookieDomain.includes(".")) {
-      const parts = cookieDomain.split(".");
-      if (parts.length > 2) {
-        const rootDomain = parts.slice(-2).join(".");
-        document.cookie = `googtrans=/es/${lang}; path=/; domain=.${rootDomain}`;
+    setLanguageState(targetLang);
+    i18n.changeLanguage(targetLang);
+    document.documentElement.setAttribute("lang", targetLang);
+    localStorage.setItem("app_lang", targetLang);
+
+    const currentPath = window.location.pathname;
+    const currentSearch = window.location.search;
+    let targetPath = getEquivalentRoute(currentPath, targetLang);
+
+    if (currentSearch) {
+      const searchParams = new URLSearchParams(currentSearch);
+      const cat = searchParams.get('categoria');
+      if (cat) {
+        try {
+          const res = await fetch(`${API_BASE_URL}/categorias`);
+          const catData = await res.json();
+          if (Array.isArray(catData)) {
+            const catNorm = cat.toLowerCase().trim();
+            const found = catData.find(c =>
+              (c.nombre && c.nombre.toLowerCase().trim() === catNorm) ||
+              (c.nombre_es && c.nombre_es.toLowerCase().trim() === catNorm) ||
+              (c.nombre_en && c.nombre_en.toLowerCase().trim() === catNorm)
+            );
+            if (found) {
+              const canonicalName = targetLang === 'en'
+                ? (found.nombre_en || found.nombre_es || found.nombre)
+                : (found.nombre_es || found.nombre || found.nombre_en);
+              if (canonicalName) {
+                searchParams.set('categoria', canonicalName);
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Error fetching dynamic category translation:", e);
+        }
       }
+      targetPath += '?' + searchParams.toString();
     }
+
+    window.dispatchEvent(new CustomEvent("languageChanged", { detail: targetLang }));
+
+    window.location.href = targetPath;
   };
 
-  useEffect(() => {
-    // Ensure localStorage and cookie are synced on mount for first-time visitors or reloads
-    const saved = localStorage.getItem("app_lang");
-    if (!saved) {
-      localStorage.setItem("app_lang", "en");
-      applyGoogleTranslateCookie("en");
-    } else {
-      applyGoogleTranslateCookie(saved);
+  /**
+   * Función t(key) que consulta i18next y retorna la traducción o la clave fallback
+   */
+  const t = (key, fallback) => {
+    const translated = i18nT(key);
+    if (translated && translated !== key) {
+      return translated;
     }
-  }, []);
+    return fallback !== undefined ? fallback : key;
+  };
 
-  const changeLanguage = (lang) => {
-    setLanguage(lang);
-    localStorage.setItem("app_lang", lang);
-    applyGoogleTranslateCookie(lang);
-
-    // Reload page to let Google Translate translate the page immediately
-    window.location.reload();
+  const triggerContentLoading = (customDelay) => {
+    setIsContentLoading(true);
+    const delay = customDelay || (language === "en" ? 400 : 300);
+    setTimeout(() => {
+      setIsContentLoading(false);
+    }, delay);
   };
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage: changeLanguage }}>
+    <LanguageContext.Provider
+      value={{
+        language,
+        setLanguage: changeLanguage,
+        t,
+        isContentLoading,
+        setIsContentLoading,
+        triggerContentLoading
+      }}
+    >
       {children}
     </LanguageContext.Provider>
   );
@@ -63,7 +109,7 @@ export function LanguageProvider({ children }) {
 export const useLanguage = () => {
   const context = useContext(LanguageContext);
   if (!context) {
-    throw new Error("useLanguage must be used within a LanguageProvider");
+    throw new Error("useLanguage debe usarse dentro de un LanguageProvider");
   }
   return context;
 };

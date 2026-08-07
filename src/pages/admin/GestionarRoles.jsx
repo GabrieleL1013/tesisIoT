@@ -1,7 +1,9 @@
 import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
-import '../../styles/components/admin/GestionarUsuarios.css';
+import { useLanguage } from '../../context/LanguageContext';
+import { usePageTitle } from '../../hooks/usePageTitle';
+import '../../styles/components/admin/GestionarRoles.css';
 
 const PRESET_COLORS = [
   { hex: '#3b82f6', name: 'Azul' },
@@ -328,8 +330,16 @@ const PrettyColorPicker = ({ value, onChange }) => {
 };
 
 export default function GestionarRoles() {
+  const { t, language } = useLanguage();
+  usePageTitle({ es: 'Gestionar Roles', en: 'Manage Roles' }, 'Admin · IoT ULEAM');
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const getRoleDisplayName = (rName) => {
+    if (!rName) return '';
+    const key = `roles.${rName.toLowerCase().replace(/\s+/g, '_')}`;
+    return t(key, rName);
+  };
   
   // Usuario actualmente autenticado
   const [currentUser, setCurrentUser] = useState(null);
@@ -568,31 +578,11 @@ export default function GestionarRoles() {
   });
 
   return (
-    <div className="users-page-container">
+    <div className="roles-page-container">
       
-      {/* HEADER DE LA SECCIÓN */}
-      <div className="users-header">
-        <div className="users-header-info">
-          <h2 className="users-page-title">
-            <svg className="title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M12 2l3 5h5l-3 5 1 6-6-3-6 3 1-6-3-5h5z" />
-            </svg>
-            Gestión de Roles del Sistema
-          </h2>
-          <p className="users-page-subtitle">
-            Administra los roles del sistema, sus colores identificadores y sus niveles de jerarquía/permisos.
-          </p>
-        </div>
-
-        {/* INDICADOR DE ROL ACTUAL */}
-        <div className={`role-badge-indicator ${isSuperadmin ? 'is-admin' : 'is-user'}`}>
-          <span className="role-dot"></span>
-          <span>Rol: {userRoleName || 'Visitante (Solo Lectura)'}</span>
-        </div>
-      </div>
 
       {/* CONTROLES DE BÚSQUEDA Y CREACIÓN */}
-      <div className="users-controls-row">
+      <div className="roles-controls-row">
         <div className="search-box-wrapper">
           <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
             <circle cx="11" cy="11" r="8" />
@@ -601,7 +591,7 @@ export default function GestionarRoles() {
           <input
             type="text"
             className="search-input-field"
-            placeholder="Buscar rol por nombre o descripción..."
+            placeholder={t("manage_roles.search_ph", "Buscar rol por nombre o descripción...")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -611,14 +601,14 @@ export default function GestionarRoles() {
           {isSuperadmin && (
             <button 
               type="button" 
-              className="btn-add-user"
+              className="btn-add-role"
               onClick={abrirCrearModal}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16" style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }}>
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
-              Crear Nuevo Rol
+              {t("manage_roles.create_btn", "Crear Nuevo Rol")}
             </button>
           )}
         </div>
@@ -632,35 +622,35 @@ export default function GestionarRoles() {
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
           </svg>
           <p className="restricted-notice-text">
-            <strong>Modo de Solo Lectura:</strong> Tu rol actual es <strong>{userRoleName || 'Visitante'}</strong>. No dispones de permisos de Superusuario para modificar roles.
+            <strong>{language === 'en' ? 'Read-Only Mode:' : 'Modo de Solo Lectura:'}</strong> {t("users.readonly_banner", "Tu rol actual es {{role}}. No dispones de permisos de Superusuario para modificar roles.", { role: getRoleDisplayName(userRoleName) || 'Visitante' })}
           </p>
         </div>
       )}
 
       {/* TABLA PRINCIPAL DE ROLES */}
-      <div className="users-list-wrapper">
+      <div className="roles-list-wrapper">
         <h3 className="list-section-title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16" style={{ display: 'inline-block', marginRight: '6px' }}>
             <path d="M12 2l3 5h5l-3 5 1 6-6-3-6 3 1-6-3-5h5z" />
           </svg>
-          Catálogo de Roles y Permisos
+          {t("manage_roles.catalog_title", "Catálogo de Roles y Permisos")}
         </h3>
         
         {loading ? (
-          <div className="users-loading-spinner">
+          <div className="roles-loading-spinner">
             <span className="spinner-dot"></span>
-            <span>Cargando catálogo de roles...</span>
+            <span>{t("manage_roles.loading", "Cargando catálogo de roles...")}</span>
           </div>
         ) : (
           <div className="table-responsive">
-            <table className="custom-users-table">
+            <table className="custom-roles-table">
               <thead>
                 <tr>
-                  <th>Nombre del Rol</th>
-                  <th>Color Identificador</th>
-                  <th>Nivel de Permiso</th>
-                  <th>Descripción</th>
-                  {isSuperadmin && <th className="text-right-align">Operaciones de Escritura</th>}
+                  <th>{t("manage_roles.col_name", "Nombre del Rol")}</th>
+                  <th>{t("manage_roles.col_color", "Color Identificador")}</th>
+                  <th>{t("manage_roles.col_level", "Nivel de Permiso")}</th>
+                  <th>{t("manage_roles.col_desc", "Descripción")}</th>
+                  {isSuperadmin && <th className="text-right-align">{t("manage_roles.col_write", "Operaciones de Escritura")}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -668,13 +658,13 @@ export default function GestionarRoles() {
                   rolesFiltrados.map((roleItem) => (
                     <tr key={roleItem.id}>
                       <td>
-                        <div className="user-avatar-row">
+                        <div className="role-avatar-row">
                           <div className="avatar-circle" style={{ backgroundColor: roleItem.color || '#3b82f6' }}>
                             {roleItem.name.charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <span className="user-fullname">{roleItem.name}</span>
-                            <span className="user-nickname">ID: #{roleItem.id}</span>
+                            <span className="role-fullname">{getRoleDisplayName(roleItem.name)}</span>
+                            <span className="role-nickname">ID: #{roleItem.id}</span>
                           </div>
                         </div>
                       </td>
@@ -707,11 +697,11 @@ export default function GestionarRoles() {
                           fontSize: '12px'
                         }}>
                           <span className="role-dot" style={{ backgroundColor: roleItem.name === 'Superusuario' ? '#10b981' : '#3b82f6' }}></span>
-                          Nivel {roleItem.level_permission ?? 1}
+                          {t("manage_roles.level_prefix", "Nivel")} {roleItem.level_permission ?? 1}
                         </span>
                       </td>
                       <td style={{ color: '#475569', fontSize: '13.5px', maxWidth: '250px' }}>
-                        {roleItem.description || <em>Sin descripción</em>}
+                        {roleItem.description || <em>{t("manage_roles.no_desc", "Sin descripción")}</em>}
                       </td>
                       {isSuperadmin && (
                         <td className="text-right-align">
@@ -719,25 +709,25 @@ export default function GestionarRoles() {
                             <button
                               onClick={() => abrirEditarModal(roleItem)}
                               className="table-btn-edit"
-                              title="Editar configuración de rol"
+                              title={t("admin.edit", "Editar")}
                             >
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                                 <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z" />
                               </svg>
-                              Editar
+                              {t("admin.edit", "Editar")}
                             </button>
                             <button
                               onClick={() => handleDelete(roleItem.id, roleItem.name)}
                               className="table-btn-delete"
-                              title="Eliminar rol"
+                              title={t("admin.delete", "Eliminar")}
                               disabled={roleItem.id === 1 || roleItem.name === 'Superusuario'}
                             >
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
                                 <polyline points="3 6 5 6 21 6" />
                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                               </svg>
-                              Eliminar
+                              {t("admin.delete", "Eliminar")}
                             </button>
                           </div>
                         </td>
@@ -747,7 +737,7 @@ export default function GestionarRoles() {
                 ) : (
                   <tr>
                     <td colSpan={isSuperadmin ? 5 : 4} className="table-empty-message">
-                      No se encontraron roles registrados.
+                      {t("manage_roles.empty", "No se encontraron roles registrados.")}
                     </td>
                   </tr>
                 )}
@@ -760,14 +750,14 @@ export default function GestionarRoles() {
       {/* MODAL OVERLAY PARA REGISTRO/EDICIÓN DE ROL */}
       {showModal && (
         <div 
-          className="user-modal-overlay"
+          className="role-modal-overlay"
           onClick={(e) => {
-            if (e.target.classList.contains('user-modal-overlay')) {
+            if (e.target.classList.contains('role-modal-overlay')) {
               setShowModal(false);
             }
           }}
         >
-          <div className="user-modal-card">
+          <div className="role-modal-card">
             <div className="modal-top-accent-bar" />
             
             {/* Header del Modal */}
@@ -779,14 +769,14 @@ export default function GestionarRoles() {
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                       <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z" />
                     </svg>
-                    Editar Configuración de Rol
+                    {t("manage_roles.edit_title", "Editar Configuración de Rol")}
                   </>
                 ) : (
                   <>
                     <svg viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" width="20" height="20" style={{ display: 'inline-block', marginRight: '8px' }}>
                       <path d="M12 2l3 5h5l-3 5 1 6-6-3-6 3 1-6-3-5h5z" />
                     </svg>
-                    Crear Nuevo Rol de Sistema
+                    {t("manage_roles.new_title", "Crear Nuevo Rol de Sistema")}
                   </>
                 )}
               </h3>
@@ -794,7 +784,7 @@ export default function GestionarRoles() {
                 type="button" 
                 className="modal-close-btn"
                 onClick={() => setShowModal(false)}
-                title="Cerrar modal"
+                title={t("common.close", "Cerrar modal")}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="18" height="18">
                   <line x1="18" y1="6" x2="6" y2="18" />
@@ -808,12 +798,12 @@ export default function GestionarRoles() {
               <div className="modal-fields-stack">
                 
                 <div className="modal-input-group">
-                  <label className="modal-label">Nombre del Rol</label>
+                  <label className="modal-label">{t("manage_roles.role_name_label", "Nombre del Rol")}</label>
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Ej: Observador, Técnico de Red"
+                    placeholder={t("manage_roles.role_name_ph", "Ej: Observador, Técnico de Red")}
                     className="modal-text-input"
                     disabled={editandoId === 1 || name === 'Superusuario'}
                     required
@@ -821,33 +811,33 @@ export default function GestionarRoles() {
                 </div>
 
                 <div className="modal-input-group">
-                  <label className="modal-label">Nivel de Permiso (Mínimo: 1, Máximo: 100)</label>
+                  <label className="modal-label">{t("manage_roles.level_label", "Nivel de Permiso (Mínimo: 1, Máximo: 100)")}</label>
                   <input
                     type="number"
                     min="1"
                     max="100"
                     value={levelPermission}
                     onChange={(e) => setLevelPermission(e.target.value)}
-                    placeholder="Ej: 1 (Básico), 5 (Intermedio), 10 (Total)"
+                    placeholder={t("manage_roles.level_ph", "Ej: 1 (Básico), 5 (Intermedio), 10 (Total)")}
                     className="modal-text-input"
                     required
                   />
                   <small style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '2px' }}>
-                    Los usuarios con este rol podrán acceder a interfaces que requieran este nivel o inferior.
+                    {t("manage_roles.level_hint", "Los usuarios con este rol podrán acceder a interfaces que requieran este nivel o inferior.")}
                   </small>
                 </div>
 
                 <div className="modal-input-group">
-                  <label className="modal-label">Color Identificador</label>
+                  <label className="modal-label">{t("manage_roles.color_label", "Color Identificador")}</label>
                   <PrettyColorPicker value={color} onChange={setColor} />
                 </div>
 
                 <div className="modal-input-group">
-                  <label className="modal-label">Descripción del Rol</label>
+                  <label className="modal-label">{t("manage_roles.desc_label", "Descripción del Rol")}</label>
                   <textarea 
                     value={description} 
                     onChange={(e) => setDescription(e.target.value)} 
-                    placeholder="Describe las responsabilidades o alcance de este rol..."
+                    placeholder={t("manage_roles.desc_ph", "Describe las responsabilidades o alcance de este rol...")}
                     className="modal-text-input" 
                     rows="3"
                     style={{ resize: 'vertical' }}
@@ -867,7 +857,7 @@ export default function GestionarRoles() {
                     <line x1="18" y1="6" x2="6" y2="18" />
                     <line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
-                  Cancelar
+                  {t("admin.cancel", "Cancelar")}
                 </button>
                 <button type="submit" className="btn-modal-save">
                   {editandoId ? (
@@ -876,7 +866,7 @@ export default function GestionarRoles() {
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                         <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z" />
                       </svg>
-                      Actualizar
+                      {t("admin.save", "Actualizar")}
                     </>
                   ) : (
                     <>
@@ -885,7 +875,7 @@ export default function GestionarRoles() {
                         <polyline points="17 21 17 13 7 13 7 21" />
                         <polyline points="7 3 7 8 15 8" />
                       </svg>
-                      Guardar Rol
+                      {t("manage_roles.save_btn", "Guardar Rol")}
                     </>
                   )}
                 </button>

@@ -1,7 +1,8 @@
 import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
-import { usePageTitle } from '../../context/PageTitleContext';
+import { useLanguage } from '../../context/LanguageContext';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import '../../styles/components/admin/GestionarMetricas.css';
 import iotLogoDefault from '../../assets/IOT-LOGO.png';
 
@@ -213,12 +214,159 @@ const IconPickerButton = ({ value, onChange }) => {
 
 const EMPTY_SUB = { nombre: '', unidad: '', claveMqtt: '', minExpected: '', maxExpected: '', icono: 'termometro' };
 
-export default function GestionarMetricas() {
-  const { setPage } = usePageTitle();
+const CustomItemsPerPageSelect = ({ value, onChange, options = [6, 12, 24, 48], language = 'es' }) => {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+
   useEffect(() => {
-    setPage('🔬 Métricas y Sensores', 'Registra y gestiona los paquetes de sensores y sus subvariables MQTT');
-    return () => setPage('', '');
-  }, [setPage]);
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const suffix = language === 'en' ? 'page' : 'pág';
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '6px 14px',
+          borderRadius: '10px',
+          border: '1.5px solid #cbd5e1',
+          background: '#ffffff',
+          color: '#0f2c59',
+          fontWeight: '700',
+          fontSize: '0.82rem',
+          cursor: 'pointer',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.04)',
+          transition: 'all 0.2s ease',
+          outline: 'none'
+        }}
+      >
+        <span>{value} / {suffix}</span>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          width="12"
+          height="12"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 'calc(100% + 6px)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#ffffff',
+            border: '1.5px solid #e2e8f0',
+            borderRadius: '12px',
+            boxShadow: '0 12px 28px rgba(15, 23, 42, 0.18)',
+            padding: '6px',
+            minWidth: '115px',
+            zIndex: 1100,
+            maxWidth: '90vw',
+            boxSizing: 'border-box'
+          }}
+        >
+          {options.map((opt) => {
+            const isSelected = Number(opt) === Number(value);
+            return (
+              <div
+                key={opt}
+                onClick={() => {
+                  onChange(Number(opt));
+                  setOpen(false);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  width: '100%',
+                  padding: '7px 10px',
+                  borderRadius: '8px',
+                  background: isSelected ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                  color: isSelected ? '#1e40af' : '#334155',
+                  fontWeight: isSelected ? '800' : '600',
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'background 0.15s ease',
+                  boxSizing: 'border-box'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = '#f8fafc';
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <span>{opt} / {suffix}</span>
+                {isSelected && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#1e40af" strokeWidth="3" width="12" height="12">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const formatImageUrl = (urlStr) => {
+  if (!urlStr) return iotLogoDefault;
+  if (urlStr.startsWith('data:') || urlStr.startsWith('http://') || urlStr.startsWith('https://')) {
+    return urlStr;
+  }
+  const backendHost = API_BASE_URL.replace(/\/api\/?$/, '');
+  return `${backendHost}${urlStr.startsWith('/') ? '' : '/'}${urlStr}`;
+};
+
+const convertImageToWebP = (file, quality = 0.85) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.src = url;
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const webpDataUrl = canvas.toDataURL('image/webp', quality);
+      resolve(webpDataUrl);
+    };
+    img.onerror = (err) => {
+      URL.revokeObjectURL(url);
+      reject(err);
+    };
+  });
+};
+
+export default function GestionarMetricas() {
+  const { language } = useLanguage();
+  const isEn = language === 'en';
+
+  usePageTitle({ es: 'Gestionar Métricas', en: 'Manage Metrics' }, 'Admin · IoT ULEAM');
 
   const [metricas, setMetricas]           = useState([]);
   const [loading, setLoading]             = useState(true);
@@ -231,6 +379,14 @@ export default function GestionarMetricas() {
   const [busqueda, setBusqueda]           = useState('');
   const [orden, setOrden]                 = useState(null);
   const [showOrdenPanel, setShowOrdenPanel] = useState(false);
+
+  // Estados de Paginación
+  const [itemsPerPage, setItemsPerPage]   = useState(6);
+  const [currentPage, setCurrentPage]     = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [busqueda, orden]);
 
   const metricasFiltradas = metricas
     .filter(m => {
@@ -246,6 +402,10 @@ export default function GestionarMetricas() {
       if (orden === 'desc') return b.id - a.id;
       return a.id - b.id;
     });
+
+  const totalPages = Math.ceil(metricasFiltradas.length / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedMetricas = metricasFiltradas.slice(startIndex, startIndex + itemsPerPage);
 
   const cargarMetricas = () => {
     setLoading(true);
@@ -272,11 +432,11 @@ export default function GestionarMetricas() {
   }, []);
 
   const obtenerTextoOrden = () => {
-    if (orden === 'desc') return 'Más recientes primero';
-    if (orden === 'name_asc') return 'Nombre (A-Z)';
-    if (orden === 'name_desc') return 'Nombre (Z-A)';
-    if (orden === 'asc') return 'Más antiguos primero';
-    return 'Ordenar';
+    if (orden === 'desc') return isEn ? 'Newest first' : 'Más recientes primero';
+    if (orden === 'name_asc') return isEn ? 'Name (A-Z)' : 'Nombre (A-Z)';
+    if (orden === 'name_desc') return isEn ? 'Name (Z-A)' : 'Nombre (Z-A)';
+    if (orden === 'asc') return isEn ? 'Oldest first' : 'Más antiguos primero';
+    return isEn ? 'Sort' : 'Ordenar';
   };
 
   const limpiar = () => {
@@ -290,16 +450,22 @@ export default function GestionarMetricas() {
   const abrirCreacion = () => { limpiar(); setShowForm(true); };
   const cancelar      = () => { limpiar(); setShowForm(false); };
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        Swal.fire({ icon: 'error', title: 'Archivo demasiado grande', text: 'La imagen debe ser menor a 2MB.', confirmButtonColor: '#2563eb' });
+      if (file.size > 5 * 1024 * 1024) {
+        Swal.fire({ icon: 'error', title: isEn ? 'File too large' : 'Archivo demasiado grande', text: isEn ? 'Image must be smaller than 5MB.' : 'La imagen debe ser menor a 5MB.', confirmButtonColor: '#2563eb' });
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => { setImagen(reader.result); };
-      reader.readAsDataURL(file);
+      try {
+        const webpBase64 = await convertImageToWebP(file);
+        setImagen(webpBase64);
+      } catch (err) {
+        console.error('Error converting image to WebP:', err);
+        const reader = new FileReader();
+        reader.onloadend = () => { setImagen(reader.result); };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -318,7 +484,7 @@ export default function GestionarMetricas() {
     e.preventDefault();
     const subs = subvariables.filter(s => s.nombre.trim() && s.unidad.trim() && s.claveMqtt.trim());
     if (!nombre.trim() || subs.length === 0) {
-      Swal.fire({ icon: 'warning', title: 'Campos incompletos', text: 'Ingresa el nombre del sensor y al menos una subvariable completa.', confirmButtonColor: '#2563eb' });
+      Swal.fire({ icon: 'warning', title: isEn ? 'Incomplete fields' : 'Campos incompletos', text: isEn ? 'Enter sensor name and at least one complete subvariable.' : 'Ingresa el nombre del sensor y al menos una subvariable completa.', confirmButtonColor: '#2563eb' });
       return;
     }
     setSaving(true);
@@ -339,11 +505,11 @@ export default function GestionarMetricas() {
         })
       });
       if (!res.ok) throw new Error();
-      Swal.fire({ icon: 'success', title: editandoId ? '¡Actualizado!' : '¡Registrado!', text: editandoId ? 'El sensor se actualizó correctamente.' : 'El sensor se creó correctamente.', confirmButtonColor: '#2563eb' });
+      Swal.fire({ icon: 'success', title: editandoId ? (isEn ? 'Updated!' : '¡Actualizado!') : (isEn ? 'Registered!' : '¡Registrado!'), text: editandoId ? (isEn ? 'Sensor updated successfully.' : 'El sensor se actualizó correctamente.') : (isEn ? 'Sensor created successfully.' : 'El sensor se creó correctamente.'), confirmButtonColor: '#2563eb' });
       cancelar();
       cargarMetricas();
     } catch {
-      Swal.fire({ icon: 'error', title: 'Algo salió mal', text: 'No se pudo guardar el sensor. Inténtalo de nuevo.', confirmButtonColor: '#2563eb' });
+      Swal.fire({ icon: 'error', title: isEn ? 'Something went wrong' : 'Algo salió mal', text: isEn ? 'Could not save sensor. Try again.' : 'No se pudo guardar el sensor. Inténtalo de nuevo.', confirmButtonColor: '#2563eb' });
     } finally {
       setSaving(false);
     }
@@ -360,14 +526,14 @@ export default function GestionarMetricas() {
   const eliminar = (id) => {
     const met = metricas.find(m => m.id === id);
     Swal.fire({
-      title: '¿Eliminar sensor?',
-      text: `"${met?.nombre}" y todas sus subvariables serán eliminados.`,
+      title: isEn ? 'Delete sensor?' : '¿Eliminar sensor?',
+      text: isEn ? `"${met?.nombre}" and all its subvariables will be deleted.` : `"${met?.nombre}" y todas sus subvariables serán eliminados.`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#ef4444',
       cancelButtonColor: '#4b5563',
-      confirmButtonText: 'Sí, eliminar',
-      cancelButtonText: 'Cancelar'
+      confirmButtonText: isEn ? 'Yes, delete' : 'Sí, eliminar',
+      cancelButtonText: isEn ? 'Cancel' : 'Cancelar'
     }).then(async (r) => {
       if (!r.isConfirmed) return;
       try {
@@ -375,7 +541,7 @@ export default function GestionarMetricas() {
         if (editandoId === id) cancelar();
         cargarMetricas();
       } catch {
-        Swal.fire({ icon: 'error', title: 'Algo salió mal', text: 'No se pudo eliminar el sensor. Inténtalo de nuevo.', confirmButtonColor: '#2563eb' });
+        Swal.fire({ icon: 'error', title: isEn ? 'Something went wrong' : 'Algo salió mal', text: isEn ? 'Could not delete sensor. Try again.' : 'No se pudo eliminar el sensor. Inténtalo de nuevo.', confirmButtonColor: '#2563eb' });
       }
     });
   };
@@ -403,7 +569,7 @@ export default function GestionarMetricas() {
                   <circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/>
                 </svg>
               )}
-              {editandoId ? 'Modificar Sensor' : 'Registrar Nuevo Sensor'}
+              {editandoId ? (isEn ? 'Modify Sensor' : 'Modificar Sensor') : (isEn ? 'Register New Sensor' : 'Registrar Nuevo Sensor')}
             </h2>
 
             <button
@@ -414,7 +580,7 @@ export default function GestionarMetricas() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15">
                 <polyline points="15 18 9 12 15 6"/>
               </svg>
-              Volver al Listado
+              {isEn ? 'Back to List' : 'Volver al Listado'}
             </button>
           </div>
 
@@ -424,24 +590,24 @@ export default function GestionarMetricas() {
             {/* ── COL IZQUIERDA: Nombre + Imagen ── */}
             <div className="met-form-left">
               <div className="met-field-group">
-                <label className="met-label">Nombre del Sensor</label>
+                <label className="met-label">{isEn ? 'Sensor Name' : 'Nombre del Sensor'}</label>
                 <input
                   autoFocus
                   type="text"
                   value={nombre}
                   onChange={e => setNombre(e.target.value)}
-                  placeholder="Ej. Estación Meteorológica DHT22"
+                  placeholder={isEn ? 'Sensor name' : 'Nombre del sensor'}
                   className="met-input met-input--full"
                 />
               </div>
 
               {/* Imagen grande */}
               <div className="met-field-group" style={{ flex: 1 }}>
-                <label className="met-label">Imagen del Sensor</label>
+                <label className="met-label">{isEn ? 'Sensor Image' : 'Imagen del Sensor'}</label>
                 {imagen ? (
                   <div className="met-img-preview-large">
                     <img src={imagen} alt="Vista previa" className="met-img-large" />
-                    <button type="button" className="met-btn-remove-image" onClick={removeImage} title="Quitar imagen">
+                    <button type="button" className="met-btn-remove-image" onClick={removeImage} title={isEn ? "Remove image" : "Quitar imagen"}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="14" height="14">
                         <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                       </svg>
@@ -455,8 +621,8 @@ export default function GestionarMetricas() {
                       <polyline points="17 8 12 3 7 8"/>
                       <line x1="12" y1="3" x2="12" y2="15"/>
                     </svg>
-                    <span className="met-upload-text">Subir imagen del sensor</span>
-                    <span className="met-upload-hint">PNG, JPG, WEBP · Máx. 2MB</span>
+                    <span className="met-upload-text">{isEn ? 'Upload sensor image' : 'Subir imagen del sensor'}</span>
+                    <span className="met-upload-hint">{isEn ? 'PNG, JPG, WEBP · Max 2MB' : 'PNG, JPG, WEBP · Máx. 2MB'}</span>
                   </label>
                 )}
               </div>
@@ -471,13 +637,13 @@ export default function GestionarMetricas() {
                       <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
                       <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
                     </svg>
-                    Subvariables MQTT
+                    {isEn ? 'MQTT Subvariables' : 'Subvariables MQTT'}
                   </span>
                   <button type="button" onClick={addSub} className="met-btn-add-sub">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="12" height="12">
                       <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                     </svg>
-                    Añadir Fila
+                    {isEn ? 'Add Row' : 'Añadir Fila'}
                   </button>
                 </div>
 
@@ -487,18 +653,18 @@ export default function GestionarMetricas() {
                       <div className="met-sub-row-num">{idx + 1}</div>
 
                       <div className="met-sub-field">
-                        <label className="met-sub-label">Nombre</label>
+                        <label className="met-sub-label">{isEn ? 'Name' : 'Nombre'}</label>
                         <input
                           type="text"
                           value={sub.nombre}
                           onChange={e => cambiarSub(idx, 'nombre', e.target.value)}
-                          placeholder="Nombre variable"
+                          placeholder={isEn ? 'Variable name' : 'Nombre variable'}
                           className="met-sub-input"
                         />
                       </div>
 
                       <div className="met-sub-field met-sub-field--short">
-                        <label className="met-sub-label">Unidad</label>
+                        <label className="met-sub-label">{isEn ? 'Unit' : 'Unidad'}</label>
                         <input
                           type="text"
                           value={sub.unidad}
@@ -509,7 +675,7 @@ export default function GestionarMetricas() {
                       </div>
 
                       <div className="met-sub-field met-sub-field--icon">
-                        <label className="met-sub-label">Símbolo</label>
+                        <label className="met-sub-label">{isEn ? 'Symbol' : 'Símbolo'}</label>
                         <IconPickerButton
                           value={sub.icono || (sub.claveMqtt === 'temp' ? 'termometro' : sub.claveMqtt === 'hum' ? 'humedad' : sub.claveMqtt === 'press' ? 'presion' : 'general')}
                           onChange={val => cambiarSub(idx, 'icono', val)}
@@ -517,7 +683,7 @@ export default function GestionarMetricas() {
                       </div>
 
                       <div className="met-sub-field">
-                        <label className="met-sub-label">Clave MQTT</label>
+                        <label className="met-sub-label">{isEn ? 'MQTT Key' : 'Clave MQTT'}</label>
                         <input
                           type="text"
                           value={sub.claveMqtt}
@@ -528,31 +694,31 @@ export default function GestionarMetricas() {
                       </div>
 
                       <div className="met-sub-field met-sub-field--short">
-                        <label className="met-sub-label">Min. Esp.</label>
+                        <label className="met-sub-label">{isEn ? 'Exp. Min' : 'Min. Esp.'}</label>
                         <input
                           type="number"
                           step="any"
                           value={sub.minExpected ?? ''}
                           onChange={e => cambiarSub(idx, 'minExpected', e.target.value)}
-                          placeholder="Ej. 10"
+                          placeholder="10"
                           className="met-sub-input"
                         />
                       </div>
 
                       <div className="met-sub-field met-sub-field--short">
-                        <label className="met-sub-label">Max. Esp.</label>
+                        <label className="met-sub-label">{isEn ? 'Exp. Max' : 'Max. Esp.'}</label>
                         <input
                           type="number"
                           step="any"
                           value={sub.maxExpected ?? ''}
                           onChange={e => cambiarSub(idx, 'maxExpected', e.target.value)}
-                          placeholder="Ej. 40"
+                          placeholder="40"
                           className="met-sub-input"
                         />
                       </div>
 
                       {subvariables.length > 1 && (
-                        <button type="button" className="met-btn-remove-sub" onClick={() => removeSub(idx)} title="Eliminar">
+                        <button type="button" className="met-btn-remove-sub" onClick={() => removeSub(idx)} title={isEn ? "Delete" : "Eliminar"}>
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="14" height="14">
                             <polyline points="3 6 5 6 21 6"/>
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -566,10 +732,10 @@ export default function GestionarMetricas() {
 
               {/* Acciones */}
               <div className="met-form-actions">
-                <button type="button" onClick={cancelar} className="met-btn-cancel">Cancelar</button>
+                <button type="button" onClick={cancelar} className="met-btn-cancel">{isEn ? 'Cancel' : 'Cancelar'}</button>
                 <button type="submit" className="met-btn-save" disabled={saving}>
                   {saving ? (
-                    'Guardando...'
+                    isEn ? 'Saving...' : 'Guardando...'
                   ) : editandoId ? (
                     <>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '6px' }}>
@@ -577,7 +743,7 @@ export default function GestionarMetricas() {
                         <polyline points="17 21 17 13 7 13 7 21"/>
                         <polyline points="7 3 7 8 15 8"/>
                       </svg>
-                      Aplicar Cambios
+                      {isEn ? 'Apply Changes' : 'Aplicar Cambios'}
                     </>
                   ) : (
                     <>
@@ -586,7 +752,7 @@ export default function GestionarMetricas() {
                         <polyline points="17 21 17 13 7 13 7 21"/>
                         <polyline points="7 3 7 8 15 8"/>
                       </svg>
-                      Guardar Sensor
+                      {isEn ? 'Save Sensor' : 'Guardar Sensor'}
                     </>
                   )}
                 </button>
@@ -611,7 +777,7 @@ export default function GestionarMetricas() {
               </svg>
               <input
                 type="text"
-                placeholder="Buscar sensor o subvariable..."
+                placeholder={isEn ? 'Search sensor or subvariable...' : 'Buscar sensor o subvariable...'}
                 value={busqueda}
                 onChange={e => setBusqueda(e.target.value)}
                 className="met-filter-input met-search-input"
@@ -639,9 +805,9 @@ export default function GestionarMetricas() {
               </button>
 
               {showOrdenPanel && (
-                <div className="pub-news-unified-filter-panel" style={{ minWidth: '220px', left: 0 }}>
+                <div className="pub-news-unified-filter-panel met-order-dropdown-panel">
                   <div className="filter-panel-section" style={{ width: '100%' }}>
-                    <span className="filter-panel-section-title">Ordenar por</span>
+                    <span className="filter-panel-section-title">{isEn ? 'Sort by' : 'Ordenar por'}</span>
                     <div className="filter-panel-options-list">
                       <button
                         type="button"
@@ -655,7 +821,7 @@ export default function GestionarMetricas() {
                           setShowOrdenPanel(false);
                         }}
                       >
-                        Más antiguos primero
+                        {isEn ? 'Oldest first' : 'Más antiguos primero'}
                       </button>
                       <button
                         type="button"
@@ -669,7 +835,7 @@ export default function GestionarMetricas() {
                           setShowOrdenPanel(false);
                         }}
                       >
-                        Más recientes primero
+                        {isEn ? 'Newest first' : 'Más recientes primero'}
                       </button>
                       <button
                         type="button"
@@ -683,7 +849,7 @@ export default function GestionarMetricas() {
                           setShowOrdenPanel(false);
                         }}
                       >
-                        Nombre (A-Z)
+                        {isEn ? 'Name (A-Z)' : 'Nombre (A-Z)'}
                       </button>
                       <button
                         type="button"
@@ -697,7 +863,7 @@ export default function GestionarMetricas() {
                           setShowOrdenPanel(false);
                         }}
                       >
-                        Nombre (Z-A)
+                        {isEn ? 'Name (Z-A)' : 'Nombre (Z-A)'}
                       </button>
                     </div>
                   </div>
@@ -710,43 +876,52 @@ export default function GestionarMetricas() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="15" height="15">
                 <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
-              Agregar Sensor
+              {isEn ? 'Add Sensor' : 'Agregar Sensor'}
             </button>
           </div>
 
           {/* ── Cards ── */}
           <div className="met-grid">
-            {loading && <div className="met-loading-text">Cargando sensores...</div>}
+            {loading && <div className="met-loading-text">{isEn ? 'Loading sensors...' : 'Cargando sensores...'}</div>}
             {!loading && metricasFiltradas.length === 0 && (
-              <div className="met-empty-state">No se encontraron sensores registrados.</div>
+              <div className="met-empty-state">{isEn ? 'No registered sensors found.' : 'No se encontraron sensores registrados.'}</div>
             )}
-            {!loading && metricasFiltradas.map((m, idx) => (
+
+            {!loading && paginatedMetricas.map((m, idx) => (
               <div key={m.id} className="met-card">
                 <div className="met-card-img-wrapper">
                   <img
-                    src={m.imagen || iotLogoDefault}
+                    src={formatImageUrl(m.imagen)}
                     alt={m.nombre}
                     className={m.imagen ? 'met-card-img' : 'met-card-img met-card-img--default'}
                   />
-                  <div className="met-card-idx">#{idx + 1}</div>
+                  <div className="met-card-idx">#{startIndex + idx + 1}</div>
                 </div>
 
                 <div className="met-card-content">
                   <h3 className="met-card-name">{m.nombre}</h3>
-                  <div className="met-card-section-title">📋 Subvariables</div>
+                  <div className="met-card-section-title">📋 {isEn ? 'Subvariables' : 'Subvariables'}</div>
                   <div className="met-card-subs">
-                    {m.subvariables?.map((sub, i) => (
-                      <div key={i} className="met-sub-badge">
-                        <span className="met-sub-badge-name">{sub.nombre}</span>
-                        <span className="met-sub-badge-unit">{sub.unidad}</span>
-                        <span className="met-sub-badge-key">{sub.claveMqtt}</span>
-                        {(sub.minExpected !== null || sub.maxExpected !== null) && (
-                          <span className="met-sub-badge-key" style={{backgroundColor: '#e2e8f0', color: '#475569', marginLeft: '4px'}}>
-                            Lim: {sub.minExpected ?? '-'} a {sub.maxExpected ?? '-'}
-                          </span>
-                        )}
-                      </div>
-                    ))}
+                    {m.subvariables?.map((sub, i) => {
+                      const iconObj = METRIC_ICONS_CATALOG.find(ic => ic.key === sub.icono);
+                      return (
+                        <div key={i} className="met-sub-badge">
+                          {iconObj && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', marginRight: '4px', color: '#2563eb' }}>
+                              {iconObj.icon}
+                            </span>
+                          )}
+                          <span className="met-sub-badge-name">{sub.nombre}</span>
+                          <span className="met-sub-badge-unit">{sub.unidad}</span>
+                          <span className="met-sub-badge-key">{sub.claveMqtt}</span>
+                          {(sub.minExpected !== null || sub.maxExpected !== null) && (
+                            <span className="met-sub-badge-key" style={{backgroundColor: '#e2e8f0', color: '#475569', marginLeft: '4px'}}>
+                              Lim: {sub.minExpected ?? '-'} a {sub.maxExpected ?? '-'}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -756,19 +931,80 @@ export default function GestionarMetricas() {
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                       <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                     </svg>
-                    Editar
+                    {isEn ? 'Edit' : 'Editar'}
                   </button>
                   <button className="met-btn-delete" onClick={() => eliminar(m.id)}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
                       <polyline points="3 6 5 6 21 6"/>
                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                     </svg>
-                    Eliminar
+                    {isEn ? 'Delete' : 'Eliminar'}
                   </button>
                 </div>
               </div>
             ))}
           </div>
+
+          {/* CONTROLES DE PAGINACIÓN */}
+          {!loading && metricasFiltradas.length > 0 && (
+            <div className="metrics-pagination-bar">
+              <div className="pagination-info-text">
+                {isEn 
+                  ? `Showing ${Math.min(startIndex + 1, metricasFiltradas.length)} to ${Math.min(startIndex + itemsPerPage, metricasFiltradas.length)} of ${metricasFiltradas.length} sensors`
+                  : `Mostrando ${Math.min(startIndex + 1, metricasFiltradas.length)} a ${Math.min(startIndex + itemsPerPage, metricasFiltradas.length)} de ${metricasFiltradas.length} sensores`}
+              </div>
+
+              <div className="pagination-controls-group">
+                <CustomItemsPerPageSelect
+                  value={itemsPerPage}
+                  onChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+                  options={[6, 12, 24, 48]}
+                  language={language}
+                />
+
+                <div className="pagination-buttons-wrapper">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className={`pagination-nav-btn prev-btn ${currentPage === 1 ? 'disabled' : ''}`}
+                    title={isEn ? 'Previous page' : 'Página anterior'}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                      <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                    <span className="pagination-btn-label">{isEn ? 'Prev' : 'Anterior'}</span>
+                  </button>
+
+                  <div className="pagination-number-list">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setCurrentPage(p)}
+                        className={`pagination-num-btn ${p === currentPage ? 'active' : ''}`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className={`pagination-nav-btn next-btn ${currentPage === totalPages ? 'disabled' : ''}`}
+                    title={isEn ? 'Next page' : 'Página siguiente'}
+                  >
+                    <span className="pagination-btn-label">{isEn ? 'Next' : 'Siguiente'}</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

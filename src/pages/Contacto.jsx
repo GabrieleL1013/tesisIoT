@@ -1,5 +1,8 @@
+import SEO from "../components/SEO";
 import { API_BASE_URL } from "../config/api";
 import { useState, useEffect } from "react";
+import { useLanguage } from "../context/LanguageContext";
+import { usePageTitle } from "../hooks/usePageTitle";
 import "../styles/Contacto.css";
 import IotBgImg from "../assets/IOT.jpg";
 import EditableText from "../components/EditableText";
@@ -9,7 +12,6 @@ import { useInterfaceImage } from "../context/InterfaceImageContext";
 import { checkEditPermission } from "../utils/checkEditPermission";
 import Swal from "sweetalert2";
 
-// ── Iconos SVG Autocontenidos para Contacto ──
 const PencilIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13" strokeLinecap="round" strokeLinejoin="round">
     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -72,7 +74,6 @@ const LoaderIcon = () => (
   </svg>
 );
 
-// Iconos Redes Sociales
 const FacebookIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22" strokeLinecap="round" strokeLinejoin="round">
     <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
@@ -98,7 +99,6 @@ const GithubIcon = () => (
   </svg>
 );
 
-// Códigos de País y Reglas de validación
 const COUNTRIES = [
   { code: "+593", flag: "🇪🇨", name: "Ecuador", abbrev: "EC", limit: 9 },
   { code: "+57", flag: "🇨🇴", name: "Colombia", abbrev: "CO", limit: 10 },
@@ -110,12 +110,13 @@ const COUNTRIES = [
 ];
 
 export default function Contacto() {
+  const { language, t } = useLanguage();
   const { texts, updateText, loading, editMode } = useInterfaceText();
-  const { imagesLoading } = useInterfaceImage();
   const [hasPermission, setHasPermission] = useState(false);
 
+  usePageTitle(language === 'en' ? 'Contact' : 'Contacto');
+
   useEffect(() => {
-    document.title = "Contacto - Ecosistema IoT ULEAM";
     const checkRole = () => {
       checkEditPermission().then(res => setHasPermission(res));
     };
@@ -126,7 +127,7 @@ export default function Contacto() {
       window.removeEventListener("userProfileUpdated", checkRole);
       window.removeEventListener("appInterfacesUpdated", checkRole);
     };
-  }, []);
+  }, [language]);
 
   const handleEditSocialLinks = async () => {
     const permitted = await checkEditPermission();
@@ -153,13 +154,10 @@ export default function Contacto() {
         <div style="text-align: left; font-size: 0.9rem;">
           <label style="display:block; margin-bottom:4px; font-weight:600; color:#cbd5e1;">Facebook URL:</label>
           <input id="swal-input-fb" class="swal2-input" style="width:100%; margin:0 0 12px 0; box-sizing:border-box;" value="${fbDefault}" placeholder="https://facebook.com/..." />
-          
           <label style="display:block; margin-bottom:4px; font-weight:600; color:#cbd5e1;">X (Twitter) URL:</label>
           <input id="swal-input-tw" class="swal2-input" style="width:100%; margin:0 0 12px 0; box-sizing:border-box;" value="${twDefault}" placeholder="https://twitter.com/..." />
-
           <label style="display:block; margin-bottom:4px; font-weight:600; color:#cbd5e1;">YouTube URL:</label>
           <input id="swal-input-yt" class="swal2-input" style="width:100%; margin:0 0 12px 0; box-sizing:border-box;" value="${ytDefault}" placeholder="https://youtube.com/..." />
-
           <label style="display:block; margin-bottom:4px; font-weight:600; color:#cbd5e1;">GitHub URL:</label>
           <input id="swal-input-gh" class="swal2-input" style="width:100%; margin:0 0 12px 0; box-sizing:border-box;" value="${ghDefault}" placeholder="https://github.com/..." />
         </div>
@@ -211,7 +209,6 @@ export default function Contacto() {
     }
   };
 
-  // ── ESTADO DEL FORMULARIO ──
   const [formData, setFormData] = useState({
     nombre: "",
     correo: "",
@@ -223,43 +220,22 @@ export default function Contacto() {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [serverError, setServerError] = useState("");
 
-  // Selector de Código de País con Búsqueda/Filtrado
-  const [selectedCountry, setSelectedCountry] = useState(COUNTRIES[0]); // default Ecuador
+  const [selectedCountry, setSelectedCountry] = useState(COUNTRIES[0]);
   const [phoneVal, setPhoneVal] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [countrySearch, setCountrySearch] = useState("");
   const [isSearching, setIsSearching] = useState(false);
 
-  // Filtrado de países según término de búsqueda
   const filteredCountries = COUNTRIES.filter(c => 
     c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
     c.code.includes(countrySearch) ||
     c.abbrev.toLowerCase().includes(countrySearch.toLowerCase())
   );
 
-  // ── ESTADO DE FAQ (ACORDEÓN) ──
   const [activeFaq, setActiveFaq] = useState(null);
 
-  const faqs = [
-    {
-      q: "¿Cómo puedo solicitar acceso a las APIs de telemetría para una tesis?",
-      a: "Los estudiantes y docentes de la ULEAM pueden solicitar credenciales de lectura de la API mediante un correo institucional dirigido a dit@uleam.edu.ec, detallando el título de la investigación, el director de tesis y las variables requeridas (por ejemplo, flujos hídricos o consumo eléctrico)."
-    },
-    {
-      q: "¿Qué tecnologías inalámbricas utilizan los nodos sensores?",
-      a: "Utilizamos una arquitectura híbrida. En interiores o áreas cercanas a laboratorios usamos WiFi (protocolo MQTT). Para exteriores o campus externos distantes, implementamos tecnología LoRaWAN transmitiendo a gateways de grado industrial conectados a la red troncal de la universidad."
-    },
-    {
-      q: "¿Es posible proponer una nueva ubicación para un nodo sensor?",
-      a: "¡Sí! Si tu facultad o proyecto de investigación requiere monitorizar una zona específica dentro o fuera de la universidad, puedes enviar una propuesta en la sección de contacto. Nuestro equipo técnico evaluará la viabilidad de la cobertura inalámbrica y el suministro de energía."
-    },
-    {
-      q: "¿Los datos recopilados son públicos?",
-      a: "Sí, todos los datos en tiempo real mostrados en el portal son de libre acceso para fines académicos y de divulgación. Para la descarga de históricos masivos (formato CSV o JSON) para análisis de datos, se requiere una cuenta institucional aprobada."
-    }
-  ];
+  
 
-  // Cerrar dropdown al hacer click fuera
   useEffect(() => {
     const handleOutsideClick = () => {
       setShowDropdown(false);
@@ -287,7 +263,6 @@ export default function Contacto() {
       tempErrors.correo = "El correo electrónico no es válido.";
     }
     
-    // Validación de Teléfono
     if (!phoneVal.trim()) {
       tempErrors.telefono = "El teléfono es obligatorio.";
     } else if (phoneVal.length !== selectedCountry.limit) {
@@ -311,12 +286,12 @@ export default function Contacto() {
     setIsSubmitting(true);
     setServerError("");
 
-    // Enviar datos reales al backend Laravel
-    fetch(`${API_BASE_URL}/contactos`, {
+    fetch(`${API_BASE_URL}/contactos?lang=${language}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Accept": "application/json"
+        "Accept": "application/json",
+        "Accept-Language": language
       },
       body: JSON.stringify(formData)
     })
@@ -334,7 +309,7 @@ export default function Contacto() {
       })
       .catch((err) => {
         console.error("Error submitting contact form:", err);
-        setServerError(err.message || "No se pudo conectar con el servidor de base de datos.");
+        setServerError(err.message || t("contact.error_message", "No se pudo conectar con el servidor."));
       })
       .finally(() => {
         setIsSubmitting(false);
@@ -347,7 +322,12 @@ export default function Contacto() {
 
   return (
     <div className="contact-page">
-      {/* ── HERO BANNER CON IMAGEN DE FONDO EDITABLE CON RECORTE ── */}
+      <SEO 
+        title={language === 'en' ? "Contact - IoT ULEAM" : "Contacto - IoT ULEAM"}
+        description={language === 'en' ? "Get in touch with the IoT ULEAM telemetry project team." : "Ponte en contacto con el equipo del proyecto de telemetría IoT ULEAM."}
+      />
+      
+      {/* ── SECCIÓN HÉROE (CONTACTO) ── */}
       <section className="contact-hero">
         <EditableImage
           imageKey="contacto_hero_bg"
@@ -365,57 +345,53 @@ export default function Contacto() {
         <div className="contact-hero-grid" />
         <div className="contact-hero-container" style={{ textAlign: "center" }}>
           <h1 className="contact-hero-title" style={{ fontSize: "3.5rem", margin: 0 }}>
-            <EditableText textKey="contacto_hero_title" defaultText="Contacto" />
+            <EditableText textKey="contacto_hero_title" />
           </h1>
         </div>
       </section>
 
-      {/* ── SECCIÓN: CONTACTO & REDES SOCIALES ── */}
       <section className="contact-main-section">
         <div className="contact-section-container">
           <div className="contact-grid">
-            {/* Columna 1: Tarjetas de Información y Redes Sociales */}
             <div className="contact-info-col">
               <div className="info-wrapper">
                 <div className="info-cards-list">
                   <div className="info-card">
                     <div className="info-icon-box"><MailIcon /></div>
                     <div>
-                      <h3><EditableText textKey="contacto_correo_titulo" defaultText="Correo Institucional" /></h3>
-                      <p className="info-detail"><EditableText textKey="contacto_correo_detalle" defaultText="dit@uleam.edu.ec" /></p>
-                      <p className="info-sub"><EditableText textKey="contacto_correo_sub" defaultText="Consultas técnicas e investigación" /></p>
+                      <h3><EditableText textKey="contacto_correo_titulo" /></h3>
+                      <p className="info-detail"><EditableText textKey="contacto_correo_detalle" /></p>
+                      <p className="info-sub"><EditableText textKey="contacto_correo_sub" /></p>
                     </div>
                   </div>
 
                   <div className="info-card">
                     <div className="info-icon-box"><PhoneIcon /></div>
                     <div>
-                      <h3><EditableText textKey="contacto_telefono_titulo" defaultText="Teléfono / Extensión" /></h3>
-                      <p className="info-detail"><EditableText textKey="contacto_telefono_detalle" defaultText="+593 (5) 2623-026" /></p>
-                      <p className="info-sub"><EditableText textKey="contacto_telefono_sub" defaultText="Ext. 2400 (Soporte DIT - Telecomunicaciones)" /></p>
+                      <h3><EditableText textKey="contacto_telefono_titulo" /></h3>
+                      <p className="info-detail"><EditableText textKey="contacto_telefono_detalle" /></p>
+                      <p className="info-sub"><EditableText textKey="contacto_telefono_sub" /></p>
                     </div>
                   </div>
 
                   <div className="info-card">
                     <div className="info-icon-box"><MapPinIcon /></div>
                     <div>
-                      <h3><EditableText textKey="contacto_ubicacion_titulo" defaultText="Ubicación Física" /></h3>
-                      <p className="info-detail"><EditableText textKey="contacto_ubicacion_detalle" defaultText="Av. Circunvalación, Manta - Ecuador" /></p>
-                      <p className="info-sub"><EditableText textKey="contacto_ubicacion_sub" defaultText="Edificio de Innovación y Tecnología (Planta Baja)" /></p>
+                      <h3><EditableText textKey="contacto_ubicacion_titulo" /></h3>
+                      <p className="info-detail"><EditableText textKey="contacto_ubicacion_detalle" /></p>
+                      <p className="info-sub"><EditableText textKey="contacto_ubicacion_sub" /></p>
                     </div>
                   </div>
                 </div>
 
-                {/* GRILA DE REDES SOCIALES: SOLO EL LOGO */}
                 <div className="social-networks-section">
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-                    <h3 style={{ margin: 0 }}><EditableText textKey="contacto_social_titulo" defaultText="Redes Sociales y Comunidad" /></h3>
+                    <h3 style={{ margin: 0 }}><EditableText textKey="contacto_social_titulo" /></h3>
                     {editMode && hasPermission && (
                       <button
                         type="button"
                         onClick={handleEditSocialLinks}
                         className="btn-edit-social-links"
-                        title="Editar enlaces de redes sociales"
                         style={{
                           background: 'rgba(239, 68, 68, 0.12)',
                           border: '1px solid rgba(239, 68, 68, 0.35)',
@@ -427,8 +403,7 @@ export default function Contacto() {
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '6px',
-                          fontWeight: 600,
-                          transition: 'all 0.2s ease'
+                          fontWeight: 600
                         }}
                       >
                         <PencilIcon /> Editar Links
@@ -436,55 +411,45 @@ export default function Contacto() {
                     )}
                   </div>
                   <p className="social-networks-desc">
-                    <EditableText textKey="contacto_social_desc" defaultText="Sigue los canales oficiales del ecosistema de Internet de las Cosas." isTextArea={true} />
+                    <EditableText textKey="contacto_social_desc" isTextArea={true} />
                   </p>
-                  {loading ? (
-                    <div className="social-only-icons-row" style={{ gap: '12px', marginTop: '14px' }}>
-                      <span className="editable-text-skeleton" style={{ width: '42px', height: '42px', borderRadius: '50%', display: 'inline-block' }} />
-                      <span className="editable-text-skeleton" style={{ width: '42px', height: '42px', borderRadius: '50%', display: 'inline-block' }} />
-                      <span className="editable-text-skeleton" style={{ width: '42px', height: '42px', borderRadius: '50%', display: 'inline-block' }} />
-                      <span className="editable-text-skeleton" style={{ width: '42px', height: '42px', borderRadius: '50%', display: 'inline-block' }} />
-                    </div>
-                  ) : (
-                    <div className="social-only-icons-row">
-                      <a href={texts['contacto_social_facebook'] || "https://facebook.com/UleamEc"} target="_blank" rel="noopener noreferrer" className="social-icon-circle facebook" title="Facebook">
-                        <FacebookIcon />
-                      </a>
-                      <a href={texts['contacto_social_twitter'] || "https://twitter.com/UleamEc"} target="_blank" rel="noopener noreferrer" className="social-icon-circle twitter" title="X (Twitter)">
-                        <TwitterIcon />
-                      </a>
-                      <a href={texts['contacto_social_youtube'] || "https://youtube.com"} target="_blank" rel="noopener noreferrer" className="social-icon-circle youtube" title="YouTube">
-                        <YoutubeIcon />
-                      </a>
-                      <a href={texts['contacto_social_github'] || "https://github.com"} target="_blank" rel="noopener noreferrer" className="social-icon-circle github" title="GitHub">
-                        <GithubIcon />
-                      </a>
-                    </div>
-                  )}
+                  <div className="social-only-icons-row">
+                    <a href={texts['contacto_social_facebook'] || "https://facebook.com/UleamEc"} target="_blank" rel="noopener noreferrer" className="social-icon-circle facebook" title="Facebook">
+                      <FacebookIcon />
+                    </a>
+                    <a href={texts['contacto_social_twitter'] || "https://twitter.com/UleamEc"} target="_blank" rel="noopener noreferrer" className="social-icon-circle twitter" title="X (Twitter)">
+                      <TwitterIcon />
+                    </a>
+                    <a href={texts['contacto_social_youtube'] || "https://youtube.com"} target="_blank" rel="noopener noreferrer" className="social-icon-circle youtube" title="YouTube">
+                      <YoutubeIcon />
+                    </a>
+                    <a href={texts['contacto_social_github'] || "https://github.com"} target="_blank" rel="noopener noreferrer" className="social-icon-circle github" title="GitHub">
+                      <GithubIcon />
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Columna 2: Formulario de Contacto */}
             <div className="contact-form-col">
               <div className="form-wrapper">
                 {submitSuccess ? (
                   <div className="success-banner">
                     <div className="success-icon-wrapper"><CheckCircleIcon /></div>
-                    <h2><EditableText textKey="contacto_success_title" defaultText="¡Mensaje Registrado con Éxito!" /></h2>
+                    <h2><EditableText textKey="contacto_success_title" /></h2>
                     <p>
-                      <EditableText textKey="contacto_success_desc" defaultText="Hemos guardado tu requerimiento en nuestra base de datos. Un miembro de la Dirección de Innovación Tecnológica (DIT) o la Facultad de Ciencias Informáticas (FACCI) se comunicará contigo en un plazo máximo de 48 horas laborables." isTextArea={true} />
+                      <EditableText textKey="contacto_success_desc" isTextArea={true} />
                     </p>
                     <button onClick={() => setSubmitSuccess(false)} className="btn-success-reset">
-                      <EditableText textKey="contacto_success_btn" defaultText="Enviar otro mensaje" />
+                      <EditableText textKey="contacto_success_btn" />
                     </button>
                   </div>
                 ) : (
                   <>
-                    <h2><EditableText textKey="contacto_form_title" defaultText="Formulario de Contacto" /></h2>
+                    <h2><EditableText textKey="contacto_form_title" /></h2>
                     <form onSubmit={handleSubmit} noValidate>
                       <div className="form-group">
-                        <label htmlFor="nombre"><EditableText textKey="contacto_label_nombre" defaultText="Nombre Completo *" /></label>
+                        <label htmlFor="nombre"><EditableText textKey="contacto_label_nombre" /></label>
                         <input
                           type="text"
                           id="nombre"
@@ -492,14 +457,14 @@ export default function Contacto() {
                           value={formData.nombre}
                           onChange={handleInputChange}
                           className={errors.nombre ? "input-error" : ""}
-                          placeholder="Nombre Completo"
+                          placeholder={t("contact.name_label", "Nombre Completo")}
                           required
                         />
                         {errors.nombre && <span className="error-message">{errors.nombre}</span>}
                       </div>
 
                       <div className="form-group">
-                        <label htmlFor="correo"><EditableText textKey="contacto_label_correo" defaultText="Correo Electrónico *" /></label>
+                        <label htmlFor="correo"><EditableText textKey="contacto_label_correo" /></label>
                         <input
                           type="email"
                           id="correo"
@@ -507,15 +472,14 @@ export default function Contacto() {
                           value={formData.correo}
                           onChange={handleInputChange}
                           className={errors.correo ? "input-error" : ""}
-                          placeholder="Correo Electrónico"
+                          placeholder={t("contact.email_label", "Correo Electrónico")}
                           required
                         />
                         {errors.correo && <span className="error-message">{errors.correo}</span>}
                       </div>
 
-                      {/* INPUT DE TELÉFONO DINÁMICO CON BÚSQUEDA */}
                       <div className="form-group">
-                        <label htmlFor="telefono"><EditableText textKey="contacto_label_telefono" defaultText="Teléfono de Contacto *" /></label>
+                        <label htmlFor="telefono"><EditableText textKey="contacto_label_telefono" /></label>
                         <div className="phone-input-group">
                           <div className="country-selector-wrapper" onClick={(e) => e.stopPropagation()}>
                             <input
@@ -531,7 +495,7 @@ export default function Contacto() {
                                 setCountrySearch(e.target.value);
                                 setShowDropdown(true);
                               }}
-                              placeholder="Buscar..."
+                              placeholder={t("common.search", "Buscar...")}
                               required
                             />
                             <ChevronDownIcon 
@@ -542,7 +506,7 @@ export default function Contacto() {
                             {showDropdown && (
                               <div className="countries-dropdown-list">
                                 {filteredCountries.length === 0 ? (
-                                  <div className="country-dropdown-no-results">Sin resultados</div>
+                                  <div className="country-dropdown-no-results">{t("common.no_results", "Sin resultados")}</div>
                                 ) : (
                                   filteredCountries.map((c) => (
                                     <div 
@@ -568,7 +532,8 @@ export default function Contacto() {
                           </div>
                           
                           <input
-                            type="text"
+                            type="tel"
+                            inputMode="numeric"
                             id="telefono"
                             name="telefono"
                             value={phoneVal}
@@ -587,14 +552,11 @@ export default function Contacto() {
                             required
                           />
                         </div>
-                        <div className="phone-info-spelling">
-                          <EditableText textKey="contacto_phone_limit_prefix" defaultText="Límite: " /> <strong>{selectedCountry.flag} {selectedCountry.name}</strong> <EditableText textKey="contacto_phone_limit_middle" defaultText=" requiere exactamente " /> <strong>{selectedCountry.limit} <EditableText textKey="contacto_phone_limit_suffix" defaultText=" dígitos" /></strong>
-                        </div>
                         {errors.telefono && <span className="error-message">{errors.telefono}</span>}
                       </div>
 
                       <div className="form-group">
-                        <label htmlFor="mensaje"><EditableText textKey="contacto_label_mensaje" defaultText="Mensaje / Detalle de Requerimiento *" /></label>
+                        <label htmlFor="mensaje"><EditableText textKey="contacto_label_mensaje" /></label>
                         <textarea
                           id="mensaje"
                           name="mensaje"
@@ -602,7 +564,7 @@ export default function Contacto() {
                           value={formData.mensaje}
                           onChange={handleInputChange}
                           className={errors.mensaje ? "input-error" : ""}
-                          placeholder="Escribe tu mensaje..."
+                          placeholder={t("contact.message_label", "Escribe tu mensaje...")}
                           required
                         />
                         {errors.mensaje && <span className="error-message">{errors.mensaje}</span>}
@@ -618,12 +580,12 @@ export default function Contacto() {
                         {isSubmitting ? (
                           <>
                             <LoaderIcon />
-                            Registrando en Base de Datos...
+                            {t("contact.sending", "Enviando...")}
                           </>
                         ) : (
                           <>
                             <SendIcon />
-                            Enviar Mensaje
+                            {t("contact.send_button", "Enviar Mensaje")}
                           </>
                         )}
                       </button>
@@ -636,28 +598,27 @@ export default function Contacto() {
         </div>
       </section>
 
-      {/* ── SECCIÓN: PREGUNTAS FRECUENTES (FAQ) ── */}
       <section className="contact-faq-section">
         <div className="contact-section-container">
           <div className="faq-header">
-            <span className="contact-label-red"><EditableText textKey="contacto_faq_badge" defaultText="Centro de Ayuda" /></span>
-            <h2><EditableText textKey="contacto_faq_title" defaultText="Preguntas Frecuentes (FAQ)" /></h2>
-            <p><EditableText textKey="contacto_faq_subtitle" defaultText="Resuelve de forma rápida tus inquietudes sobre el funcionamiento del portal y el acceso a los datos de telemetría." isTextArea={true} /></p>
+            <span className="contact-label-red"><EditableText textKey="contacto_faq_badge" /></span>
+            <h2><EditableText textKey="contacto_faq_title" /></h2>
+            <p><EditableText textKey="contacto_faq_subtitle" isTextArea={true} /></p>
           </div>
 
           <div className="faq-list">
-            {faqs.map((faq, idx) => (
+            {Array.from({ length: 4 }).map((_, idx) => (
               <div key={idx} className={`faq-item ${activeFaq === idx ? "active" : ""}`}>
                 <button className="faq-question" onClick={() => toggleFaq(idx)}>
                   <div className="faq-q-text">
                     <span className="faq-icon"><HelpCircleIcon /></span>
-                    <h3><EditableText textKey={`contacto_faq_q_${idx}`} defaultText={faq.q} /></h3>
+                    <h3><EditableText textKey={`contacto_faq_q_${idx}`} /></h3>
                   </div>
                   <span className="faq-chevron"><ChevronDownIcon /></span>
                 </button>
                 <div className="faq-answer">
                   <div className="faq-answer-content">
-                    <p><EditableText textKey={`contacto_faq_a_${idx}`} defaultText={faq.a} isTextArea={true} /></p>
+                    <p><EditableText textKey={`contacto_faq_a_${idx}`} isTextArea={true} /></p>
                   </div>
                 </div>
               </div>

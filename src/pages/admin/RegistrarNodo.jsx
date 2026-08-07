@@ -2,19 +2,145 @@ import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
+import { useLanguage } from '../../context/LanguageContext';
+import { usePageTitle } from '../../hooks/usePageTitle';
 import '../../styles/components/admin/RegistrarNodo.css';
 import iotLogoDefault from '../../assets/IOT-LOGO.png';
 
+const CustomItemsPerPageSelect = ({ value, onChange, options = [6, 9, 12, 18, 24], language = 'es' }) => {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const suffix = language === 'en' ? 'page' : 'pág';
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '6px 14px',
+          borderRadius: '10px',
+          border: '1.5px solid #cbd5e1',
+          background: '#ffffff',
+          color: '#0f2c59',
+          fontWeight: '700',
+          fontSize: '0.82rem',
+          cursor: 'pointer',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.04)',
+          transition: 'all 0.2s ease',
+          outline: 'none'
+        }}
+      >
+        <span>{value} / {suffix}</span>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          width="12"
+          height="12"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 'calc(100% + 6px)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#ffffff',
+            border: '1.5px solid #e2e8f0',
+            borderRadius: '12px',
+            boxShadow: '0 12px 28px rgba(15, 23, 42, 0.18)',
+            padding: '6px',
+            minWidth: '115px',
+            zIndex: 1100,
+            maxWidth: '90vw',
+            boxSizing: 'border-box'
+          }}
+        >
+          {options.map((opt) => {
+            const isSelected = Number(opt) === Number(value);
+            return (
+              <div
+                key={opt}
+                onClick={() => {
+                  onChange(Number(opt));
+                  setOpen(false);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  width: '100%',
+                  padding: '7px 10px',
+                  borderRadius: '8px',
+                  background: isSelected ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                  color: isSelected ? '#1e40af' : '#334155',
+                  fontWeight: isSelected ? '800' : '600',
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'background 0.15s ease',
+                  boxSizing: 'border-box'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = '#f8fafc';
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <span>{opt} / {suffix}</span>
+                {isSelected && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#1e40af" strokeWidth="3" width="12" height="12">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function RegistrarNodo() {
+  const { t, language, triggerContentLoading } = useLanguage();
+  usePageTitle({ es: 'Registrar / Editar Nodo', en: 'Register / Edit Node' }, 'Admin · IoT ULEAM');
   const [ubicaciones, setUbicaciones] = useState([]);
   const [nodosRegistrados, setNodosRegistrados] = useState([]);
+  const [loadingNodos, setLoadingNodos] = useState(true);
   const [categorias, setCategorias] = useState([]);
   const [metricasPresets, setMetricasPresets] = useState([]);
 
+  // Estados de Paginación para Listado de Nodos
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(9);
 
   const [searchParams] = useSearchParams();
   const categoriaFiltro = searchParams.get('categoria');
   const navigate = useNavigate();
+  const isEn = language === 'en';
 
   // Estados del Formulario y Vista
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
@@ -58,6 +184,11 @@ export default function RegistrarNodo() {
   const [showUbiPanel, setShowUbiPanel] = useState(false);
   const [showCatPanel, setShowCatPanel] = useState(false);
   const [showOrdenPanel, setShowOrdenPanel] = useState(false);
+
+  // Resetear paginación al cambiar cualquier filtro
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [busqueda, filtroUbicacion, filtroCategoria, ordenFecha, categoriaFiltro]);
 
   // Derive active location corresponding to the previewNode
   const activeUbi = previewNode ? ubicaciones.find(u => u.id.toString() === previewNode.ubicacion_id.toString()) : null;
@@ -331,22 +462,12 @@ export default function RegistrarNodo() {
     };
   };
 
-  const getSimulatedValue = (dataType, unit) => {
-    const key = dataType.toLowerCase();
-    if (key.includes('temp')) return '23.5';
-    if (key.includes('hum')) return '58';
-    if (key.includes('press') || key.includes('pres')) return '1012';
-    if (key.includes('aqi')) return '44';
-    if (key.includes('co2')) return '415';
-    if (key.includes('pm2') || key.includes('2.5') || key.includes('pm25')) return '11.42';
-    if (key.includes('pm10') || key.includes('10')) return '24.01';
-    if (key.includes('soil') || key.includes('suelo')) return '78';
-    return '12.5';
-  };
+
 
   useEffect(() => {
-    // Fetch locations from PostgreSQL backend
-    fetch(`${API_BASE_URL}/ubicaciones`)
+    setLoadingNodos(true);
+
+    const pUbicaciones = fetch(`${API_BASE_URL}/ubicaciones`)
       .then(res => {
         if (!res.ok) throw new Error("HTTP error " + res.status);
         return res.json();
@@ -361,8 +482,7 @@ export default function RegistrarNodo() {
         setUbicaciones([]);
       });
 
-    // Fetch nodes from PostgreSQL backend
-    fetch(`${API_BASE_URL}/nodos`)
+    const pNodos = fetchWithAuth(`${API_BASE_URL}/nodos?include_credentials=true`)
       .then(res => {
         if (!res.ok) throw new Error("HTTP error " + res.status);
         return res.json();
@@ -377,8 +497,7 @@ export default function RegistrarNodo() {
         setNodosRegistrados([]);
       });
 
-    // Fetch categories from Laravel API
-    fetch(`${API_BASE_URL}/categorias`)
+    const pCategorias = fetch(`${API_BASE_URL}/categorias`)
       .then(res => {
         if (!res.ok) throw new Error("HTTP error " + res.status);
         return res.json();
@@ -399,8 +518,7 @@ export default function RegistrarNodo() {
         }
       });
 
-    // Load Metrics presets from PostgreSQL database
-    fetch(`${API_BASE_URL}/metricas`)
+    const pMetricas = fetch(`${API_BASE_URL}/metricas`)
       .then(res => {
         if (!res.ok) throw new Error("HTTP error " + res.status);
         return res.json();
@@ -414,6 +532,10 @@ export default function RegistrarNodo() {
         console.error("Error fetching metrics presets from PostgreSQL backend:", err);
         setMetricasPresets([]);
       });
+
+    Promise.allSettled([pUbicaciones, pNodos, pCategorias, pMetricas]).finally(() => {
+      setLoadingNodos(false);
+    });
   }, [categoriaFiltro]);
 
   // Alerta de cambios pendientes al intentar recargar o cerrar la página
@@ -517,8 +639,8 @@ export default function RegistrarNodo() {
     if (!sensorTemplate.subvariables || sensorTemplate.subvariables.length === 0) {
       Swal.fire({
         icon: 'warning',
-        title: 'Plantilla Vacía',
-        text: 'Este sensor no tiene subvariables configuradas.',
+        title: isEn ? 'Empty Template' : 'Plantilla Vacía',
+        text: isEn ? 'This sensor has no configured subvariables.' : 'Este sensor no tiene subvariables configuradas.',
         confirmButtonColor: '#ff9f1c'
       });
       return;
@@ -528,6 +650,7 @@ export default function RegistrarNodo() {
       sensor: sensorTemplate.nombre,
       tipo: sub.nombre,
       unidad: sub.unidad,
+      icono: sub.icono || '',
       data_type: sub.claveMqtt
     }));
 
@@ -544,8 +667,10 @@ export default function RegistrarNodo() {
 
     Swal.fire({
       icon: 'success',
-      title: '¡Subvariables Cargadas!',
-      text: `Se agregaron ${nuevasLecturas.length} subvariables del sensor "${sensorTemplate.nombre}".`,
+      title: isEn ? 'Subvariables Loaded!' : '¡Subvariables Cargadas!',
+      text: isEn
+        ? `Added ${nuevasLecturas.length} subvariables from sensor "${sensorTemplate.nombre}".`
+        : `Se agregaron ${nuevasLecturas.length} subvariables del sensor "${sensorTemplate.nombre}".`,
       toast: true,
       position: 'top-end',
       showConfirmButton: false,
@@ -574,6 +699,7 @@ export default function RegistrarNodo() {
       if (found) {
         nuevasLecturas[index]['sensor'] = found.parentSensor || '';
         nuevasLecturas[index]['unidad'] = found.unidad || '';
+        nuevasLecturas[index]['icono'] = found.icono || '';
         nuevasLecturas[index]['data_type'] = found.claveMqtt || '';
       }
     }
@@ -596,8 +722,10 @@ export default function RegistrarNodo() {
     if (!nombreNodo || !serialNumber || !ubicacionId || !categoria) {
       Swal.fire({
         icon: 'error',
-        title: 'Campos Incompletos',
-        text: 'Por favor, completa todos los campos principales (Nombre, Serial, Ubicación y Categoría).',
+        title: isEn ? 'Incomplete Fields' : 'Campos Incompletos',
+        text: isEn
+          ? 'Please complete all main fields (Name, Serial, Location, and Category).'
+          : 'Por favor, completa todos los campos principales (Nombre, Serial, Ubicación y Categoría).',
         confirmButtonColor: '#2563eb'
       });
       return;
@@ -608,8 +736,10 @@ export default function RegistrarNodo() {
     if (lecturasValidas.length === 0) {
       Swal.fire({
         icon: 'warning',
-        title: 'Faltan Métricas',
-        text: 'Por favor, configure al menos una métrica válida (con su clave MQTT) antes de registrar el nodo.',
+        title: isEn ? 'Missing Metrics' : 'Faltan Métricas',
+        text: isEn
+          ? 'Please configure at least one valid metric (with its MQTT key) before registering the node.'
+          : 'Por favor, configure al menos una métrica válida (con su clave MQTT) antes de registrar el nodo.',
         confirmButtonColor: '#ff9f1c'
       });
       return;
@@ -639,25 +769,24 @@ export default function RegistrarNodo() {
       if (!cambiosHtml) {
         Swal.fire({
           icon: 'info',
-          title: 'Sin Cambios',
-          text: 'No se detectaron cambios para guardar.',
+          title: isEn ? 'No Changes' : 'Sin Cambios',
+          text: isEn ? 'No changes detected to save.' : 'No se detectaron cambios para guardar.',
           confirmButtonColor: '#2563eb'
         });
         return;
       }
 
       Swal.fire({
-        title: '¿Guardar Cambios?',
-        html: `Estás a punto de actualizar la configuración del nodo.<br/>${cambiosHtml}`,
+        title: isEn ? 'Save Changes?' : '¿Guardar Cambios?',
+        html: `${isEn ? 'You are about to update the node configuration.' : 'Estás a punto de actualizar la configuración del nodo.'}<br/>${cambiosHtml}`,
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#2563eb',
         cancelButtonColor: '#4b5563',
-        confirmButtonText: 'Sí, guardar',
-        cancelButtonText: 'Cancelar'
+        confirmButtonText: isEn ? 'Yes, save' : 'Sí, guardar',
+        cancelButtonText: isEn ? 'Cancel' : 'Cancelar'
       }).then((result) => {
         if (result.isConfirmed) {
-          // API UPDATE NODE (PUT)
           fetchWithAuth(`${API_BASE_URL}/nodos/${editandoId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -667,17 +796,20 @@ export default function RegistrarNodo() {
               if (!res.ok) throw new Error("Duplicate or validation error");
               return res.json();
             })
-            .then(updatedNode => {
-              const list = nodosRegistrados.map(nodo => nodo.id === editandoId ? updatedNode : nodo);
-              setNodosRegistrados(list);
+            .then(() => {
+              triggerContentLoading();
+              // Re-fetch the full nodes list with credentials to get properly mapped data
+              return fetchWithAuth(`${API_BASE_URL}/nodos?include_credentials=true`);
+            })
+            .then(res => res.json())
+            .then(nodosData => {
+              if (Array.isArray(nodosData)) setNodosRegistrados(nodosData);
 
               Swal.fire({
                 icon: 'success',
-                title: '¡Nodo Actualizado!',
-                text: 'Los cambios se han guardado con éxito.',
+                title: isEn ? 'Node Updated!' : '¡Nodo Actualizado!',
+                text: isEn ? 'Changes saved successfully.' : 'Los cambios se han guardado con éxito.',
                 confirmButtonColor: '#ff9f1c'
-              }).then(() => {
-                navigate('/admin/dashboard');
               });
               limpiarFormulario();
               setMostrarFormulario(false);
@@ -686,8 +818,10 @@ export default function RegistrarNodo() {
               console.error("Error updating node:", err);
               Swal.fire({
                 icon: 'error',
-                title: 'Error al Modificar',
-                text: 'No se pudo guardar la estación (asegúrate de que el número de serie sea único).',
+                title: isEn ? 'Update Error' : 'Error al Modificar',
+                text: isEn
+                  ? 'Could not save station (make sure the serial number is unique).'
+                  : 'No se pudo guardar la estación (asegúrate de que el número de serie sea único).',
                 confirmButtonColor: '#ff9f1c'
               });
             });
@@ -705,12 +839,20 @@ export default function RegistrarNodo() {
           if (!res.ok) throw new Error("Duplicate or validation error");
           return res.json();
         })
-        .then(newNode => {
-          const list = [...nodosRegistrados, newNode];
-          setNodosRegistrados(list);
+        .then(() => {
+          triggerContentLoading();
+          return fetchWithAuth(`${API_BASE_URL}/nodos?include_credentials=true`);
+        })
+        .then(res => res.json())
+        .then(nodosData => {
+          if (Array.isArray(nodosData)) setNodosRegistrados(nodosData);
 
-          setVerifyingNodeId(newNode.id);
-          iniciarVerificacionConexion(newNode.id, newNode.nombre);
+          Swal.fire({
+            icon: 'success',
+            title: isEn ? 'Node Registered!' : '¡Nodo Registrado!',
+            text: isEn ? 'The node has been created successfully.' : 'El nodo ha sido creado con éxito.',
+            confirmButtonColor: '#ff9f1c'
+          });
 
           limpiarFormulario();
           setMostrarFormulario(false);
@@ -719,8 +861,10 @@ export default function RegistrarNodo() {
           console.error("Error creating node:", err);
           Swal.fire({
             icon: 'error',
-            title: 'Error al Registrar',
-            text: 'No se pudo registrar la estación (asegúrate de que el número de serie sea único).',
+            title: isEn ? 'Registration Error' : 'Error al Registrar',
+            text: isEn
+              ? 'Could not register station (make sure the serial number is unique).'
+              : 'No se pudo registrar la estación (asegúrate de que el número de serie sea único).',
             confirmButtonColor: '#ff9f1c'
           });
         });
@@ -729,66 +873,99 @@ export default function RegistrarNodo() {
 
 
   const cargarEdicion = (nodo) => {
-    setEditandoId(nodo.id);
-    setNombreNodo(nodo.nombre);
-    setSerialNumber(nodo.serial_number);
-    setUbicacionId(nodo.ubicacion_id);
-    setCategoria(nodo.categoria);
+    // Fetch fresh individual node data with full relations and credentials
+    fetchWithAuth(`${API_BASE_URL}/nodos/${nodo.id}?include_credentials=true`)
+      .then(res => res.ok ? res.json() : Promise.reject(res))
+      .then(freshNodo => {
+        setEditandoId(freshNodo.id);
+        setNombreNodo(freshNodo.nombre_es || freshNodo.nombre || '');
+        setSerialNumber(freshNodo.serial_number || '');
+        // Use numeric comparison-friendly ID: keep as string since ubicacionId state is string
+        setUbicacionId(freshNodo.ubicacion_id != null ? String(freshNodo.ubicacion_id) : '');
+        setCategoria(freshNodo.categoria_es || freshNodo.categoria || '');
 
-    // Map metrics list, ensuring default sensor name is loaded
-    const mappedLecturas = (nodo.lecturas && nodo.lecturas.length > 0)
-      ? nodo.lecturas.map(l => ({
-        sensor: l.sensor || 'Sensor Integrado',
-        data_type: l.data_type,
-        tipo: l.tipo,
-        unidad: l.unidad
-      }))
-      : [{ sensor: '', data_type: '', tipo: 'Temperatura', unidad: '°C' }];
+        // Map metrics from subvariables (tipo_es is the Spanish type name)
+        const mappedLecturas = (freshNodo.lecturas && freshNodo.lecturas.length > 0)
+          ? freshNodo.lecturas.map(l => ({
+            sensor: l.sensor || 'Sensor Integrado',
+            data_type: l.data_type,
+            tipo: l.tipo_es || l.tipo,
+            unidad: l.unidad,
+            icono: l.icono || ''
+          }))
+          : [{ sensor: '', data_type: '', tipo: 'Temperatura', unidad: '\u00b0C' }];
 
-    setLecturas(mappedLecturas);
-    setBroker(nodo.broker || 'broker.hivemq.com');
-    setPort(nodo.port || '1883');
-    setTopicData(nodo.topic_data || '');
-    setClientId(nodo.client_id || '');
-    setUsername(nodo.username || '');
-    setPassword(nodo.password || '');
-    setUseMqttV5(nodo.use_mqtt_v5 || false);
-    setIsSimulated(nodo.is_simulated || false);
-    setSaveFrequency(nodo.save_frequency?.toString() || '30');
-    setInstabilityAlertInterval(nodo.instability_alert_interval?.toString() || '300');
+        setLecturas(mappedLecturas);
+        setBroker(freshNodo.broker ?? 'broker.hivemq.com');
+        setPort(freshNodo.port != null ? String(freshNodo.port) : '1883');
+        setTopicData(freshNodo.topic_data ?? '');
+        setClientId(freshNodo.client_id ?? '');
+        setUsername(freshNodo.username ?? '');
+        setPassword(freshNodo.password ?? '');
+        setUseMqttV5(freshNodo.use_mqtt_v5 ?? false);
+        setIsSimulated(freshNodo.is_simulated ?? false);
+        setSaveFrequency(freshNodo.save_frequency != null ? String(freshNodo.save_frequency) : '30');
+        setInstabilityAlertInterval(freshNodo.instability_alert_interval != null ? String(freshNodo.instability_alert_interval) : '300');
 
-    setInitialState({
-      nombreNodo: nodo.nombre,
-      serialNumber: nodo.serial_number,
-      ubicacionId: nodo.ubicacion_id,
-      categoria: nodo.categoria,
-      lecturas: mappedLecturas,
-      broker: nodo.broker || 'broker.hivemq.com',
-      port: nodo.port || '1883',
-      topicData: nodo.topic_data || '',
-      clientId: nodo.client_id || '',
-      username: nodo.username || '',
-      password: nodo.password || '',
-      useMqttV5: nodo.use_mqtt_v5 || false,
-      isSimulated: nodo.is_simulated || false,
-      saveFrequency: nodo.save_frequency?.toString() || '30',
-      instabilityAlertInterval: nodo.instability_alert_interval?.toString() || '300'
-    });
+        setInitialState({
+          nombreNodo: freshNodo.nombre_es || freshNodo.nombre || '',
+          serialNumber: freshNodo.serial_number || '',
+          ubicacionId: freshNodo.ubicacion_id != null ? String(freshNodo.ubicacion_id) : '',
+          categoria: freshNodo.categoria_es || freshNodo.categoria || '',
+          lecturas: mappedLecturas,
+          broker: freshNodo.broker ?? 'broker.hivemq.com',
+          port: freshNodo.port != null ? String(freshNodo.port) : '1883',
+          topicData: freshNodo.topic_data ?? '',
+          clientId: freshNodo.client_id ?? '',
+          username: freshNodo.username ?? '',
+          password: freshNodo.password ?? '',
+          useMqttV5: freshNodo.use_mqtt_v5 ?? false,
+          isSimulated: freshNodo.is_simulated ?? false,
+          saveFrequency: freshNodo.save_frequency != null ? String(freshNodo.save_frequency) : '30',
+          instabilityAlertInterval: freshNodo.instability_alert_interval != null ? String(freshNodo.instability_alert_interval) : '300'
+        });
 
-    setMostrarFormulario(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+        setMostrarFormulario(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      })
+      .catch(err => {
+        console.error('Error loading node for edit:', err);
+        // Fallback to list data if individual fetch fails
+        setEditandoId(nodo.id);
+        setNombreNodo(nodo.nombre_es || nodo.nombre || '');
+        setSerialNumber(nodo.serial_number || '');
+        setUbicacionId(nodo.ubicacion_id != null ? String(nodo.ubicacion_id) : '');
+        setCategoria(nodo.categoria_es || nodo.categoria || '');
+        const fallbackLecturas = (nodo.lecturas && nodo.lecturas.length > 0)
+          ? nodo.lecturas.map(l => ({ sensor: l.sensor || 'Sensor Integrado', data_type: l.data_type, tipo: l.tipo_es || l.tipo, unidad: l.unidad }))
+          : [{ sensor: '', data_type: '', tipo: 'Temperatura', unidad: '\u00b0C' }];
+        setLecturas(fallbackLecturas);
+        setBroker(nodo.broker ?? 'broker.hivemq.com');
+        setPort(nodo.port != null ? String(nodo.port) : '1883');
+        setTopicData(nodo.topic_data ?? '');
+        setClientId(nodo.client_id ?? '');
+        setUsername(nodo.username ?? '');
+        setPassword(nodo.password ?? '');
+        setUseMqttV5(nodo.use_mqtt_v5 ?? false);
+        setIsSimulated(nodo.is_simulated ?? false);
+        setSaveFrequency(nodo.save_frequency != null ? String(nodo.save_frequency) : '30');
+        setInstabilityAlertInterval(nodo.instability_alert_interval != null ? String(nodo.instability_alert_interval) : '300');
+        setInitialState(null);
+        setMostrarFormulario(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
   };
 
   const eliminarNodo = (id) => {
     Swal.fire({
-      title: '¿Estás seguro?',
-      text: "Esta acción no se puede deshacer y desvinculará este nodo del sistema.",
+      title: isEn ? 'Are you sure?' : '¿Estás seguro?',
+      text: isEn ? 'This action cannot be undone and will unlink this node from the system.' : 'Esta acción no se puede deshacer y desvinculará este nodo del sistema.',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#ef4444',
       cancelButtonColor: '#374151',
-      confirmButtonText: 'Sí, eliminar',
-      cancelButtonText: 'Cancelar'
+      confirmButtonText: isEn ? 'Yes, delete' : 'Sí, eliminar',
+      cancelButtonText: isEn ? 'Cancel' : 'Cancelar'
     }).then((result) => {
       if (result.isConfirmed) {
         // API DELETE
@@ -799,8 +976,8 @@ export default function RegistrarNodo() {
 
             Swal.fire({
               icon: 'success',
-              title: '¡Eliminado!',
-              text: 'El nodo ha sido removido del sistema.',
+              title: isEn ? 'Deleted!' : '¡Eliminado!',
+              text: isEn ? 'The node has been removed from the system.' : 'El nodo ha sido removido del sistema.',
               confirmButtonColor: '#ff9f1c'
             });
 
@@ -811,7 +988,12 @@ export default function RegistrarNodo() {
           })
           .catch(err => {
             console.error("Error deleting node:", err);
-            Swal.fire({ icon: 'error', title: 'Error de Red', text: 'No se pudo eliminar el nodo en la base de datos.', confirmButtonColor: '#ff9f1c' });
+            Swal.fire({
+              icon: 'error',
+              title: isEn ? 'Network Error' : 'Error de Red',
+              text: isEn ? 'Could not delete node in database.' : 'No se pudo eliminar el nodo en la base de datos.',
+              confirmButtonColor: '#ff9f1c'
+            });
           });
       }
     });
@@ -842,34 +1024,60 @@ export default function RegistrarNodo() {
     if (!initialState) return '';
     const cambios = [];
 
-    if (nombreNodo !== initialState.nombreNodo) cambios.push(`<b>Nombre:</b> ${initialState.nombreNodo || '(vacío)'} &rarr; ${nombreNodo}`);
-    if (serialNumber !== initialState.serialNumber) cambios.push(`<b>Serial:</b> ${initialState.serialNumber || '(vacío)'} &rarr; ${serialNumber}`);
+    const labelNombre = isEn ? 'Name' : 'Nombre';
+    const labelSerial = isEn ? 'Serial' : 'Serial';
+    const labelUbicacion = isEn ? 'Location' : 'Ubicación';
+    const labelCategoria = isEn ? 'Category' : 'Categoría';
+    const labelBroker = isEn ? 'Broker' : 'Broker';
+    const labelPuerto = isEn ? 'Port' : 'Puerto';
+    const labelTopic = isEn ? 'MQTT Topic' : 'Topic MQTT';
+    const labelClient = isEn ? 'Client ID' : 'Client ID';
+    const labelUser = isEn ? 'MQTT User' : 'Usuario MQTT';
+    const labelPass = isEn ? 'MQTT Password' : 'Clave MQTT';
+    const labelV5 = isEn ? 'MQTT v5' : 'MQTT v5';
+    const labelSim = isEn ? 'Simulated' : 'Simulado';
+    const labelFrec = isEn ? 'Save Freq.' : 'Frec. Guardado';
+    const labelAlert = isEn ? 'Alert Freq.' : 'Frec. Alerta';
+    const labelMetricas = isEn ? 'Metrics' : 'Métricas';
+
+    const textEmpty = isEn ? '(empty)' : '(vacío)';
+    const textAuto = isEn ? '(automatic)' : '(automático)';
+    const textYes = isEn ? 'Yes' : 'Sí';
+    const textNo = isEn ? 'No' : 'No';
+
+    if (nombreNodo !== initialState.nombreNodo) cambios.push(`<b>${labelNombre}:</b> ${initialState.nombreNodo || textEmpty} &rarr; ${nombreNodo}`);
+    if (serialNumber !== initialState.serialNumber) cambios.push(`<b>${labelSerial}:</b> ${initialState.serialNumber || textEmpty} &rarr; ${serialNumber}`);
     if (String(ubicacionId) !== String(initialState.ubicacionId)) {
-      const ubiAntes = ubicaciones.find(u => String(u.id) === String(initialState.ubicacionId))?.nombre || '(vacío)';
-      const ubiDespues = ubicaciones.find(u => String(u.id) === String(ubicacionId))?.nombre || '(vacío)';
-      cambios.push(`<b>Ubicación:</b> ${ubiAntes} &rarr; ${ubiDespues}`);
+      const ubiAntes = ubicaciones.find(u => String(u.id) === String(initialState.ubicacionId))?.nombre || textEmpty;
+      const ubiDespues = ubicaciones.find(u => String(u.id) === String(ubicacionId))?.nombre || textEmpty;
+      cambios.push(`<b>${labelUbicacion}:</b> ${ubiAntes} &rarr; ${ubiDespues}`);
     }
-    if (categoria !== initialState.categoria) cambios.push(`<b>Categoría:</b> ${initialState.categoria || '(vacío)'} &rarr; ${categoria}`);
+    if (categoria !== initialState.categoria) cambios.push(`<b>${labelCategoria}:</b> ${initialState.categoria || textEmpty} &rarr; ${categoria}`);
 
-    if (broker !== initialState.broker) cambios.push(`<b>Broker:</b> ${initialState.broker} &rarr; ${broker}`);
-    if (String(port) !== String(initialState.port)) cambios.push(`<b>Puerto:</b> ${initialState.port} &rarr; ${port}`);
-    if (topicData !== initialState.topicData) cambios.push(`<b>Topic MQTT:</b> ${initialState.topicData} &rarr; ${topicData}`);
-    if (clientId !== initialState.clientId) cambios.push(`<b>Client ID:</b> ${initialState.clientId || '(automático)'} &rarr; ${clientId || '(automático)'}`);
-    if (username !== initialState.username) cambios.push(`<b>Usuario MQTT:</b> ${initialState.username || '(vacío)'} &rarr; ${username || '(vacío)'}`);
-    if (password !== initialState.password) cambios.push(`<b>Clave MQTT:</b> ${(initialState.password ? '****' : '(vacío)')} &rarr; ${(password ? '****' : '(vacío)')}`);
+    if (broker !== initialState.broker) cambios.push(`<b>${labelBroker}:</b> ${initialState.broker} &rarr; ${broker}`);
+    if (String(port) !== String(initialState.port)) cambios.push(`<b>${labelPuerto}:</b> ${initialState.port} &rarr; ${port}`);
+    if (topicData !== initialState.topicData) cambios.push(`<b>${labelTopic}:</b> ${initialState.topicData} &rarr; ${topicData}`);
+    if (clientId !== initialState.clientId) cambios.push(`<b>${labelClient}:</b> ${initialState.clientId || textAuto} &rarr; ${clientId || textAuto}`);
+    if (username !== initialState.username) cambios.push(`<b>${labelUser}:</b> ${initialState.username || textEmpty} &rarr; ${username || textEmpty}`);
+    if (password !== initialState.password) cambios.push(`<b>${labelPass}:</b> ${(initialState.password ? '****' : textEmpty)} &rarr; ${(password ? '****' : textEmpty)}`);
 
-    if (useMqttV5 !== initialState.useMqttV5) cambios.push(`<b>MQTT v5:</b> ${initialState.useMqttV5 ? 'Sí' : 'No'} &rarr; ${useMqttV5 ? 'Sí' : 'No'}`);
-    if (isSimulated !== initialState.isSimulated) cambios.push(`<b>Simulado:</b> ${initialState.isSimulated ? 'Sí' : 'No'} &rarr; ${isSimulated ? 'Sí' : 'No'}`);
-    if (saveFrequency !== initialState.saveFrequency) cambios.push(`<b>Frec. Guardado:</b> ${initialState.saveFrequency}s &rarr; ${saveFrequency}s`);
-    if (instabilityAlertInterval !== initialState.instabilityAlertInterval) cambios.push(`<b>Frec. Alerta:</b> ${initialState.instabilityAlertInterval}s &rarr; ${instabilityAlertInterval}s`);
+    if (useMqttV5 !== initialState.useMqttV5) cambios.push(`<b>${labelV5}:</b> ${initialState.useMqttV5 ? textYes : textNo} &rarr; ${useMqttV5 ? textYes : textNo}`);
+    if (isSimulated !== initialState.isSimulated) cambios.push(`<b>${labelSim}:</b> ${initialState.isSimulated ? textYes : textNo} &rarr; ${isSimulated ? textYes : textNo}`);
+    if (saveFrequency !== initialState.saveFrequency) cambios.push(`<b>${labelFrec}:</b> ${initialState.saveFrequency}s &rarr; ${saveFrequency}s`);
+    if (instabilityAlertInterval !== initialState.instabilityAlertInterval) cambios.push(`<b>${labelAlert}:</b> ${initialState.instabilityAlertInterval}s &rarr; ${instabilityAlertInterval}s`);
 
     if (JSON.stringify(lecturas) !== JSON.stringify(initialState.lecturas)) {
-      cambios.push(`<b>Métricas:</b> Fueron modificadas (${initialState.lecturas.length} subvariables &rarr; ${lecturas.length} subvariables)`);
+      const msgMetricas = isEn
+        ? `Were modified (${initialState.lecturas.length} subvariables &rarr; ${lecturas.length} subvariables)`
+        : `Fueron modificadas (${initialState.lecturas.length} subvariables &rarr; ${lecturas.length} subvariables)`;
+      cambios.push(`<b>${labelMetricas}:</b> ${msgMetricas}`);
     }
 
     if (cambios.length === 0) return '';
+
+    const headerTitle = isEn ? 'Registered changes (BEFORE &rarr; AFTER):' : 'Cambios registrados (ANTES &rarr; DESPUÉS):';
     return `<div style="text-align: left; font-size: 0.9rem; max-height: 200px; overflow-y: auto; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 10px;">
-      <p style="font-weight: 600; margin-bottom: 8px; color: #0f172a;">Cambios registrados (ANTES &rarr; DESPUÉS):</p>
+      <p style="font-weight: 600; margin-bottom: 8px; color: #0f172a;">${headerTitle}</p>
       <ul style="margin: 0; padding-left: 20px; color: #334155;">
         ${cambios.map(c => `<li style="margin-bottom: 4px;">${c}</li>`).join('')}
       </ul>
@@ -903,14 +1111,14 @@ export default function RegistrarNodo() {
     if (tieneCambios) {
       const cambiosHtml = editandoId ? obtenerCambiosDetallados() : '';
       Swal.fire({
-        title: '¿Descartar cambios?',
-        html: `Hay datos en el formulario. Si sales, se perderán los cambios no guardados.<br/>${cambiosHtml}`,
+        title: t("common.discard_title", isEn ? "Discard changes?" : "¿Descartar cambios?"),
+        html: `${t("common.discard_text", isEn ? "There are unsaved form data. If you leave, unsaved changes will be lost." : "Hay datos en el formulario. Si sales, se perderán los cambios no guardados.")}<br/>${cambiosHtml}`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#ef4444',
         cancelButtonColor: '#4b5563',
-        confirmButtonText: 'Sí, salir',
-        cancelButtonText: 'Seguir editando'
+        confirmButtonText: t("common.yes_exit", isEn ? "Yes, leave" : "Sí, salir"),
+        cancelButtonText: t("common.keep_editing", isEn ? "Keep editing" : "Seguir editando")
       }).then((result) => {
         if (result.isConfirmed) {
           limpiarFormulario();
@@ -1031,24 +1239,33 @@ export default function RegistrarNodo() {
   };
 
   // Filtrado y Ordenamiento Dinámico de Nodos
-  const nodosFiltrados = nodosRegistrados
-    .filter(n => {
-      const matchBusqueda = n.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-        n.serial_number.toLowerCase().includes(busqueda.toLowerCase());
+  const nodosFiltrados = useMemo(() => {
+    return nodosRegistrados
+      .filter(n => {
+        const matchBusqueda = (n.nombre || '').toLowerCase().includes(busqueda.toLowerCase()) ||
+          (n.serial_number || '').toLowerCase().includes(busqueda.toLowerCase());
 
-      const matchUbi = filtroUbicacion ? n.ubicacion_id.toString() === filtroUbicacion.toString() : true;
-      const matchCat = filtroCategoria
-        ? n.categoria === filtroCategoria
-        : (categoriaFiltro ? n.categoria?.toLowerCase() === categoriaFiltro.toLowerCase() : true);
+        const matchUbi = filtroUbicacion ? n.ubicacion_id.toString() === filtroUbicacion.toString() : true;
+        const matchCat = filtroCategoria
+          ? n.categoria === filtroCategoria
+          : (categoriaFiltro ? n.categoria?.toLowerCase() === categoriaFiltro.toLowerCase() : true);
 
-      return matchBusqueda && matchUbi && matchCat;
-    })
-    .sort((a, b) => {
-      if (ordenFecha === 'name_asc') return a.nombre.localeCompare(b.nombre);
-      if (ordenFecha === 'name_desc') return b.nombre.localeCompare(a.nombre);
-      if (ordenFecha === 'asc') return Number(a.id) - Number(b.id);
-      return Number(b.id) - Number(a.id);
-    });
+        return matchBusqueda && matchUbi && matchCat;
+      })
+      .sort((a, b) => {
+        if (ordenFecha === 'name_asc') return (a.nombre || '').localeCompare(b.nombre || '');
+        if (ordenFecha === 'name_desc') return (b.nombre || '').localeCompare(a.nombre || '');
+        if (ordenFecha === 'asc') return Number(a.id) - Number(b.id);
+        return Number(b.id) - Number(a.id);
+      });
+  }, [nodosRegistrados, busqueda, filtroUbicacion, filtroCategoria, categoriaFiltro, ordenFecha]);
+
+  const totalPages = Math.ceil(nodosFiltrados.length / itemsPerPage) || 1;
+
+  const paginatedNodos = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return nodosFiltrados.slice(start, start + itemsPerPage);
+  }, [nodosFiltrados, currentPage, itemsPerPage]);
 
   return (
     <div className="iot-container">
@@ -1071,7 +1288,7 @@ export default function RegistrarNodo() {
                   <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
                 </svg>
               )}
-              {editandoId ? 'Modificar Nodo Sensor' : 'Registrar Nuevo Nodo'}
+              {editandoId ? (isEn ? 'Modify Sensor Node' : 'Modificar Nodo Sensor') : (isEn ? 'Register New Node' : 'Registrar Nuevo Nodo')}
             </h2>
 
             {/* Botón volver con flecha SVG */}
@@ -1083,7 +1300,7 @@ export default function RegistrarNodo() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
                 <polyline points="15 18 9 12 15 6" />
               </svg>
-              Volver al Listado
+              {isEn ? 'Back to List' : 'Volver al Listado'}
             </button>
           </div>
 
@@ -1093,21 +1310,21 @@ export default function RegistrarNodo() {
             {/* 1. Datos Generales */}
             <div className="form-section-title">
               <span className="title-number">01</span>
-              <h4>Información General del Dispositivo</h4>
+              <h4>{isEn ? 'General Device Information' : 'Información General del Dispositivo'}</h4>
             </div>
             <div className="iot-section-box iot-grid">
               <div>
-                <label className="iot-label">Nombre de la Estación / Nodo</label>
+                <label className="iot-label">{isEn ? 'Station / Node Name' : 'Nombre de la Estación / Nodo'}</label>
                 <input
                   type="text"
                   value={nombreNodo}
                   onChange={(e) => setNombreNodo(e.target.value)}
-                  placeholder="Estación Meteorológica FCVT"
+                  placeholder={isEn ? 'FCVT Weather Station' : 'Estación Meteorológica FCVT'}
                   className="iot-input"
                 />
               </div>
               <div>
-                <label className="iot-label">Número de Serie (MQTT Unique ID)</label>
+                <label className="iot-label">{isEn ? 'Serial Number (MQTT Unique ID)' : 'Número de Serie (MQTT Unique ID)'}</label>
                 <input
                   type="text"
                   value={serialNumber}
@@ -1124,9 +1341,9 @@ export default function RegistrarNodo() {
                       onClick={() => setIsUbiDropdownOpen(!isUbiDropdownOpen)}
                     >
                       <span style={{ display: 'flex', alignItems: 'center' }}>
-                        <span style={{ color: '#64748b', marginRight: '6px', fontWeight: '800', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>UBICACIÓN GEOGRÁFICA CAMPUS:</span>
+                        <span style={{ color: '#64748b', marginRight: '6px', fontWeight: '800', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{isEn ? 'CAMPUS LOCATION:' : 'UBICACIÓN GEOGRÁFICA CAMPUS:'}</span>
                         <span style={{ fontWeight: '600', color: ubicacionId ? '#0f172a' : '#94a3b8' }}>
-                          {ubicacionId ? ubicaciones.find(u => u.id == ubicacionId)?.nombre : '-- Seleccionar --'}
+                          {ubicacionId ? ubicaciones.find(u => u.id == ubicacionId)?.nombre : (isEn ? '-- Select --' : '-- Seleccionar --')}
                         </span>
                       </span>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14" style={{ transform: isUbiDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', color: '#64748b' }}>
@@ -1149,9 +1366,9 @@ export default function RegistrarNodo() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => navigate('/admin/ubicaciones')}
+                    onClick={() => navigate(`/${language}/admin/${isEn ? 'locations' : 'ubicaciones'}`)}
                     className="btn-add-inline"
-                    title="Añadir nueva ubicación"
+                    title={isEn ? "Add new location" : "Añadir nueva ubicación"}
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="16" height="16">
                       <line x1="12" y1="5" x2="12" y2="19" />
@@ -1168,9 +1385,9 @@ export default function RegistrarNodo() {
                       onClick={() => setIsCatDropdownOpen(!isCatDropdownOpen)}
                     >
                       <span style={{ display: 'flex', alignItems: 'center' }}>
-                        <span style={{ color: '#64748b', marginRight: '6px', fontWeight: '800', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>LÍNEA DE INVESTIGACIÓN (CATEGORÍA):</span>
+                        <span style={{ color: '#64748b', marginRight: '6px', fontWeight: '800', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{isEn ? 'RESEARCH LINE (CATEGORY):' : 'LÍNEA DE INVESTIGACIÓN (CATEGORÍA):'}</span>
                         <span style={{ fontWeight: '600', color: categoria ? '#0f172a' : '#94a3b8' }}>
-                          {categoria ? categoria : '-- Seleccionar --'}
+                          {categoria ? categoria : (isEn ? '-- Select --' : '-- Seleccionar --')}
                         </span>
                       </span>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14" style={{ transform: isCatDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', color: '#64748b' }}>
@@ -1193,9 +1410,9 @@ export default function RegistrarNodo() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => navigate('/admin/categorias')}
+                    onClick={() => navigate(`/${language}/admin/${isEn ? 'categories' : 'categorias'}`)}
                     className="btn-add-inline"
-                    title="Añadir nueva categoría"
+                    title={isEn ? "Add new category" : "Añadir nueva categoría"}
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="16" height="16">
                       <line x1="12" y1="5" x2="12" y2="19" />
@@ -1211,16 +1428,14 @@ export default function RegistrarNodo() {
                     onClick={() => setIsFrecDropdownOpen(!isFrecDropdownOpen)}
                   >
                     <span style={{ display: 'flex', alignItems: 'center' }}>
-                      <span style={{ color: '#64748b', marginRight: '6px', fontWeight: '800', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>FRECUENCIA DE GUARDADO EN BD:</span>
+                      <span style={{ color: '#64748b', marginRight: '6px', fontWeight: '800', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{isEn ? 'DB SAVE FREQUENCY:' : 'FRECUENCIA DE GUARDADO EN BD:'}</span>
                       <span style={{ fontWeight: '600', color: '#0f172a' }}>
                         {
                           [
-                            { v: '5', l: 'Cada 5 segundos' },
-                            { v: '10', l: 'Cada 10 segundos' },
-                            { v: '30', l: 'Cada 30 segundos' },
-                            { v: '60', l: 'Cada 1 minuto' },
-                            { v: '120', l: 'Cada 2 minutos' },
-                            { v: '300', l: 'Cada 5 minutos' }
+                            { v: '30', l: isEn ? 'Every 30 seconds' : 'Cada 30 segundos' },
+                            { v: '60', l: isEn ? 'Every 1 minute' : 'Cada 1 minuto' },
+                            { v: '120', l: isEn ? 'Every 2 minutes' : 'Cada 2 minutos' },
+                            { v: '300', l: isEn ? 'Every 5 minutes' : 'Cada 5 minutos' }
                           ].find(o => o.v === saveFrequency)?.l
                         }
                       </span>
@@ -1233,12 +1448,10 @@ export default function RegistrarNodo() {
                     <div className="custom-dropdown-menu">
                       <div className="frec-grid">
                         {[
-                          { v: '5', l: 'Cada 5 seg' },
-                          { v: '10', l: 'Cada 10 seg' },
-                          { v: '30', l: 'Cada 30 seg' },
-                          { v: '60', l: 'Cada 1 min' },
-                          { v: '120', l: 'Cada 2 min' },
-                          { v: '300', l: 'Cada 5 min' }
+                          { v: '30', l: isEn ? 'Every 30 sec' : 'Cada 30 seg' },
+                          { v: '60', l: isEn ? 'Every 1 min' : 'Cada 1 min' },
+                          { v: '120', l: isEn ? 'Every 2 min' : 'Cada 2 min' },
+                          { v: '300', l: isEn ? 'Every 5 min' : 'Cada 5 min' }
                         ].map(opt => (
                           <button
                             key={opt.v}
@@ -1262,20 +1475,20 @@ export default function RegistrarNodo() {
                     onClick={() => setIsAlertIntervalDropdownOpen(!isAlertIntervalDropdownOpen)}
                   >
                     <span style={{ display: 'flex', alignItems: 'center' }}>
-                      <span style={{ color: '#64748b', marginRight: '6px', fontWeight: '800', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>ALERTA POR INESTABILIDAD CADA:</span>
+                      <span style={{ color: '#64748b', marginRight: '6px', fontWeight: '800', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{isEn ? 'INSTABILITY ALERT EVERY:' : 'ALERTA POR INESTABILIDAD CADA:'}</span>
                       <span style={{ fontWeight: '600', color: '#0f172a' }}>
                         {
                           [
-                            { v: '30', l: '30 segundos' },
-                            { v: '60', l: '1 minuto' },
-                            { v: '120', l: '2 minutos' },
-                            { v: '180', l: '3 minutos' },
-                            { v: '300', l: '5 minutos' },
-                            { v: '600', l: '10 minutos' },
-                            { v: '1200', l: '20 minutos' },
-                            { v: '1800', l: '30 minutos' },
-                            { v: '3600', l: '1 hora' }
-                          ].find(o => o.v === instabilityAlertInterval)?.l || '5 minutos'
+                            { v: '30', l: isEn ? '30 seconds' : '30 segundos' },
+                            { v: '60', l: isEn ? '1 minute' : '1 minuto' },
+                            { v: '120', l: isEn ? '2 minutes' : '2 minutos' },
+                            { v: '180', l: isEn ? '3 minutes' : '3 minutos' },
+                            { v: '300', l: isEn ? '5 minutes' : '5 minutos' },
+                            { v: '600', l: isEn ? '10 minutes' : '10 minutos' },
+                            { v: '1200', l: isEn ? '20 minutes' : '20 minutos' },
+                            { v: '1800', l: isEn ? '30 minutes' : '30 minutos' },
+                            { v: '3600', l: isEn ? '1 hour' : '1 hora' }
+                          ].find(o => o.v === instabilityAlertInterval)?.l || (isEn ? '5 minutes' : '5 minutos')
                         }
                       </span>
                     </span>
@@ -1287,15 +1500,15 @@ export default function RegistrarNodo() {
                     <div className="custom-dropdown-menu">
                       <div className="frec-grid">
                         {[
-                          { v: '30', l: '30 seg' },
-                          { v: '60', l: '1 min' },
-                          { v: '120', l: '2 min' },
-                          { v: '180', l: '3 min' },
-                          { v: '300', l: '5 min' },
-                          { v: '600', l: '10 min' },
-                          { v: '1200', l: '20 min' },
-                          { v: '1800', l: '30 min' },
-                          { v: '3600', l: '1 hora' }
+                          { v: '30', l: isEn ? '30 sec' : '30 seg' },
+                          { v: '60', l: isEn ? '1 min' : '1 min' },
+                          { v: '120', l: isEn ? '2 min' : '2 min' },
+                          { v: '180', l: isEn ? '3 min' : '3 min' },
+                          { v: '300', l: isEn ? '5 min' : '5 min' },
+                          { v: '600', l: isEn ? '10 min' : '10 min' },
+                          { v: '1200', l: isEn ? '20 min' : '20 min' },
+                          { v: '1800', l: isEn ? '30 min' : '30 min' },
+                          { v: '3600', l: isEn ? '1 hour' : '1 hora' }
                         ].map(opt => (
                           <button
                             key={opt.v}
@@ -1316,29 +1529,15 @@ export default function RegistrarNodo() {
             {/* Credenciales de Conexión MQTT */}
             <div className="form-section-title mt-6">
               <span className="title-number">02</span>
-              <h4>Parámetros de Conexión MQTT</h4>
+              <h4>{isEn ? 'MQTT Connection Parameters' : 'Parámetros de Conexión MQTT'}</h4>
             </div>
 
             <div className="iot-section-box space-y-4">
-              <div className="simulated-checkbox-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '1.25rem', padding: '1rem', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <input
-                    type="checkbox"
-                    id="is_simulated"
-                    checked={isSimulated}
-                    onChange={(e) => setIsSimulated(e.target.checked)}
-                    style={{ width: '1.25rem', height: '1.25rem', accentColor: '#2563eb', cursor: 'pointer', margin: 0 }}
-                  />
-                  <label htmlFor="is_simulated" className="font-semibold text-blue-900 cursor-pointer" style={{ fontSize: '0.95rem', margin: 0 }}>
-                    Este es un nodo simulado (Virtual)
-                  </label>
-                </div>
-                <p className="text-sm text-blue-700" style={{ marginLeft: '2.1rem', marginTop: '2px', lineHeight: '1.4' }}>El sistema creará un robot que generará datos automáticos para este nodo usando estos parámetros.</p>
-              </div>
+
 
               <div className="iot-grid">
                 <div>
-                  <label className="iot-label">Broker MQTT</label>
+                  <label className="iot-label">{isEn ? 'MQTT Broker' : 'Broker MQTT'}</label>
                   <input
                     type="text"
                     value={broker}
@@ -1348,7 +1547,7 @@ export default function RegistrarNodo() {
                   />
                 </div>
                 <div>
-                  <label className="iot-label">Puerto</label>
+                  <label className="iot-label">{isEn ? 'Port' : 'Puerto'}</label>
                   <input
                     type="number"
                     value={port}
@@ -1358,7 +1557,7 @@ export default function RegistrarNodo() {
                   />
                 </div>
                 <div>
-                  <label className="iot-label">Topic MQTT (Datos)</label>
+                  <label className="iot-label">{isEn ? 'MQTT Topic (Data)' : 'Topic MQTT (Datos)'}</label>
                   <input
                     type="text"
                     value={topicData}
@@ -1368,17 +1567,17 @@ export default function RegistrarNodo() {
                   />
                 </div>
                 <div>
-                  <label className="iot-label">Client ID (Opcional)</label>
+                  <label className="iot-label">{isEn ? 'Client ID (Optional)' : 'Client ID (Opcional)'}</label>
                   <input
                     type="text"
                     value={clientId}
                     onChange={(e) => setClientId(e.target.value)}
-                    placeholder="Dejar vacío para generar uno automático"
+                    placeholder={isEn ? 'Leave empty to generate automatically' : 'Dejar vacío para generar uno automático'}
                     className="iot-input"
                   />
                 </div>
                 <div>
-                  <label className="iot-label">Usuario MQTT (Opcional)</label>
+                  <label className="iot-label">{isEn ? 'MQTT Username (Optional)' : 'Usuario MQTT (Opcional)'}</label>
                   <input
                     type="text"
                     value={username}
@@ -1391,7 +1590,7 @@ export default function RegistrarNodo() {
                   />
                 </div>
                 <div>
-                  <label className="iot-label">Contraseña MQTT (Opcional)</label>
+                  <label className="iot-label">{isEn ? 'MQTT Password (Optional)' : 'Contraseña MQTT (Opcional)'}</label>
                   <input
                     type="password"
                     value={password}
@@ -1412,7 +1611,7 @@ export default function RegistrarNodo() {
                   style={{ width: '1.2rem', height: '1.2rem', accentColor: '#0f172a', cursor: 'pointer' }}
                 />
                 <label htmlFor="use_mqtt_v5" className="text-sm font-semibold text-slate-700 cursor-pointer">
-                  Utilizar protocolo MQTT v5 (Desmarcar para v3.1.1)
+                  {isEn ? 'Use MQTT v5 protocol (Uncheck for v3.1.1)' : 'Utilizar protocolo MQTT v5 (Desmarcar para v3.1.1)'}
                 </label>
               </div>
             </div>
@@ -1420,17 +1619,17 @@ export default function RegistrarNodo() {
             {/* 3. Parametrización de Métricas */}
             <div className="form-section-title mt-6">
               <span className="title-number">03</span>
-              <h4>Configuración y Parametrización de Métricas</h4>
+              <h4>{isEn ? 'Metrics Configuration and Parameterization' : 'Configuración y Parametrización de Métricas'}</h4>
             </div>
 
             <div className="iot-section-box space-y-4">
               {/* Sensores Disponibles */}
               <div className="sensors-select-container" style={{ borderBottom: '1px solid #f0f2f5', paddingBottom: '1.25rem', marginBottom: '1.25rem' }}>
                 <span className="iot-label" style={{ fontSize: '0.75rem', color: '#4b5563', marginBottom: '8px', display: 'block' }}>
-                  Sensores Disponibles (Haz clic sobre uno para cargar todas sus subvariables):
+                  {isEn ? 'Available Sensors (Click one to load all its subvariables):' : 'Sensores Disponibles (Haz clic sobre uno para cargar todas sus subvariables):'}
                 </span>
                 {metricasPresets.length === 0 ? (
-                  <p className="text-xs text-gray-400 italic">No hay plantillas de sensores registradas en la base de datos.</p>
+                  <p className="text-xs text-gray-400 italic">{isEn ? 'No sensor templates registered in database.' : 'No hay plantillas de sensores registradas en la base de datos.'}</p>
                 ) : (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
                     {metricasPresets.map((preset) => (
@@ -1439,7 +1638,7 @@ export default function RegistrarNodo() {
                         type="button"
                         onClick={() => cargarPlantillaSensor(preset)}
                         className="sensor-select-pill-btn"
-                        title={`Cargar subvariables de ${preset.nombre}`}
+                        title={isEn ? `Load subvariables for ${preset.nombre}` : `Cargar subvariables de ${preset.nombre}`}
                       >
                         <img src={preset.imagen || iotLogoDefault} alt="" className="sensor-preset-pill-thumb" />
                         {preset.nombre}
@@ -1455,7 +1654,7 @@ export default function RegistrarNodo() {
               {lecturas.map((lectura, index) => (
                 <div key={index} className="metric-row">
                   <div className="metric-col metric-col-sensor">
-                    <label className="metric-label">Sensor</label>
+                    <label className="metric-label">{isEn ? 'Sensor' : 'Sensor'}</label>
                     <input
                       type="text"
                       value={lectura.sensor || ''}
@@ -1465,7 +1664,7 @@ export default function RegistrarNodo() {
                     />
                   </div>
                   <div className="metric-col metric-col-tipo">
-                    <label className="metric-label">Métrica (Subvariable)</label>
+                    <label className="metric-label">{isEn ? 'Metric (Subvariable)' : 'Métrica (Subvariable)'}</label>
                     {(() => {
                       const allSubs = [];
                       metricasPresets.forEach(preset => {
@@ -1484,7 +1683,7 @@ export default function RegistrarNodo() {
                           onChange={(e) => handleLecturaChange(index, 'tipo', e.target.value)}
                           className={`iot-select ${lectura.tipo ? 'select-filled' : ''}`}
                         >
-                          <option value="">-- Seleccionar Subvariable --</option>
+                          <option value="">{isEn ? '-- Select Subvariable --' : '-- Seleccionar Subvariable --'}</option>
                           {allSubs.map((sub, sIdx) => (
                             <option key={sIdx} value={sub.nombre}>{sub.nombre}</option>
                           ))}
@@ -1493,7 +1692,7 @@ export default function RegistrarNodo() {
                     })()}
                   </div>
                   <div className="metric-col metric-col-datatype">
-                    <label className="metric-label">Clave MQTT</label>
+                    <label className="metric-label">{isEn ? 'MQTT Key' : 'Clave MQTT'}</label>
                     <input
                       type="text"
                       value={lectura.data_type}
@@ -1503,7 +1702,7 @@ export default function RegistrarNodo() {
                     />
                   </div>
                   <div className="metric-col metric-col-unidad">
-                    <label className="metric-label">Unidad</label>
+                    <label className="metric-label">{isEn ? 'Unit' : 'Unidad'}</label>
                     <input
                       type="text"
                       value={lectura.unidad}
@@ -1519,7 +1718,7 @@ export default function RegistrarNodo() {
                         type="button"
                         onClick={() => eliminarFilaLectura(index)}
                         className="btn-delete-row"
-                        title="Eliminar métrica"
+                        title={isEn ? "Delete metric" : "Eliminar métrica"}
                       >
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
                           <polyline points="3 6 5 6 21 6"></polyline>
@@ -1544,10 +1743,10 @@ export default function RegistrarNodo() {
                     <line x1="12" y1="5" x2="12" y2="19" />
                     <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
-                  Agregar Fila
+                  {isEn ? 'Add Row' : 'Agregar Fila'}
                 </button>
                 <span className="section-inner-subtitle" style={{ textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>
-                  Añade manualmente o carga las variables MQTT asociadas a los pines y sensores del nodo.
+                  {isEn ? 'Add manually or load MQTT variables associated with the node pins and sensors.' : 'Añade manualmente o carga las variables MQTT asociadas a los pines y sensores del nodo.'}
                 </span>
               </div>
             </div>
@@ -1558,7 +1757,7 @@ export default function RegistrarNodo() {
                 onClick={confirmarCerrar}
                 className="btn-secondary-outline"
               >
-                Cancelar
+                {isEn ? 'Cancel' : 'Cancelar'}
               </button>
               <button type="submit" className="btn-submit-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                 {editandoId ? (
@@ -1568,14 +1767,14 @@ export default function RegistrarNodo() {
                       <polyline points="17 21 17 13 7 13 7 21"></polyline>
                       <polyline points="7 3 7 8 15 8"></polyline>
                     </svg>
-                    <span>Guardar Cambios</span>
+                    <span>{isEn ? 'Save Changes' : 'Guardar Cambios'}</span>
                   </>
                 ) : (
                   <>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
                       <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"></path>
                     </svg>
-                    <span>Completar Registro</span>
+                    <span>{isEn ? 'Complete Registration' : 'Completar Registro'}</span>
                   </>
                 )}
               </button>
@@ -1595,7 +1794,7 @@ export default function RegistrarNodo() {
               </svg>
               <input
                 type="text"
-                placeholder="Nombre o serial MQTT..."
+                placeholder={isEn ? 'Name or MQTT serial...' : 'Nombre o serial MQTT...'}
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 className="filter-input search-box-input"
@@ -1621,8 +1820,8 @@ export default function RegistrarNodo() {
                 </svg>
                 <span>
                   {filtroUbicacion
-                    ? (ubicaciones.find(u => u.id.toString() === filtroUbicacion.toString())?.nombre || 'Filtrar Ubicación')
-                    : 'Filtrar Ubicación'}
+                    ? (ubicaciones.find(u => u.id.toString() === filtroUbicacion.toString())?.nombre || (isEn ? 'Filter Location' : 'Filtrar Ubicación'))
+                    : (isEn ? 'Filter Location' : 'Filtrar Ubicación')}
                 </span>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12" className="select-arrow-icon">
                   <polyline points="6 9 12 15 18 9" />
@@ -1632,7 +1831,7 @@ export default function RegistrarNodo() {
               {showUbiPanel && (
                 <div className="pub-news-unified-filter-panel" style={{ minWidth: '240px', left: 0 }}>
                   <div className="filter-panel-section" style={{ width: '100%' }}>
-                    <span className="filter-panel-section-title">Ubicación</span>
+                    <span className="filter-panel-section-title">{isEn ? 'Location' : 'Ubicación'}</span>
                     <div className="filter-panel-options-list" style={{ maxHeight: '200px', overflowY: 'auto' }}>
                       {ubicaciones.map(u => (
                         <button
@@ -1672,10 +1871,10 @@ export default function RegistrarNodo() {
                   style={{ height: '42px', borderRadius: '12px' }}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-                    <polygon points="12 2 2 7 12 12 22 7 12 2v0zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                    <path d="M12 2 2 7 12 12 22 7 12 2v0zM2 17l10 5 10-5M2 12l10 5 10-5" />
                   </svg>
                   <span>
-                    {filtroCategoria || 'Filtrar Línea'}
+                    {filtroCategoria || (isEn ? 'Filter Line' : 'Filtrar Línea')}
                   </span>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12" className="select-arrow-icon">
                     <polyline points="6 9 12 15 18 9" />
@@ -1685,7 +1884,7 @@ export default function RegistrarNodo() {
                 {showCatPanel && (
                   <div className="pub-news-unified-filter-panel" style={{ minWidth: '240px', left: 0 }}>
                     <div className="filter-panel-section" style={{ width: '100%' }}>
-                      <span className="filter-panel-section-title">Línea de Investigación</span>
+                      <span className="filter-panel-section-title">{isEn ? 'Research Line' : 'Línea de Investigación'}</span>
                       <div className="filter-panel-options-list" style={{ maxHeight: '200px', overflowY: 'auto' }}>
                         {categorias.map(c => (
                           <button
@@ -1729,10 +1928,10 @@ export default function RegistrarNodo() {
                 </svg>
                 <span>
                   {ordenFecha ? (
-                    ordenFecha === 'desc' ? 'Más Recientes' :
-                      ordenFecha === 'asc' ? 'Más Antiguos' :
-                        ordenFecha === 'name_asc' ? 'Nombre (A-Z)' : 'Nombre (Z-A)'
-                  ) : 'Ordenar'}
+                    ordenFecha === 'desc' ? (isEn ? 'Newest' : 'Más Recientes') :
+                      ordenFecha === 'asc' ? (isEn ? 'Oldest' : 'Más Antiguos') :
+                        ordenFecha === 'name_asc' ? (isEn ? 'Name (A-Z)' : 'Nombre (A-Z)') : (isEn ? 'Name (Z-A)' : 'Nombre (Z-A)')
+                  ) : (isEn ? 'Sort' : 'Ordenar')}
                 </span>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12" className="select-arrow-icon">
                   <polyline points="6 9 12 15 18 9" />
@@ -1742,7 +1941,7 @@ export default function RegistrarNodo() {
               {showOrdenPanel && (
                 <div className="pub-news-unified-filter-panel" style={{ minWidth: '180px', left: 0 }}>
                   <div className="filter-panel-section" style={{ width: '100%' }}>
-                    <span className="filter-panel-section-title">Ordenar por</span>
+                    <span className="filter-panel-section-title">{isEn ? 'Sort by' : 'Ordenar por'}</span>
                     <div className="filter-panel-options-list">
                       <button
                         type="button"
@@ -1760,7 +1959,7 @@ export default function RegistrarNodo() {
                           <line x1="12" y1="5" x2="12" y2="19" />
                           <polyline points="19 12 12 19 5 12" />
                         </svg>
-                        <span>Más recientes</span>
+                        <span>{isEn ? 'Newest' : 'Más recientes'}</span>
                       </button>
                       <button
                         type="button"
@@ -1778,7 +1977,7 @@ export default function RegistrarNodo() {
                           <line x1="12" y1="19" x2="12" y2="5" />
                           <polyline points="5 12 12 5 19 12" />
                         </svg>
-                        <span>Más antiguos</span>
+                        <span>{isEn ? 'Oldest' : 'Más antiguos'}</span>
                       </button>
                       <button
                         type="button"
@@ -1792,7 +1991,7 @@ export default function RegistrarNodo() {
                           setShowOrdenPanel(false);
                         }}
                       >
-                        Nombre (A-Z)
+                        {isEn ? 'Name (A-Z)' : 'Nombre (A-Z)'}
                       </button>
                       <button
                         type="button"
@@ -1806,7 +2005,7 @@ export default function RegistrarNodo() {
                           setShowOrdenPanel(false);
                         }}
                       >
-                        Nombre (Z-A)
+                        {isEn ? 'Name (Z-A)' : 'Nombre (Z-A)'}
                       </button>
                     </div>
                   </div>
@@ -1820,141 +2019,254 @@ export default function RegistrarNodo() {
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
-              Crear Nuevo Nodo
+              {isEn ? 'Create New Node' : 'Crear Nuevo Nodo'}
             </button>
           </div>
 
-          {/* CARDS GRID DISPLAY */}
-          {nodosFiltrados.length === 0 ? (
-            <div className="text-center py-10 bg-gray-50 border rounded-xl">
-              <p className="text-gray-500 italic text-sm">
-                No se encontraron nodos registrados que coincidan con los filtros aplicados.
+          {/* CARDS GRID DISPLAY & SKELETON LOADING */}
+          {loadingNodos ? (
+            <div className="node-grid">
+              {[1, 2, 3, 4, 5, 6].map(i => (
+                <div key={i} className="node-card" style={{ borderColor: '#e2e8f0', opacity: 0.85, position: 'relative', overflow: 'hidden' }}>
+                  <div className="node-card-header" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ height: '18px', width: '60%', background: '#e2e8f0', borderRadius: '6px' }} />
+                      <div style={{ height: '16px', width: '25%', background: '#f1f5f9', borderRadius: '10px' }} />
+                    </div>
+                    <div style={{ height: '12px', width: '35%', background: '#f1f5f9', borderRadius: '4px' }} />
+                  </div>
+                  <div className="node-card-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+                    <div style={{ height: '14px', width: '50%', background: '#f1f5f9', borderRadius: '4px' }} />
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      <div style={{ height: '22px', width: '80px', background: '#f1f5f9', borderRadius: '12px' }} />
+                      <div style={{ height: '22px', width: '100px', background: '#f1f5f9', borderRadius: '12px' }} />
+                    </div>
+                  </div>
+                  <div className="node-card-actions" style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #f8fafc', display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                    <div style={{ height: '26px', width: '60px', background: '#f1f5f9', borderRadius: '6px' }} />
+                    <div style={{ height: '26px', width: '60px', background: '#f1f5f9', borderRadius: '6px' }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : nodosFiltrados.length === 0 ? (
+            <div className="text-center py-10 bg-gray-50 border rounded-xl" style={{ padding: '3rem 1.5rem', textAlign: 'center', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '14px' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.8" width="44" height="44" style={{ margin: '0 auto 12px auto' }}>
+                <rect x="2" y="2" width="20" height="8" rx="2" />
+                <rect x="2" y="14" width="20" height="8" rx="2" />
+                <line x1="6" y1="6" x2="6.01" y2="6" strokeWidth="3" />
+                <line x1="6" y1="18" x2="6.01" y2="18" strokeWidth="3" />
+              </svg>
+              <p className="text-gray-500 italic text-sm" style={{ margin: 0, fontSize: '0.9rem', color: '#64748b', fontWeight: 600 }}>
+                {isEn ? 'No registered nodes found matching the applied filters.' : 'No se encontraron nodos registrados que coincidan con los filtros aplicados.'}
               </p>
             </div>
           ) : (
-            <div className="node-grid">
-              {nodosFiltrados.map((nodo) => {
-                const ubiInfo = ubicaciones.find(u => u.id.toString() === nodo.ubicacion_id.toString());
-                const catInfo = categorias.find(c => c.nombre === nodo.categoria);
-                const borderLineColor = catInfo?.colorHex || '#0f2c59';
+            <>
+              <div className="node-grid">
+                {paginatedNodos.map((nodo) => {
+                  const ubiInfo = ubicaciones.find(u => u.id != null && nodo.ubicacion_id != null && u.id.toString() === nodo.ubicacion_id.toString());
+                  const catInfo = categorias.find(c => c.nombre === nodo.categoria);
+                  const borderLineColor = catInfo?.colorHex || '#0f2c59';
 
-                return (
-                  <div key={nodo.id} className="node-card" onClick={() => setPreviewNode(nodo)} style={{ borderColor: '#e2e8f0', cursor: 'pointer', position: 'relative' }}>
-                    {/* Top colored indicator matching the category theme */}
-                    <div style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '4px',
-                      backgroundColor: borderLineColor
-                    }} />
+                  return (
+                    <div key={nodo.id} className="node-card" style={{ borderColor: '#e2e8f0', position: 'relative' }}>
 
-                    <div className="node-card-header">
-                      <div className="flex justify-between items-start gap-2" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <h4 className="node-card-title">{nodo.nombre}</h4>
-                        <span
-                          className="text-[10px] font-bold px-2.5 py-0.5 rounded-full"
-                          style={{
-                            backgroundColor: `${borderLineColor}12`, // ~7% opacity hex
-                            color: borderLineColor,
-                            border: `1px solid ${borderLineColor}40`,
-                            whiteSpace: 'nowrap',
-                            fontSize: '10px'
-                          }}
-                        >
-                          {nodo.categoria}
-                        </span>
-                      </div>
-                      <div className="node-card-serial">
-                        ID: {nodo.serial_number}
-                      </div>
-                    </div>
-
-                    <div className="node-card-body">
-                      {/* Clickable location tag to redirect to Google Maps coordinates */}
-                      {ubiInfo ? (
-                        <div className="node-card-location">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12" style={{ color: borderLineColor }}>
-                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                            <circle cx="12" cy="10" r="3" />
-                          </svg>
-                          <span>{ubiInfo.nombre}</span>
+                      <div className="node-card-header">
+                        <div className="flex justify-between items-start gap-2" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <h4 className="node-card-title">{nodo.nombre}</h4>
+                          <span
+                            className="text-[10px] font-bold px-2.5 py-0.5 rounded-full"
+                            style={{
+                              backgroundColor: `${borderLineColor}12`, // ~7% opacity hex
+                              color: borderLineColor,
+                              border: `1px solid ${borderLineColor}40`,
+                              whiteSpace: 'nowrap',
+                              fontSize: '10px'
+                            }}
+                          >
+                            {nodo.categoria}
+                          </span>
                         </div>
-                      ) : (
-                        <div className="node-card-location" style={{ color: '#9ca3af' }}>
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12">
-                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                            <circle cx="12" cy="10" r="3" />
-                          </svg>
-                          <span>Ubicación Desconocida</span>
+                        <div className="node-card-serial">
+                          ID: {nodo.serial_number}
                         </div>
-                      )}
+                      </div>
 
-                      {/* Dynamic Metrics list tags preview */}
-                      <div className="node-card-metrics">
-                        {nodo.lecturas && nodo.lecturas.length > 0 ? (
-                          nodo.lecturas.map((l, idx) => (
-                            <span
-                              className="metric-tag"
-                              key={idx}
-                              title={`MQTT key: ${l.data_type}`}
-                            >
-                              {l.tipo} ({l.unidad})
-                            </span>
-                          ))
+                      <div className="node-card-body">
+                        {/* Clickable location tag to view node details & map modal */}
+                        {ubiInfo ? (
+                          <div
+                            className="node-card-location"
+                            onClick={() => setPreviewNode(nodo)}
+                            style={{ cursor: 'pointer' }}
+                            title={isEn ? "View location on map & sensor readings" : "Ver ubicación en el mapa y lecturas del sensor"}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12" style={{ color: borderLineColor }}>
+                              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                              <circle cx="12" cy="10" r="3" />
+                            </svg>
+                            <span>{ubiInfo.nombre}</span>
+                          </div>
                         ) : (
-                          <span className="text-[11px] text-gray-400 italic">Sin métricas parametrizadas</span>
+                          <div className="node-card-location" style={{ color: '#9ca3af' }}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12">
+                              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                              <circle cx="12" cy="10" r="3" />
+                            </svg>
+                            <span>{isEn ? 'Unknown Location' : 'Ubicación Desconocida'}</span>
+                          </div>
                         )}
+
+                        {/* Dynamic Metrics list tags preview */}
+                        <div className="node-card-metrics">
+                          {nodo.lecturas && nodo.lecturas.length > 0 ? (
+                            nodo.lecturas.map((l, idx) => (
+                              <span
+                                className="metric-tag"
+                                key={idx}
+                                title={`MQTT key: ${l.data_type}`}
+                              >
+                                {l.tipo} ({l.unidad})
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-[11px] text-gray-400 italic">{isEn ? 'No metrics configured' : 'Sin métricas parametrizadas'}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="node-card-actions" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setVerifyingNodeId(nodo.id);
+                            iniciarVerificacionConexion(nodo.id, nodo.nombre);
+                          }}
+                          className="btn-action-verify"
+                          style={{ background: '#0f2c59', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                          </svg>
+                          {isEn ? 'Terminal' : 'Terminal'}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            cargarEdicion(nodo);
+                          }}
+                          className="btn-action-edit"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12" style={{ marginRight: '4px', display: 'inline-block' }}>
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                          </svg>
+                          {isEn ? 'Edit' : 'Editar'}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            eliminarNodo(nodo.id);
+                          }}
+                          className="btn-action-delete"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12" style={{ marginRight: '4px', display: 'inline-block' }}>
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                          </svg>
+                          {isEn ? 'Delete' : 'Eliminar'}
+                        </button>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
 
-                    <div className="node-card-actions" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setVerifyingNodeId(nodo.id);
-                          iniciarVerificacionConexion(nodo.id, nodo.nombre);
-                        }}
-                        className="btn-action-verify"
-                        style={{ background: '#0f2c59', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12">
-                          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                        </svg>
-                        Terminal
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          cargarEdicion(nodo);
-                        }}
-                        className="btn-action-edit"
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12" style={{ marginRight: '4px', display: 'inline-block' }}>
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                          <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                        </svg>
-                        Editar
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          eliminarNodo(nodo.id);
-                        }}
-                        className="btn-action-delete"
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12" style={{ marginRight: '4px', display: 'inline-block' }}>
-                          <polyline points="3 6 5 6 21 6"></polyline>
-                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                        </svg>
-                        Eliminar
-                      </button>
+              {/* PAGINACIÓN DE NODOS */}
+              <div className="nodes-pagination-bar">
+                <div className="pagination-info-text">
+                  {isEn ? 'Showing ' : 'Mostrando '}
+                  <strong>
+                    {nodosFiltrados.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}
+                  </strong>
+                  {isEn ? ' to ' : ' a '}
+                  <strong>
+                    {Math.min(currentPage * itemsPerPage, nodosFiltrados.length)}
+                  </strong>
+                  {isEn ? ' of ' : ' de '}
+                  <strong>{nodosFiltrados.length}</strong>
+                  {isEn ? ' nodes' : ' nodos'}
+                </div>
+
+                <div className="pagination-controls-group">
+                  <CustomItemsPerPageSelect
+                    value={itemsPerPage}
+                    onChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+                    options={[6, 9, 12, 18, 24]}
+                    language={language}
+                  />
+
+                  <div className="pagination-buttons-wrapper">
+                    <button
+                      type="button"
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      className={`pagination-nav-btn prev-btn ${currentPage === 1 ? 'disabled' : ''}`}
+                      title={isEn ? 'Previous page' : 'Página anterior'}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                        <polyline points="15 18 9 12 15 6" />
+                      </svg>
+                      <span className="pagination-btn-label">{isEn ? 'Prev' : 'Anterior'}</span>
+                    </button>
+
+                    <div className="pagination-number-list">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+                        if (
+                          totalPages <= 7 ||
+                          page === 1 ||
+                          page === totalPages ||
+                          (page >= currentPage - 1 && page <= currentPage + 1)
+                        ) {
+                          const isSelected = page === currentPage;
+                          return (
+                            <button
+                              key={page}
+                              type="button"
+                              onClick={() => setCurrentPage(page)}
+                              className={`pagination-num-btn ${isSelected ? 'active' : ''}`}
+                            >
+                              {page}
+                            </button>
+                          );
+                        }
+                        if (
+                          (page === 2 && currentPage > 3) ||
+                          (page === totalPages - 1 && currentPage < totalPages - 2)
+                        ) {
+                          return <span key={page} style={{ padding: '0 4px', color: '#94a3b8', fontSize: '0.8rem' }}>...</span>;
+                        }
+                        return null;
+                      })}
                     </div>
+
+                    <button
+                      type="button"
+                      disabled={currentPage >= totalPages}
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      className={`pagination-nav-btn next-btn ${currentPage >= totalPages ? 'disabled' : ''}`}
+                      title={isEn ? 'Next page' : 'Página siguiente'}
+                    >
+                      <span className="pagination-btn-label">{isEn ? 'Next' : 'Siguiente'}</span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </button>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -1976,7 +2288,7 @@ export default function RegistrarNodo() {
                 window.leafletPreviewMapInstance.setView([lat, lng], 17);
               }
             }}
-            title="Centrar mapa en la ubicación"
+            title={isEn ? "Center map on location" : "Centrar mapa en la ubicación"}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2.5" width="16" height="16">
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -1989,12 +2301,12 @@ export default function RegistrarNodo() {
             {/* Header info */}
             <div className="node-fullscreen-header">
               <div className="node-fullscreen-header-main">
-                <span className="node-fullscreen-info-label">INFORMACIÓN</span>
+                <span className="node-fullscreen-info-label">{isEn ? 'INFORMATION' : 'INFORMACIÓN'}</span>
                 <button
                   type="button"
                   className="node-fullscreen-close-btn"
                   onClick={() => setPreviewNode(null)}
-                  title="Cerrar vista"
+                  title={isEn ? "Close view" : "Cerrar vista"}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="16" height="16">
                     <line x1="18" y1="6" x2="6" y2="18" />
@@ -2030,7 +2342,7 @@ export default function RegistrarNodo() {
               const realValObj = latestReadings.find(r => r.clave_mqtt === selectedVariable.data_type);
               const valStr = realValObj && realValObj.valor !== null
                 ? realValObj.valor.toString()
-                : getSimulatedValue(selectedVariable.data_type, selectedVariable.unidad);
+                : '--';
 
               const status = getVariableIndexStatus(selectedVariable, valStr);
               if (!status) return null;
@@ -2090,16 +2402,21 @@ export default function RegistrarNodo() {
             {/* Sensor Readings List */}
             <div className="node-fullscreen-readings-section">
               <span className="node-fullscreen-section-label">
-                Lecturas del Dispositivo (Haz clic para ver índice)
+                {isEn ? 'Device Readings (Click to view index)' : 'Lecturas del Dispositivo (Haz clic para ver índice)'}
               </span>
 
               <div className="node-fullscreen-readings-list">
                 {previewNode.lecturas && previewNode.lecturas.length > 0 ? (
                   previewNode.lecturas.map((l, idx) => {
-                    const realReading = latestReadings.find(r => r.clave_mqtt === l.data_type);
+                    const realReading = latestReadings.find(r => {
+                      if (!r || !r.clave_mqtt || !l || !l.data_type) return false;
+                      const rNorm = String(r.clave_mqtt).toLowerCase().replace(/[^a-z0-9]/g, '');
+                      const lNorm = String(l.data_type).toLowerCase().replace(/[^a-z0-9]/g, '');
+                      return rNorm === lNorm || rNorm.includes(lNorm) || lNorm.includes(rNorm);
+                    });
                     const simVal = realReading && realReading.valor !== null
                       ? realReading.valor.toString()
-                      : getSimulatedValue(l.data_type, l.unidad);
+                      : '--';
                     const isTemp = l.data_type.toLowerCase().includes('temp');
                     const isHum = l.data_type.toLowerCase().includes('hum') || l.data_type.toLowerCase().includes('soil');
                     const isAqi = l.data_type.toLowerCase().includes('aqi') || l.data_type.toLowerCase().includes('co2') || l.data_type.toLowerCase().includes('pm');
@@ -2124,12 +2441,16 @@ export default function RegistrarNodo() {
                       if (minExp !== null && !isNaN(minExp) && numVal < minExp) {
                         outWarning = {
                           type: 'min',
-                          msg: `El valor registrado (${numVal} ${l.unidad || ''}) está por debajo del mínimo esperado (${minExp} ${l.unidad || ''})`
+                          msg: isEn
+                            ? `Recorded value (${numVal} ${l.unidad || ''}) is below expected minimum (${minExp} ${l.unidad || ''})`
+                            : `El valor registrado (${numVal} ${l.unidad || ''}) está por debajo del mínimo esperado (${minExp} ${l.unidad || ''})`
                         };
                       } else if (maxExp !== null && !isNaN(maxExp) && numVal > maxExp) {
                         outWarning = {
                           type: 'max',
-                          msg: `El valor registrado (${numVal} ${l.unidad || ''}) sobrepasa el máximo esperado (${maxExp} ${l.unidad || ''})`
+                          msg: isEn
+                            ? `Recorded value (${numVal} ${l.unidad || ''}) exceeds expected maximum (${maxExp} ${l.unidad || ''})`
+                            : `El valor registrado (${numVal} ${l.unidad || ''}) sobrepasa el máximo esperado (${maxExp} ${l.unidad || ''})`
                         };
                       }
                     }
@@ -2166,8 +2487,8 @@ export default function RegistrarNodo() {
                           </span>
                           <span className="node-fullscreen-reading-name">{l.tipo}</span>
                         </div>
-                        <span className="node-fullscreen-reading-value font-mono" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                          {simVal} <span className="node-fullscreen-reading-unit">{l.unidad}</span>
+                        <span className="node-fullscreen-reading-value font-mono notranslate" translate="no" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <span className="notranslate" translate="no">{simVal}</span> <span className="node-fullscreen-reading-unit notranslate" translate="no">{l.unidad}</span>
                           {outWarning && (
                             <span
                               title={outWarning.msg}
@@ -2191,7 +2512,7 @@ export default function RegistrarNodo() {
                   })
                 ) : (
                   <div className="node-fullscreen-no-readings">
-                    Sin variables configuradas en este nodo.
+                    {isEn ? 'No variables configured on this node.' : 'Sin variables configuradas en este nodo.'}
                   </div>
                 )}
               </div>
@@ -2213,7 +2534,7 @@ export default function RegistrarNodo() {
                   <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#22c55e' }}></div>
                 </div>
                 <span style={{ color: '#cbd5e1', fontSize: '0.875rem', fontWeight: '500', fontFamily: 'monospace' }}>
-                  Verificación de Conexión MQTT
+                  {isEn ? 'MQTT Connection Verification' : 'Verificación de Conexión MQTT'}
                 </span>
               </div>
               <button onClick={() => setShowTerminal(false)} style={{ color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -2238,7 +2559,7 @@ export default function RegistrarNodo() {
                     <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
                     <path d="M12 2a10 10 0 0 1 10 10" />
                   </svg>
-                  <span>Esperando datos... Tiempo restante: {terminalCountdown}s</span>
+                  <span>{isEn ? `Waiting for data... Remaining time: ${terminalCountdown}s` : `Esperando datos... Tiempo restante: ${terminalCountdown}s`}</span>
                 </div>
               )}
             </div>
@@ -2253,21 +2574,21 @@ export default function RegistrarNodo() {
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
-                  Conexión Exitosa - Cerrar
+                  {isEn ? 'Successful Connection - Close' : 'Conexión Exitosa - Cerrar'}
                 </button>
               ) : terminalStatus === 'failed' ? (
                 <button
                   onClick={() => setShowTerminal(false)}
                   style={{ backgroundColor: '#ef4444', color: '#ffffff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontWeight: '500', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
                 >
-                  Continuar (Nodo Inactivo)
+                  {isEn ? 'Continue (Inactive Node)' : 'Continuar (Nodo Inactivo)'}
                 </button>
               ) : (
                 <button
                   disabled
                   style={{ backgroundColor: '#334155', color: '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '6px', fontWeight: '500', cursor: 'not-allowed' }}
                 >
-                  Verificando...
+                  {isEn ? 'Verifying...' : 'Verificando...'}
                 </button>
               )}
             </div>
