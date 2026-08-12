@@ -4,8 +4,18 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { useLanguage } from '../../context/LanguageContext';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import Combobox from '../../components/Combobox';
 import '../../styles/components/admin/RegistrarNodo.css';
 import iotLogoDefault from '../../assets/IOT-LOGO.png';
+
+const formatImageUrl = (urlStr) => {
+  if (!urlStr) return iotLogoDefault;
+  if (urlStr.startsWith('data:') || urlStr.startsWith('http://') || urlStr.startsWith('https://')) {
+    return urlStr;
+  }
+  const backendHost = API_BASE_URL.replace(/\/api\/?$/, '');
+  return `${backendHost}${urlStr.startsWith('/') ? '' : '/'}${urlStr}`;
+};
 
 const CustomItemsPerPageSelect = ({ value, onChange, options = [6, 9, 12, 18, 24], language = 'es' }) => {
   const [open, setOpen] = useState(false);
@@ -132,6 +142,11 @@ export default function RegistrarNodo() {
   const [loadingNodos, setLoadingNodos] = useState(true);
   const [categorias, setCategorias] = useState([]);
   const [metricasPresets, setMetricasPresets] = useState([]);
+
+  // Estados para Sensores y Métricas Refactorizados
+  const [sensorsList, setSensorsList] = useState([]);
+  const [metricsList, setMetricsList] = useState([]);
+  const [sensorCards, setSensorCards] = useState([]);
 
   // Estados de Paginación para Listado de Nodos
   const [currentPage, setCurrentPage] = useState(1);
@@ -518,7 +533,7 @@ export default function RegistrarNodo() {
         }
       });
 
-    const pMetricas = fetch(`${API_BASE_URL}/metricas`)
+    const pMetricas = fetch(`${API_BASE_URL}/metricas?lang=${language}`)
       .then(res => {
         if (!res.ok) throw new Error("HTTP error " + res.status);
         return res.json();
@@ -526,17 +541,34 @@ export default function RegistrarNodo() {
       .then(metricData => {
         if (Array.isArray(metricData)) {
           setMetricasPresets(metricData);
+          setMetricsList(metricData);
         }
       })
       .catch(err => {
         console.error("Error fetching metrics presets from PostgreSQL backend:", err);
         setMetricasPresets([]);
+        setMetricsList([]);
       });
 
-    Promise.allSettled([pUbicaciones, pNodos, pCategorias, pMetricas]).finally(() => {
+    const pSensorsList = fetch(`${API_BASE_URL}/sensors?lang=${language}`)
+      .then(res => {
+        if (!res.ok) throw new Error("HTTP error " + res.status);
+        return res.json();
+      })
+      .then(sensorsData => {
+        if (Array.isArray(sensorsData)) {
+          setSensorsList(sensorsData);
+        }
+      })
+      .catch(err => {
+        console.error("Error fetching sensors list:", err);
+        setSensorsList([]);
+      });
+
+    Promise.allSettled([pUbicaciones, pNodos, pCategorias, pMetricas, pSensorsList]).finally(() => {
       setLoadingNodos(false);
     });
-  }, [categoriaFiltro]);
+  }, [categoriaFiltro, language]);
 
   // Alerta de cambios pendientes al intentar recargar o cerrar la página
   useEffect(() => {
@@ -711,9 +743,229 @@ export default function RegistrarNodo() {
     setLecturas([...lecturas, { sensor: '', data_type: '', tipo: '', unidad: '' }]);
   };
 
-  const eliminarFilaLectura = (index) => {
-    if (lecturas.length > 1) {
-      setLecturas(lecturas.filter((_, i) => i !== index));
+  // Helper handlers for Sensor Cards and Metrics
+  const handleAddExistingSensor = (sensorObj) => {
+    if (!sensorObj) return;
+
+    const existingSensor = sensorsList.find(s => String(s.id) === String(sensorObj.id) || s.name.toLowerCase() === (sensorObj.name || sensorObj.label || '').toLowerCase());
+
+    const cardMetrics = (existingSensor?.metrics || []).map(m => {
+      const stdKeyObj = (m.json_keys || m.jsonKeys || []).find(k => k.is_standard) || (m.json_keys || m.jsonKeys || [])[0];
+      return {
+        metric_id: m.id,
+        name: m.name,
+        unit: m.unit || '',
+        symbol_image: m.symbol_image || '/symbols/default.webp',
+        json_key: stdKeyObj ? stdKeyObj.key_name : (m.name ? m.name.toLowerCase() : ''),
+        available_keys: m.json_keys || m.jsonKeys || []
+      };
+    });
+
+    setSensorCards(prev => [
+      ...prev,
+      {
+        sensor_id: existingSensor ? existingSensor.id : null,
+        name: sensorObj.name || sensorObj.label,
+        brand: existingSensor ? existingSensor.brand : '',
+        description: existingSensor ? existingSensor.description : '',
+        metrics: cardMetrics
+      }
+    ]);
+  };
+
+  const handleCreateSensorCard = (sensorName) => {
+    if (!sensorName.trim()) return;
+
+    fetchWithAuth(`${API_BASE_URL}/sensors?lang=${language}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: sensorName.trim() })
+    })
+      .then(res => res.json())
+      .then(newSensor => {
+        if (newSensor && newSensor.id) {
+          setSensorsList(prev => [...prev, newSensor]);
+          setSensorCards(prev => [
+            ...prev,
+            {
+              sensor_id: newSensor.id,
+              name: newSensor.name,
+              brand: '',
+              description: '',
+              metrics: []
+            }
+          ]);
+        }
+      })
+      .catch(() => {
+        setSensorCards(prev => [
+          ...prev,
+          {
+            sensor_id: null,
+            name: sensorName.trim(),
+            brand: '',
+            description: '',
+            metrics: []
+          }
+        ]);
+      });
+  };
+
+  const handleRemoveSensorCard = (cardIdx) => {
+    setSensorCards(prev => prev.filter((_, idx) => idx !== cardIdx));
+  };
+
+  const handleAddMetricToCard = (cardIdx) => {
+    const newMetricRow = {
+      metric_id: null,
+      name: '',
+      unit: '',
+      symbol_image: '/symbols/default.webp',
+      json_key: '',
+      min_expected: '',
+      max_expected: '',
+      available_keys: []
+    };
+
+    setSensorCards(prev => {
+      const next = JSON.parse(JSON.stringify(prev));
+      next[cardIdx].metrics.push(newMetricRow);
+      return next;
+    });
+  };
+
+  const handleRemoveMetricFromCard = (cardIdx, metricIdx) => {
+    setSensorCards(prev => {
+      const next = JSON.parse(JSON.stringify(prev));
+      next[cardIdx].metrics = next[cardIdx].metrics.filter((_, idx) => idx !== metricIdx);
+      return next;
+    });
+  };
+
+  const handleSelectMetricForRow = (cardIdx, metricIdx, metricObj) => {
+    const rawName = typeof metricObj === 'string' ? metricObj : (metricObj.name || metricObj.label || '');
+    // Look up by ID first (most reliable), then by name or name_en
+    const selected = metricsList.find(m =>
+      (metricObj.id && String(m.id) === String(metricObj.id)) ||
+      m.name.toLowerCase() === rawName.toLowerCase() ||
+      (m.name_en && m.name_en.toLowerCase() === rawName.toLowerCase())
+    );
+
+    if (selected) {
+      const keys = selected.json_keys || selected.jsonKeys || [];
+      const stdKeyObj = keys.find(k => k.is_standard) || keys[0];
+      // Display localized metric name based on current language
+      const displayName = language === 'en' ? (selected.name_en || selected.name) : selected.name;
+
+      setSensorCards(prev => {
+        const next = JSON.parse(JSON.stringify(prev));
+        next[cardIdx].metrics[metricIdx] = {
+          ...next[cardIdx].metrics[metricIdx],
+          metric_id: selected.id,
+          name: displayName,
+          name_es: selected.name,
+          name_en: selected.name_en || selected.name,
+          unit: selected.unit || '',
+          symbol_image: selected.symbol_image || '/symbols/default.webp',
+          min_expected: selected.min_expected !== null && selected.min_expected !== undefined ? String(selected.min_expected) : (next[cardIdx].metrics[metricIdx].min_expected || ''),
+          max_expected: selected.max_expected !== null && selected.max_expected !== undefined ? String(selected.max_expected) : (next[cardIdx].metrics[metricIdx].max_expected || ''),
+          json_key: stdKeyObj ? stdKeyObj.key_name : (next[cardIdx].metrics[metricIdx].json_key || ''),
+          available_keys: keys
+        };
+        return next;
+      });
+    } else if (rawName.trim()) {
+      // Create new metric via API
+      fetchWithAuth(`${API_BASE_URL}/metrics?lang=${language}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: rawName.trim(), unit: 'unidad' })
+      })
+        .then(res => res.json())
+        .then(createdMetric => {
+          if (createdMetric && createdMetric.id) {
+            setMetricsList(prev => [...prev, createdMetric]);
+            const displayName = language === 'en' ? (createdMetric.name_en || createdMetric.name) : createdMetric.name;
+
+            // New metric: clear json_key, unit and symbol_image so user must define them
+            setSensorCards(prev => {
+              const next = JSON.parse(JSON.stringify(prev));
+              next[cardIdx].metrics[metricIdx] = {
+                ...next[cardIdx].metrics[metricIdx],
+                metric_id: createdMetric.id,
+                name: displayName,
+                name_es: createdMetric.name,
+                name_en: createdMetric.name_en || createdMetric.name,
+                unit: '',
+                symbol_image: '/symbols/default.webp',
+                json_key: '',
+                available_keys: []
+              };
+              return next;
+            });
+          }
+        })
+        .catch(() => {
+          // Even on error: set name but leave json_key/unit/image blank for user to fill
+          setSensorCards(prev => {
+            const next = JSON.parse(JSON.stringify(prev));
+            next[cardIdx].metrics[metricIdx] = {
+              ...next[cardIdx].metrics[metricIdx],
+              name: rawName,
+              metric_id: null,
+              json_key: '',
+              unit: '',
+              available_keys: []
+            };
+            return next;
+          });
+        });
+    }
+  };
+
+  const handleCreateJsonKey = (cardIdx, metricIdx, newKeyName) => {
+    const card = sensorCards[cardIdx];
+    const metricRow = card?.metrics[metricIdx];
+    if (!metricRow || !newKeyName.trim()) return;
+
+    // Sanitize: lowercase, replace spaces with underscores, remove invalid chars
+    const cleanKey = newKeyName.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_.-]/g, '');
+
+    if (metricRow.metric_id) {
+      fetchWithAuth(`${API_BASE_URL}/metric-json-keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          metric_id: metricRow.metric_id,
+          key_name: cleanKey,
+          is_standard: false
+        })
+      })
+        .then(res => res.json())
+        .then(createdKey => {
+          setSensorCards(prev => {
+            const next = JSON.parse(JSON.stringify(prev));
+            const row = next[cardIdx].metrics[metricIdx];
+            row.json_key = cleanKey;
+            row.available_keys = [...(row.available_keys || []), createdKey];
+            return next;
+          });
+        })
+        .catch(() => {
+          setSensorCards(prev => {
+            const next = JSON.parse(JSON.stringify(prev));
+            const row = next[cardIdx].metrics[metricIdx];
+            row.json_key = cleanKey;
+            return next;
+          });
+        });
+    } else {
+      setSensorCards(prev => {
+        const next = JSON.parse(JSON.stringify(prev));
+        const row = next[cardIdx].metrics[metricIdx];
+        row.json_key = cleanKey;
+        return next;
+      });
     }
   };
 
@@ -731,25 +983,43 @@ export default function RegistrarNodo() {
       return;
     }
 
-    const lecturasValidas = lecturas.filter(l => l.data_type.trim() !== '');
+    const hasValidMetrics = sensorCards.some(card =>
+      card.metrics && card.metrics.some(m => m.json_key && m.json_key.trim() !== '')
+    );
 
-    if (lecturasValidas.length === 0) {
+    if (sensorCards.length === 0 || !hasValidMetrics) {
       Swal.fire({
         icon: 'warning',
         title: isEn ? 'Missing Metrics' : 'Faltan Métricas',
         text: isEn
-          ? 'Please configure at least one valid metric (with its MQTT key) before registering the node.'
-          : 'Por favor, configure al menos una métrica válida (con su clave MQTT) antes de registrar el nodo.',
+          ? 'Please configure at least one valid sensor and metric (with its MQTT key) before registering the node.'
+          : 'Por favor, configure al menos un sensor y una métrica válida (con su clave MQTT) antes de registrar el nodo.',
         confirmButtonColor: '#ff9f1c'
       });
       return;
     }
+
+    const lecturasValidas = [];
+    sensorCards.forEach(card => {
+      (card.metrics || []).forEach(m => {
+        if (m.json_key && m.json_key.trim()) {
+          lecturasValidas.push({
+            sensor: card.name,
+            tipo: m.name,
+            unidad: m.unit,
+            icono: m.symbol_image,
+            data_type: m.json_key
+          });
+        }
+      });
+    });
 
     const payload = {
       nombre: nombreNodo,
       serial_number: serialNumber,
       ubicacion_id: ubicacionId,
       categoria: categoria,
+      sensors: sensorCards,
       lecturas: lecturasValidas,
       broker: broker,
       port: port,
@@ -874,28 +1144,87 @@ export default function RegistrarNodo() {
 
   const cargarEdicion = (nodo) => {
     // Fetch fresh individual node data with full relations and credentials
-    fetchWithAuth(`${API_BASE_URL}/nodos/${nodo.id}?include_credentials=true`)
+    fetchWithAuth(`${API_BASE_URL}/nodos/${nodo.id}?include_credentials=true&lang=${language}`)
       .then(res => res.ok ? res.json() : Promise.reject(res))
       .then(freshNodo => {
         setEditandoId(freshNodo.id);
-        setNombreNodo(freshNodo.nombre_es || freshNodo.nombre || '');
+        const nameVal = isEn ? (freshNodo.nombre_en || freshNodo.nombre) : (freshNodo.nombre_es || freshNodo.nombre);
+        setNombreNodo(nameVal || '');
         setSerialNumber(freshNodo.serial_number || '');
         // Use numeric comparison-friendly ID: keep as string since ubicacionId state is string
         setUbicacionId(freshNodo.ubicacion_id != null ? String(freshNodo.ubicacion_id) : '');
         setCategoria(freshNodo.categoria_es || freshNodo.categoria || '');
 
-        // Map metrics from subvariables (tipo_es is the Spanish type name)
+        // Map metrics from subvariables
         const mappedLecturas = (freshNodo.lecturas && freshNodo.lecturas.length > 0)
           ? freshNodo.lecturas.map(l => ({
             sensor: l.sensor || 'Sensor Integrado',
             data_type: l.data_type,
-            tipo: l.tipo_es || l.tipo,
+            tipo: l.tipo,
             unidad: l.unidad,
             icono: l.icono || ''
           }))
           : [{ sensor: '', data_type: '', tipo: 'Temperatura', unidad: '\u00b0C' }];
 
         setLecturas(mappedLecturas);
+
+        let loadedCards = [];
+        if (freshNodo.sensor_cards && freshNodo.sensor_cards.length > 0) {
+          // Normalize cards: backend uses 'id' for sensor id but frontend tracks 'sensor_id'
+          loadedCards = freshNodo.sensor_cards.map(card => ({
+            sensor_id: card.sensor_id || card.id || null,
+            name: card.name || '',
+            brand: card.brand || '',
+            description: card.description || '',
+            metrics: (card.metrics || []).map(m => {
+              // Enrich available_keys from metricsList if not provided by backend
+              const metricInList = metricsList.find(ml => String(ml.id) === String(m.metric_id));
+              const keysFromList = metricInList ? (metricInList.json_keys || metricInList.jsonKeys || []) : [];
+              const backendKeys = m.available_keys || [];
+              const mergedKeys = backendKeys.length > 0 ? backendKeys : keysFromList;
+              return {
+                metric_id: m.metric_id || null,
+                name: m.name || '',
+                name_es: m.name_es || m.name || '',
+                name_en: m.name_en || m.name || '',
+                unit: m.unit || '',
+                symbol_image: m.symbol_image || '/symbols/default.webp',
+                json_key: m.json_key || '',
+                min_expected: m.min_expected !== null && m.min_expected !== undefined ? String(m.min_expected) : '',
+                max_expected: m.max_expected !== null && m.max_expected !== undefined ? String(m.max_expected) : '',
+                available_keys: mergedKeys
+              };
+            })
+          }));
+        } else if (freshNodo.lecturas && freshNodo.lecturas.length > 0) {
+          const cardsMap = {};
+          freshNodo.lecturas.forEach(l => {
+            const sName = l.sensor || 'Sensor Integrado';
+            if (!cardsMap[sName]) {
+              cardsMap[sName] = {
+                sensor_id: l.sensor_id || null,
+                name: sName,
+                brand: '',
+                description: '',
+                metrics: []
+              };
+            }
+            const metricInList = metricsList.find(ml => String(ml.id) === String(l.metric_id));
+            const keysFromList = metricInList ? (metricInList.json_keys || metricInList.jsonKeys || []) : [];
+            cardsMap[sName].metrics.push({
+              metric_id: l.metric_id || null,
+              name: l.tipo || '',
+              unit: l.unidad || '',
+              symbol_image: l.symbol_image || l.icono || '/symbols/default.webp',
+              json_key: l.data_type || '',
+              available_keys: keysFromList
+            });
+          });
+          loadedCards = Object.values(cardsMap);
+        }
+
+        setSensorCards(loadedCards);
+
         setBroker(freshNodo.broker ?? 'broker.hivemq.com');
         setPort(freshNodo.port != null ? String(freshNodo.port) : '1883');
         setTopicData(freshNodo.topic_data ?? '');
@@ -912,7 +1241,7 @@ export default function RegistrarNodo() {
           serialNumber: freshNodo.serial_number || '',
           ubicacionId: freshNodo.ubicacion_id != null ? String(freshNodo.ubicacion_id) : '',
           categoria: freshNodo.categoria_es || freshNodo.categoria || '',
-          lecturas: mappedLecturas,
+          sensorCards: loadedCards,
           broker: freshNodo.broker ?? 'broker.hivemq.com',
           port: freshNodo.port != null ? String(freshNodo.port) : '1883',
           topicData: freshNodo.topic_data ?? '',
@@ -1007,6 +1336,7 @@ export default function RegistrarNodo() {
     setUbicacionId('');
     setCategoria('');
     setLecturas([]);
+    setSensorCards([]);
     setBroker('broker.hivemq.com');
     setPort('1883');
     setTopicData('');
@@ -1066,10 +1396,10 @@ export default function RegistrarNodo() {
     if (saveFrequency !== initialState.saveFrequency) cambios.push(`<b>${labelFrec}:</b> ${initialState.saveFrequency}s &rarr; ${saveFrequency}s`);
     if (instabilityAlertInterval !== initialState.instabilityAlertInterval) cambios.push(`<b>${labelAlert}:</b> ${initialState.instabilityAlertInterval}s &rarr; ${instabilityAlertInterval}s`);
 
-    if (JSON.stringify(lecturas) !== JSON.stringify(initialState.lecturas)) {
+    if (JSON.stringify(sensorCards) !== JSON.stringify(initialState.sensorCards)) {
       const msgMetricas = isEn
-        ? `Were modified (${initialState.lecturas.length} subvariables &rarr; ${lecturas.length} subvariables)`
-        : `Fueron modificadas (${initialState.lecturas.length} subvariables &rarr; ${lecturas.length} subvariables)`;
+        ? `Sensors & Metrics updated (${(initialState.sensorCards || []).length} sensors &rarr; ${sensorCards.length} sensors)`
+        : `Sensores y Métricas actualizados (${(initialState.sensorCards || []).length} sensores &rarr; ${sensorCards.length} sensores)`;
       cambios.push(`<b>${labelMetricas}:</b> ${msgMetricas}`);
     }
 
@@ -1087,7 +1417,7 @@ export default function RegistrarNodo() {
   const confirmarCerrar = () => {
     let tieneCambios = false;
     if (editandoId !== null && initialState) {
-      const isLecturasSame = JSON.stringify(lecturas) === JSON.stringify(initialState.lecturas);
+      const isCardsSame = JSON.stringify(sensorCards) === JSON.stringify(initialState.sensorCards);
       tieneCambios =
         nombreNodo !== initialState.nombreNodo ||
         serialNumber !== initialState.serialNumber ||
@@ -1103,9 +1433,9 @@ export default function RegistrarNodo() {
         isSimulated !== initialState.isSimulated ||
         saveFrequency !== initialState.saveFrequency ||
         instabilityAlertInterval !== initialState.instabilityAlertInterval ||
-        !isLecturasSame;
+        !isCardsSame;
     } else {
-      tieneCambios = nombreNodo.trim() !== '' || serialNumber.trim() !== '' || ubicacionId !== '' || categoria !== '' || (lecturas && lecturas.length > 0 && lecturas.some(l => (l.sensor && l.sensor.trim() !== '') || (l.data_type && l.data_type.trim() !== '')));
+      tieneCambios = nombreNodo.trim() !== '' || serialNumber.trim() !== '' || ubicacionId !== '' || categoria !== '' || (sensorCards && sensorCards.length > 0);
     }
 
     if (tieneCambios) {
@@ -1305,7 +1635,7 @@ export default function RegistrarNodo() {
           </div>
 
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} onKeyDown={(e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') e.preventDefault(); }} className="space-y-6">
 
             {/* 1. Datos Generales */}
             <div className="form-section-title">
@@ -1457,7 +1787,14 @@ export default function RegistrarNodo() {
                             key={opt.v}
                             type="button"
                             className={`frec-btn ${saveFrequency === opt.v ? 'selected' : ''}`}
-                            onClick={() => { setSaveFrequency(opt.v); setIsFrecDropdownOpen(false); }}
+                            onClick={() => {
+                              const newSaveVal = opt.v;
+                              setSaveFrequency(newSaveVal);
+                              setIsFrecDropdownOpen(false);
+                              if (parseInt(instabilityAlertInterval, 10) < parseInt(newSaveVal, 10)) {
+                                setInstabilityAlertInterval(newSaveVal);
+                              }
+                            }}
                           >
                             {opt.l}
                           </button>
@@ -1500,25 +1837,27 @@ export default function RegistrarNodo() {
                     <div className="custom-dropdown-menu">
                       <div className="frec-grid">
                         {[
-                          { v: '30', l: isEn ? '30 sec' : '30 seg' },
-                          { v: '60', l: isEn ? '1 min' : '1 min' },
-                          { v: '120', l: isEn ? '2 min' : '2 min' },
-                          { v: '180', l: isEn ? '3 min' : '3 min' },
-                          { v: '300', l: isEn ? '5 min' : '5 min' },
-                          { v: '600', l: isEn ? '10 min' : '10 min' },
-                          { v: '1200', l: isEn ? '20 min' : '20 min' },
-                          { v: '1800', l: isEn ? '30 min' : '30 min' },
-                          { v: '3600', l: isEn ? '1 hour' : '1 hora' }
-                        ].map(opt => (
-                          <button
-                            key={opt.v}
-                            type="button"
-                            className={`frec-btn ${instabilityAlertInterval === opt.v ? 'selected' : ''}`}
-                            onClick={() => { setInstabilityAlertInterval(opt.v); setIsAlertIntervalDropdownOpen(false); }}
-                          >
-                            {opt.l}
-                          </button>
-                        ))}
+                          { v: '30', l: isEn ? '30 sec' : '30 seg', sec: 30 },
+                          { v: '60', l: isEn ? '1 min' : '1 min', sec: 60 },
+                          { v: '120', l: isEn ? '2 min' : '2 min', sec: 120 },
+                          { v: '180', l: isEn ? '3 min' : '3 min', sec: 180 },
+                          { v: '300', l: isEn ? '5 min' : '5 min', sec: 300 },
+                          { v: '600', l: isEn ? '10 min' : '10 min', sec: 600 },
+                          { v: '1200', l: isEn ? '20 min' : '20 min', sec: 1200 },
+                          { v: '1800', l: isEn ? '30 min' : '30 min', sec: 1800 },
+                          { v: '3600', l: isEn ? '1 hour' : '1 hora', sec: 3600 }
+                        ]
+                          .filter(opt => opt.sec >= (parseInt(saveFrequency, 10) || 30))
+                          .map(opt => (
+                            <button
+                              key={opt.v}
+                              type="button"
+                              className={`frec-btn ${instabilityAlertInterval === opt.v ? 'selected' : ''}`}
+                              onClick={() => { setInstabilityAlertInterval(opt.v); setIsAlertIntervalDropdownOpen(false); }}
+                            >
+                              {opt.l}
+                            </button>
+                          ))}
                       </div>
                     </div>
                   )}
@@ -1534,6 +1873,36 @@ export default function RegistrarNodo() {
 
             <div className="iot-section-box space-y-4">
 
+              {/* Checkbox de Nodo Simulado */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px',
+                padding: '14px 18px',
+                background: isSimulated ? '#f0fdf4' : '#f8fafc',
+                border: `1.5px solid ${isSimulated ? '#86efac' : '#cbd5e1'}`,
+                borderRadius: '10px',
+                transition: 'all 0.2s ease',
+                marginBottom: '1rem'
+              }}>
+                <input
+                  type="checkbox"
+                  id="isSimulatedCheckbox"
+                  checked={isSimulated}
+                  onChange={(e) => setIsSimulated(e.target.checked)}
+                  style={{ width: '20px', height: '20px', accentColor: '#16a34a', cursor: 'pointer' }}
+                />
+                <label htmlFor="isSimulatedCheckbox" style={{ cursor: 'pointer', margin: 0, display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontWeight: '700', fontSize: '0.95rem', color: isSimulated ? '#15803d' : '#334155' }}>
+                    {isEn ? '⚡ Simulated Node (Automatic Data Generation)' : '⚡ Nodo Simulado (Generación Automática de Datos)'}
+                  </span>
+                  <span style={{ fontSize: '0.82rem', color: '#64748b' }}>
+                    {isEn
+                      ? 'If enabled, SIMULATOR_MANAGER.py will start generating and emitting randomized test telemetry within configured min/max stability thresholds.'
+                      : 'Si está activado, SIMULATOR_MANAGER.py comenzará a generar y emitir telemetría de prueba con valores aleatorios dentro de los rangos min/máx esperados.'}
+                  </span>
+                </label>
+              </div>
 
               <div className="iot-grid">
                 <div>
@@ -1616,139 +1985,226 @@ export default function RegistrarNodo() {
               </div>
             </div>
 
-            {/* 3. Parametrización de Métricas */}
+            {/* 3. Parametrización de Sensores y Métricas */}
             <div className="form-section-title mt-6">
               <span className="title-number">03</span>
-              <h4>{isEn ? 'Metrics Configuration and Parameterization' : 'Configuración y Parametrización de Métricas'}</h4>
+              <h4>{isEn ? 'Sensors & Metrics Configuration' : 'Configuración de Sensores y Métricas'}</h4>
             </div>
 
-            <div className="iot-section-box space-y-4">
-              {/* Sensores Disponibles */}
-              <div className="sensors-select-container" style={{ borderBottom: '1px solid #f0f2f5', paddingBottom: '1.25rem', marginBottom: '1.25rem' }}>
-                <span className="iot-label" style={{ fontSize: '0.75rem', color: '#4b5563', marginBottom: '8px', display: 'block' }}>
-                  {isEn ? 'Available Sensors (Click one to load all its subvariables):' : 'Sensores Disponibles (Haz clic sobre uno para cargar todas sus subvariables):'}
-                </span>
-                {metricasPresets.length === 0 ? (
-                  <p className="text-xs text-gray-400 italic">{isEn ? 'No sensor templates registered in database.' : 'No hay plantillas de sensores registradas en la base de datos.'}</p>
-                ) : (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
-                    {metricasPresets.map((preset) => (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        onClick={() => cargarPlantillaSensor(preset)}
-                        className="sensor-select-pill-btn"
-                        title={isEn ? `Load subvariables for ${preset.nombre}` : `Cargar subvariables de ${preset.nombre}`}
-                      >
-                        <img src={preset.imagen || iotLogoDefault} alt="" className="sensor-preset-pill-thumb" />
-                        {preset.nombre}
-                        <span className="sensor-preset-pill-count">
-                          {preset.subvariables ? preset.subvariables.length : 0}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+            <div className="iot-section-box space-y-6">
+              {/* Selector de Sensores principales (Combobox) */}
+              <div style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '14px', border: '1.5px dashed #cbd5e1' }}>
+                <label className="iot-label" style={{ marginBottom: '8px' }}>
+                  {isEn ? 'Assign or Create Sensor for Node' : 'Asignar o Crear Sensor para el Nodo'}
+                </label>
+                <Combobox
+                  options={sensorsList}
+                  placeholder={isEn ? 'Type to search or create sensor (e.g. DHT22, BME280)...' : 'Escribe para buscar o crear sensor (ej. DHT22, BME280)...'}
+                  allowCreate={true}
+                  createLabelPrefix={isEn ? "CREATE SENSOR" : "CREAR SENSOR"}
+                  noOptionsMessage={isEn ? "No matching sensors found" : "No se encontraron sensores coincidentes"}
+                  onChange={(selected) => {
+                    if (selected) handleAddExistingSensor(selected);
+                  }}
+                  onCreate={(name) => handleCreateSensorCard(name)}
+                />
               </div>
 
-              {lecturas.map((lectura, index) => (
-                <div key={index} className="metric-row">
-                  <div className="metric-col metric-col-sensor">
-                    <label className="metric-label">{isEn ? 'Sensor' : 'Sensor'}</label>
-                    <input
-                      type="text"
-                      value={lectura.sensor || ''}
-                      onChange={(e) => handleLecturaChange(index, 'sensor', e.target.value)}
-                      placeholder="DHT22 / NPK"
-                      className="iot-input"
-                    />
-                  </div>
-                  <div className="metric-col metric-col-tipo">
-                    <label className="metric-label">{isEn ? 'Metric (Subvariable)' : 'Métrica (Subvariable)'}</label>
-                    {(() => {
-                      const allSubs = [];
-                      metricasPresets.forEach(preset => {
-                        if (preset.subvariables) {
-                          preset.subvariables.forEach(s => {
-                            if (!allSubs.some(x => x.nombre === s.nombre)) {
-                              allSubs.push(s);
-                            }
-                          });
-                        }
-                      });
-
-                      return (
-                        <select
-                          value={lectura.tipo}
-                          onChange={(e) => handleLecturaChange(index, 'tipo', e.target.value)}
-                          className={`iot-select ${lectura.tipo ? 'select-filled' : ''}`}
-                        >
-                          <option value="">{isEn ? '-- Select Subvariable --' : '-- Seleccionar Subvariable --'}</option>
-                          {allSubs.map((sub, sIdx) => (
-                            <option key={sIdx} value={sub.nombre}>{sub.nombre}</option>
-                          ))}
-                        </select>
-                      );
-                    })()}
-                  </div>
-                  <div className="metric-col metric-col-datatype">
-                    <label className="metric-label">{isEn ? 'MQTT Key' : 'Clave MQTT'}</label>
-                    <input
-                      type="text"
-                      value={lectura.data_type}
-                      onChange={(e) => handleLecturaChange(index, 'data_type', e.target.value)}
-                      placeholder="temp / hum / co2"
-                      className="iot-input"
-                    />
-                  </div>
-                  <div className="metric-col metric-col-unidad">
-                    <label className="metric-label">{isEn ? 'Unit' : 'Unidad'}</label>
-                    <input
-                      type="text"
-                      value={lectura.unidad}
-                      onChange={(e) => handleLecturaChange(index, 'unidad', e.target.value)}
-                      placeholder="°C / % / ppm"
-                      className="iot-input"
-                    />
-                  </div>
-
-                  <div className="metric-col-delete">
-                    {lecturas.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => eliminarFilaLectura(index)}
-                        className="btn-delete-row"
-                        title={isEn ? "Delete metric" : "Eliminar métrica"}
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
-                          <polyline points="3 6 5 6 21 6"></polyline>
-                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                          <line x1="10" y1="11" x2="10" y2="17"></line>
-                          <line x1="14" y1="11" x2="14" y2="17"></line>
-                        </svg>
-                      </button>
-                    )}
-                  </div>
+              {/* Tarjetas por Sensor */}
+              {sensorCards.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem 1rem', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#64748b' }}>
+                  <p style={{ margin: 0, fontWeight: '600', fontSize: '0.92rem' }}>
+                    {isEn ? 'No sensors assigned to this node yet.' : 'Aún no has asignado sensores a este nodo.'}
+                  </p>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: '#94a3b8' }}>
+                    {isEn ? 'Use the search input above to select an existing sensor model or create a new one.' : 'Usa el buscador de arriba para seleccionar un modelo de sensor o crear uno nuevo.'}
+                  </p>
                 </div>
-              ))}
+              ) : (
+                sensorCards.map((card, cIdx) => (
+                  <div key={cIdx} className="sensor-card">
+                    <div className="sensor-card-header">
+                      <div className="sensor-card-title">
+                        <span className="sensor-card-name">📟 {card.name}</span>
+                        {card.brand && <span className="sensor-card-brand">{card.brand}</span>}
+                      </div>
+                      <div className="sensor-card-actions">
+                        <button
+                          type="button"
+                          className="btn-add-metric-card"
+                          onClick={() => handleAddMetricToCard(cIdx)}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="14" height="14">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                          </svg>
+                          {isEn ? 'Add Metric' : 'Agregar Métrica'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-delete-row"
+                          onClick={() => handleRemoveSensorCard(cIdx)}
+                          title={isEn ? 'Remove Sensor' : 'Eliminar Sensor'}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', marginTop: '1.5rem', paddingBottom: '1rem' }}>
-                <button
-                  type="button"
-                  onClick={agregarFilaLectura}
-                  className="btn-success-gradient"
-                  style={{ width: 'fit-content' }}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="14" height="14" style={{ marginRight: '6px' }}>
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                  {isEn ? 'Add Row' : 'Agregar Fila'}
-                </button>
-                <span className="section-inner-subtitle" style={{ textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>
-                  {isEn ? 'Add manually or load MQTT variables associated with the node pins and sensors.' : 'Añade manualmente o carga las variables MQTT asociadas a los pines y sensores del nodo.'}
-                </span>
-              </div>
+                    <div className="sensor-card-body">
+                      {card.metrics.length === 0 ? (
+                        <p style={{ fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic', margin: 0 }}>
+                          {isEn ? 'No metrics assigned yet. Click "+ Add Metric" above.' : 'Sin métricas asignadas aún. Haz clic en "+ Agregar Métrica".'}
+                        </p>
+                      ) : (
+                        card.metrics.map((metric, mIdx) => (
+                          <div key={mIdx} className="metric-row" style={{ borderLeftColor: '#2563eb' }}>
+                            {/* Métrica Combobox */}
+                            <div className="metric-col" style={{ flex: 1.5 }}>
+                              <label className="metric-label">{isEn ? 'Metric' : 'Métrica'}</label>
+                              <Combobox
+                                value={metric.metric_id
+                                  ? { id: metric.metric_id, name: metric.name, label: metric.name }
+                                  : metric.name}
+                                options={metricsList.map(m => ({
+                                  ...m,
+                                  name: isEn ? (m.name_en || m.name) : m.name,
+                                  label: isEn ? (m.name_en || m.name) : m.name
+                                }))}
+                                placeholder={isEn ? 'Select metric...' : 'Seleccionar métrica...'}
+                                allowCreate={false}
+                                noOptionsMessage={isEn ? "No metrics found. Please register it in 'Manage Metrics'." : "Métrica no encontrada. Por favor regístrala en 'Métricas de Nodos'."}
+                                onChange={(selected) => handleSelectMetricForRow(cIdx, mIdx, selected)}
+                              />
+                            </div>
+
+                            {/* JSON Key Combobox */}
+                            <div className="metric-col" style={{ flex: 1.5 }}>
+                              <label className="metric-label">{isEn ? 'MQTT / JSON Key' : 'Clave MQTT / JSON'}</label>
+                              <Combobox
+                                value={metric.json_key}
+                                options={(metric.available_keys || []).map(k => ({ label: k.key_name, value: k.key_name, is_standard: k.is_standard }))}
+                                placeholder={isEn ? 'Select or type key...' : 'Seleccionar o escribir clave...'}
+                                allowCreate={true}
+                                createLabelPrefix={isEn ? "CREATE KEY" : "CREAR LLAVE"}
+                                noOptionsMessage={isEn ? "No matching keys found" : "No se encontraron claves coincidentes"}
+                                onChange={(selected) => {
+                                  const keyVal = typeof selected === 'object' ? (selected.label || selected.key_name) : selected;
+                                  setSensorCards(prev => {
+                                    const next = JSON.parse(JSON.stringify(prev));
+                                    next[cIdx].metrics[mIdx].json_key = keyVal;
+                                    return next;
+                                  });
+                                }}
+                                onCreate={(newKey) => handleCreateJsonKey(cIdx, mIdx, newKey)}
+                              />
+                            </div>
+
+                            {/* Unit Input (Locked) */}
+                            <div className="metric-col" style={{ flex: 0.9 }}>
+                              <label className="metric-label">{isEn ? 'Unit' : 'Unidad'}</label>
+                              <input
+                                type="text"
+                                disabled
+                                readOnly
+                                value={metric.unit || ''}
+                                placeholder="°C / % / ppm"
+                                className="iot-input"
+                                style={{ background: '#f1f5f9', cursor: 'not-allowed', color: '#475569', fontWeight: '700' }}
+                              />
+                            </div>
+
+                            {/* Min Expected Input */}
+                            <div className="metric-col" style={{ flex: 1 }}>
+                              <label className="metric-label">{isEn ? 'Min. Expected' : 'Mín. Esperado'}</label>
+                              <input
+                                type="number"
+                                step="any"
+                                value={metric.min_expected ?? ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setSensorCards(prev => {
+                                    const next = JSON.parse(JSON.stringify(prev));
+                                    next[cIdx].metrics[mIdx].min_expected = val;
+                                    return next;
+                                  });
+                                }}
+                                placeholder={isEn ? 'e.g. 0' : 'ej. 0'}
+                                className="iot-input"
+                              />
+                            </div>
+
+                            {/* Max Expected Input */}
+                            <div className="metric-col" style={{ flex: 1 }}>
+                              <label className="metric-label">{isEn ? 'Max. Expected' : 'Máx. Esperado'}</label>
+                              <input
+                                type="number"
+                                step="any"
+                                value={metric.max_expected ?? ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setSensorCards(prev => {
+                                    const next = JSON.parse(JSON.stringify(prev));
+                                    next[cIdx].metrics[mIdx].max_expected = val;
+                                    return next;
+                                  });
+                                }}
+                                placeholder={isEn ? 'e.g. 100' : 'ej. 100'}
+                                className="iot-input"
+                              />
+                            </div>
+
+                            {/* Symbol Image Display (Locked Thumbnail) */}
+                            <div className="metric-col" style={{ flex: 0.8, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                              <label className="metric-label" style={{ width: '100%', textAlign: 'center' }}>{isEn ? 'Symbol' : 'Símbolo'}</label>
+                              <div style={{
+                                width: '42px',
+                                height: '42px',
+                                borderRadius: '8px',
+                                background: '#f8fafc',
+                                border: '1.5px solid #cbd5e1',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '4px',
+                                boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.04)'
+                              }} title={metric.symbol_image || '/symbols/default.webp'}>
+                                <img
+                                  src={formatImageUrl(metric.symbol_image || '/symbols/default.webp')}
+                                  alt="Símbolo"
+                                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                                  onError={(e) => {
+                                    e.target.onerror = null;
+                                    e.target.src = iotLogoDefault;
+                                  }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Delete Button */}
+                            <div className="metric-col-delete">
+                              <button
+                                type="button"
+                                className="btn-delete-row"
+                                onClick={() => handleRemoveMetricFromCard(cIdx, mIdx)}
+                                title={isEn ? 'Delete metric' : 'Eliminar métrica'}
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
+                                  <polyline points="3 6 5 6 21 6" />
+                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
 
             <div className="form-actions-bar">

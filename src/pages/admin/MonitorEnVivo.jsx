@@ -55,6 +55,13 @@ const formatDateTimeFull = (val) => {
   return `${day}/${month}/${year} ${timeStr}`;
 };
 
+const formatImageUrl = (url) => {
+  if (!url) return '/symbols/default.webp';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
+  const cleanPath = url.startsWith('/') ? url : `/${url}`;
+  return `${API_BASE_URL.replace(/\/api$/, '')}${cleanPath}`;
+};
+
 const getTimeAndDate = (item) => {
   if (!item) return { time: '--:--', date: '' };
   let full = item.fullDateTime || item.dateTime || '';
@@ -84,6 +91,7 @@ export default function MonitorEnVivo() {
 
   const [sensorData, setSensorData] = useState({});
   const [previousData, setPreviousData] = useState({});
+  const lastLoggedTimeRef = useRef('');
   const [history, setHistory] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [logs, setLogs] = useState([]);
@@ -273,16 +281,16 @@ export default function MonitorEnVivo() {
 
   const getItemTimestampMs = (item) => {
     if (!item) return 0;
-    if (item.timestamp) {
-      return item.timestamp > 1e11 ? item.timestamp : item.timestamp * 1000;
-    }
     if (item.dateTime) {
-      const parsed = new Date(item.dateTime).getTime();
-      if (!isNaN(parsed)) return parsed;
+      const d = parseDateVal(item.dateTime);
+      if (d && !isNaN(d.getTime())) return d.getTime();
     }
     if (item.created_at) {
-      const parsed = new Date(item.created_at).getTime();
-      if (!isNaN(parsed)) return parsed;
+      const d = parseDateVal(item.created_at);
+      if (d && !isNaN(d.getTime())) return d.getTime();
+    }
+    if (item.timestamp) {
+      return item.timestamp > 1e11 ? item.timestamp : item.timestamp * 1000;
     }
     return 0;
   };
@@ -297,10 +305,12 @@ export default function MonitorEnVivo() {
   }, []);
 
   const isConnected = useMemo(() => {
+    if (!nodoActivo) return false;
     const lastTs = getItemTimestampMs(sensorData);
-    if (lastTs > 0 && (nowTick - lastTs <= 65000)) return true;
-    return Boolean(nodoActivo?.is_online);
-  }, [sensorData, nodoActivo?.is_online, nowTick]);
+    if (lastTs > 0 && (nowTick - lastTs <= 600000)) return true; // 10 mins threshold
+    if (history && history.length > 0) return true;
+    return Boolean(nodoActivo?.is_online || nodoActivo?.is_simulated || nodoActivo?.estado);
+  }, [sensorData, nodoActivo, history, nowTick]);
 
   const chartData = useMemo(() => {
     if (!history || history.length === 0) return [];
@@ -309,22 +319,20 @@ export default function MonitorEnVivo() {
     const windowMs = windowMinutes * 60 * 1000;
 
     let baseMs = nowTick;
-    if (!isConnected && showLastReadingOffline) {
-      // En Modo Consulta de última lectura, la referencia base es la marca de tiempo de la última lectura registrada
-      const lastItem = history[history.length - 1];
-      const lastItemMs = (lastItem && getItemTimestampMs(lastItem)) || 0;
-      if (lastItemMs > 0) {
-        baseMs = lastItemMs;
-      }
+    const validTimestamps = history.map(getItemTimestampMs).filter(t => t > 0);
+    const latestItemMs = validTimestamps.length > 0 ? Math.max(...validTimestamps) : 0;
+
+    if (latestItemMs > 0) {
+      baseMs = Math.max(nowTick, latestItemMs);
     }
 
     const cutoffMs = baseMs - windowMs;
 
     return history.filter(item => {
       const itemMs = getItemTimestampMs(item);
-      return itemMs > 0 && itemMs >= cutoffMs && itemMs <= baseMs;
+      return itemMs > 0 && itemMs >= cutoffMs;
     });
-  }, [history, chartWindow, nowTick, isConnected, showLastReadingOffline]);
+  }, [history, chartWindow, nowTick]);
 
   const userHasScrolledRef = useRef(false);
 
@@ -682,6 +690,60 @@ export default function MonitorEnVivo() {
       }
     };
     fetchRecentHistory();
+
+    // Polling de respaldo cada 3 segundos para garantizar actualización continua en vivo sin refrescar
+    const livePollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/lecturas/recientes?serial_number=${nodoActivo.serial_number}&live=1`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const parsedData = data.map(item => {
+            const tsMs = getItemTimestampMs(item);
+            const fullDt = tsMs ? formatDateTimeFull(tsMs) : formatDateTimeFull(item.created_at || item.dateTime);
+            return {
+              ...item,
+              fullDateTime: fullDt,
+              shortTime: item.shortTime || (item.dateTime ? item.dateTime.split(' ')[1] : formatTimeSeconds())
+            };
+          });
+
+          const last = parsedData[parsedData.length - 1];
+          const prev = parsedData.length > 1 ? parsedData[parsedData.length - 2] : {};
+
+          setSensorData(last);
+          setPreviousData(prev);
+
+          setHistory(prevHistory => {
+            const existingKeys = new Set(prevHistory.map(h => h.dateTime || h.fullDateTime || h.created_at || h.id));
+            const newItems = parsedData.filter(item => !existingKeys.has(item.dateTime || item.fullDateTime || item.created_at || item.id));
+            if (newItems.length === 0) return prevHistory;
+
+            const combined = [...prevHistory, ...newItems];
+            if (combined.length > 400) combined.splice(0, combined.length - 400);
+            return combined;
+          });
+
+          const dtKey = last.dateTime || last.fullDateTime;
+          if (dtKey && dtKey !== lastLoggedTimeRef.current) {
+            lastLoggedTimeRef.current = dtKey;
+
+            const cleanPayload = { ...last };
+            delete cleanPayload.fullDateTime;
+            delete cleanPayload.shortTime;
+            delete cleanPayload.is_saved;
+            delete cleanPayload.created_at;
+            delete cleanPayload.id;
+
+            addLog(`[${nodoActivo.nombre}] Recibido y Traducido: ${JSON.stringify(cleanPayload)}`, 'data');
+          }
+        }
+      } catch (e) {
+        // Fallback silencioso
+      }
+    }, 3000);
+
+    return () => clearInterval(livePollInterval);
   }, [nodoActivo]);
 
   useEffect(() => {
@@ -692,7 +754,7 @@ export default function MonitorEnVivo() {
     const channel = echo.channel(channelName);
     addLog(`Conexión establecida con broker.`, 'success');
 
-    channel.listen('.LecturaRecibida', (e) => {
+    const handleReadingEvent = (e) => {
       const newData = e.data || e;
       if (!newData) return;
 
@@ -704,7 +766,7 @@ export default function MonitorEnVivo() {
         shortTime: formatTimeSeconds()
       };
 
-      setPreviousData(sensorDataRef.current);
+      setPreviousData(sensorDataRef.current || {});
       setSensorData(prev => ({
         ...prev,
         ...parsedData
@@ -716,18 +778,30 @@ export default function MonitorEnVivo() {
         return newHistory;
       });
 
-      const metricsLog = Object.keys(newData)
-        .filter(k => !['Sensor', 'timestamp', 'dateTime'].includes(k))
-        .map(k => `${k}=${newData[k]}`)
-        .join('  ');
-      addLog(`Datos recibidos: ${metricsLog}`, 'data');
-    });
+      const dtKey = newData.dateTime || newData.fullDateTime || fullDt;
+      if (dtKey && dtKey !== lastLoggedTimeRef.current) {
+        lastLoggedTimeRef.current = dtKey;
+
+        const cleanPayload = { ...newData };
+        delete cleanPayload.fullDateTime;
+        delete cleanPayload.shortTime;
+        delete cleanPayload.is_saved;
+
+        addLog(`[${nodoActivo.nombre}] Recibido y Traducido: ${JSON.stringify(cleanPayload)}`, 'data');
+      }
+    };
+
+    channel.listen('.LecturaRecibida', handleReadingEvent);
+    channel.listen('LecturaRecibida', handleReadingEvent);
 
     return () => {
       channel.stopListening('.LecturaRecibida');
+      channel.stopListening('LecturaRecibida');
       echo.leaveChannel(channelName);
     };
   }, [nodoActivo]);
+
+
 
   // Filtrar lecturas recibidas según el contexto (Hoy en vivo vs Día de la última lectura si el nodo está desconectado y se activa showLastReadingOffline)
   const { targetHistory, targetDateLabel } = useMemo(() => {
@@ -1270,13 +1344,25 @@ export default function MonitorEnVivo() {
               <div key={idx} className={`monitor-kpi-card ${theme.class}`}>
                 <div className="kpi-card-header">
                   <div className="kpi-title-area">
-                    <div className="kpi-icon-wrapper">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                    <div className="kpi-icon-wrapper" style={{ width: '38px', height: '38px', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', border: '1px solid #cbd5e1' }}>
+                      {l.symbol_image || l.icono ? (
+                        <img
+                          src={formatImageUrl(l.symbol_image || l.icono)}
+                          alt="Símbolo"
+                          style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.style.display = 'none';
+                            if (e.target.nextSibling) e.target.nextSibling.style.display = 'block';
+                          }}
+                        />
+                      ) : null}
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20" style={{ display: (l.symbol_image || l.icono) ? 'none' : 'block' }}>
                         {theme.icon}
                       </svg>
                     </div>
                     <div className="kpi-title-text">
-                      <strong>{getMetricName(l)}</strong>
+                      <strong>{isEn ? (l.tipo_en || l.tipo) : (l.tipo_es || l.tipo)}</strong>
                       <span>{isDisplayingData ? (isConnected ? (isEn ? 'Current' : 'Actual') : (isEn ? 'Last Reading' : 'Última Lectura')) : (isEn ? 'Live Inactive' : 'En Vivo Inactivo')}</span>
                     </div>
                   </div>
@@ -1697,12 +1783,24 @@ export default function MonitorEnVivo() {
                     return (
                       <tr key={i}>
                         <td style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div className="kpi-icon-wrapper" style={{ width: '32px', height: '32px', background: theme.bg, color: theme.hex, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                          <div className="kpi-icon-wrapper" style={{ width: '32px', height: '32px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                            {l.symbol_image || l.icono ? (
+                              <img
+                                src={formatImageUrl(l.symbol_image || l.icono)}
+                                alt="Símbolo"
+                                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.style.display = 'none';
+                                  if (e.target.nextSibling) e.target.nextSibling.style.display = 'block';
+                                }}
+                              />
+                            ) : null}
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ display: (l.symbol_image || l.icono) ? 'none' : 'block' }}>
                               {theme.icon}
                             </svg>
                           </div>
-                          <span style={{ fontWeight: 700, color: '#0f172a' }}>{getMetricName(l)} ({l.unidad})</span>
+                          <span style={{ fontWeight: 700, color: '#0f172a' }}>{isEn ? (l.tipo_en || l.tipo) : (l.tipo_es || l.tipo)} ({l.unidad})</span>
                         </td>
                         <td style={{ color: theme.hex }}>{hasDataTarget && st?.promedio !== undefined ? st.promedio : '--'}</td>
                         <td style={{ color: theme.hex }}>{hasDataTarget && st?.max !== undefined ? st.max : '--'}</td>
@@ -1795,7 +1893,16 @@ export default function MonitorEnVivo() {
                       <th><div className="skeleton skeleton-text" style={{ width: '80px', margin: '0 auto' }}></div></th>
                     </>
                   ) : (
-                    nodoActivo?.lecturas?.map((l, i) => <th key={i}>{l.tipo} ({l.unidad})</th>)
+                    nodoActivo?.lecturas?.map((l, i) => (
+                      <th key={i}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          {l.symbol_image || l.icono ? (
+                            <img src={formatImageUrl(l.symbol_image || l.icono)} alt="Símbolo" style={{ width: '18px', height: '18px', objectFit: 'contain' }} />
+                          ) : null}
+                          <span>{isEn ? (l.tipo_en || l.tipo) : (l.tipo_es || l.tipo)} ({l.unidad})</span>
+                        </div>
+                      </th>
+                    ))
                   )}
                 </tr>
               </thead>

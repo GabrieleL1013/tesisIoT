@@ -17,6 +17,14 @@ export default function HistoricoAgregado() {
 
   usePageTitle({ es: 'Histórico Agregado', en: 'Aggregated History' }, 'Admin · IoT ULEAM');
 
+  const formatImageUrl = (url) => {
+    if (!url) return '/symbols/default.webp';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
+    if (url.startsWith('/symbols/')) return url;
+    const cleanPath = url.startsWith('/') ? url : `/${url}`;
+    return `${API_BASE_URL.replace(/\/api$/, '')}${cleanPath}`;
+  };
+
   const agrupacionOptionsDay = useMemo(() => [
     { value: '15', label: '15 min' },
     { value: '30', label: '30 min' },
@@ -892,7 +900,9 @@ export default function HistoricoAgregado() {
           minExact: minItem ? (minItem[`${l.data_type}_min_at`] || minItem[`${l.data_type}_max_at`]) : '',
           info: {
             tipo: l.label || l.tipo || 'Variable',
-            unidad: l.unit || l.unidad || ''
+            unidad: l.unit || l.unidad || '',
+            symbol_image: l.symbol_image,
+            icono: l.icono
           },
           theme: getTheme(l.data_type, l.icono, index)
         };
@@ -1667,10 +1677,16 @@ export default function HistoricoAgregado() {
               {Object.entries(kpis.variables).map(([key, stat]) => (
                 <div key={key} className="kpi-card-unified">
                   <div className="kpi-unified-header">
-                    <div className={`kpi-icon-box ${stat.theme.theme}`}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24">
-                        {stat.theme.icon}
-                      </svg>
+                    <div className={`kpi-icon-box ${stat.theme.theme}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px' }}>
+                      <img
+                        src={formatImageUrl(stat.info?.symbol_image || stat.info?.icono || '/symbols/default.webp')}
+                        alt={stat.info?.tipo || 'Métrica'}
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = '/symbols/default.webp';
+                        }}
+                        style={{ width: '28px', height: '28px', objectFit: 'contain' }}
+                      />
                     </div>
                     <div className="kpi-content">
                       <span className="kpi-label">{isEn ? `Average ${stat.info.tipo}` : `Promedio ${stat.info.tipo}`}</span>

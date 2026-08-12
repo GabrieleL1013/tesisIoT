@@ -7,7 +7,7 @@ if (typeof window !== 'undefined') {
 
 export const echo = new Echo({
   broadcaster: 'reverb',
-  key: import.meta.env.VITE_REVERB_APP_KEY || 'rc7n4lowtj8tna8o0eug',
+  key: import.meta.env.VITE_REVERB_APP_KEY || '',
   wsHost: import.meta.env.VITE_REVERB_HOST || (typeof window !== 'undefined' ? window.location.hostname : 'localhost'),
   wsPort: import.meta.env.VITE_REVERB_PORT || 8080,
   wssPort: import.meta.env.VITE_REVERB_PORT || 8080,
