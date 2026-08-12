@@ -365,7 +365,7 @@ const AdminLayout = () => {
       .catch(err => console.error("Error loading notifications:", err));
 
     // 2. Fetch System Alerts Latest
-    fetchWithAuth(`${API_BASE_URL}/node-alerts/latest`)
+    fetchWithAuth(`${API_BASE_URL}/node-alerts/latest?lang=${language}`)
       .then(res => res.json())
       .then(data => setAlertasSistema(Array.isArray(data) ? data : []))
       .catch(err => console.error("Error loading system alerts:", err));
@@ -573,26 +573,26 @@ const AdminLayout = () => {
                 {mostrarNotificaciones && (
                   <div className="admin-notif-dropdown" style={{ width: '380px' }}>
                     <div className="admin-notif-dropdown-header" style={{ paddingBottom: '0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <h4 style={{ padding: '0 16px' }}>Notificaciones</h4>
+                      <h4 style={{ padding: '0 16px' }}>{language === 'en' ? 'Notifications' : 'Notificaciones'}</h4>
                       <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0' }}>
                         <button
                           style={{ flex: 1, padding: '10px', background: 'none', border: 'none', borderBottom: activeNotifTab === 'sistema' ? '2px solid #2563eb' : '2px solid transparent', color: activeNotifTab === 'sistema' ? '#2563eb' : '#64748b', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer' }}
                           onClick={() => setActiveNotifTab('sistema')}
                         >
-                          Sistema {unseenSistemaCount > 0 && <span style={{ background: '#ef4444', color: 'white', padding: '2px 6px', borderRadius: '10px', fontSize: '0.7rem', marginLeft: '4px' }}>{unseenSistemaCount}</span>}
+                          {language === 'en' ? 'System' : 'Sistema'} {unseenSistemaCount > 0 && <span style={{ background: '#ef4444', color: 'white', padding: '2px 6px', borderRadius: '10px', fontSize: '0.7rem', marginLeft: '4px' }}>{unseenSistemaCount}</span>}
                         </button>
                         <button
                           style={{ flex: 1, padding: '10px', background: 'none', border: 'none', borderBottom: activeNotifTab === 'contacto' ? '2px solid #2563eb' : '2px solid transparent', color: activeNotifTab === 'contacto' ? '#2563eb' : '#64748b', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer' }}
                           onClick={() => setActiveNotifTab('contacto')}
                         >
-                          Contacto {unseenContactoCount > 0 && <span style={{ background: '#ef4444', color: 'white', padding: '2px 6px', borderRadius: '10px', fontSize: '0.7rem', marginLeft: '4px' }}>{unseenContactoCount}</span>}
+                          {language === 'en' ? 'Contact' : 'Contacto'} {unseenContactoCount > 0 && <span style={{ background: '#ef4444', color: 'white', padding: '2px 6px', borderRadius: '10px', fontSize: '0.7rem', marginLeft: '4px' }}>{unseenContactoCount}</span>}
                         </button>
                       </div>
                     </div>
                     <div className="admin-notif-dropdown-body" style={{ maxHeight: '350px' }}>
                       {activeNotifTab === 'contacto' ? (
                         notificaciones.length === 0 ? (
-                          <div className="admin-notif-empty">No hay mensajes recientes.</div>
+                          <div className="admin-notif-empty">{language === 'en' ? 'No recent messages.' : 'No hay mensajes recientes.'}</div>
                         ) : (
                           notificaciones.map((notif) => (
                             <div
@@ -613,7 +613,7 @@ const AdminLayout = () => {
                         )
                       ) : (
                         alertasSistema.length === 0 ? (
-                          <div className="admin-notif-empty">No hay alertas del sistema.</div>
+                          <div className="admin-notif-empty">{language === 'en' ? 'No system alerts.' : 'No hay alertas del sistema.'}</div>
                         ) : (
                           <>
                             {alertasSistema.map((alerta) => (
@@ -632,11 +632,16 @@ const AdminLayout = () => {
                                 </div>
                                 <div style={{ flex: 1 }}>
                                   <div className="admin-notif-item-title">
-                                    <span className="admin-notif-author" style={{ color: alerta.severity === 'critical' ? '#b91c1c' : '#b45309' }}>{alerta.title}</span>
+                                    <span className="admin-notif-author" style={{ color: alerta.severity === 'critical' ? '#b91c1c' : '#b45309' }}>
+                                      {language === 'en' ? (alerta.title_en || alerta.title) : (alerta.title_es || alerta.title)}
+                                    </span>
                                     <span className="admin-notif-date">{formatearFechaStr(alerta.created_at)}</span>
                                   </div>
                                   <p className="admin-notif-text" style={{ marginTop: '4px', fontSize: '0.75rem' }}>
-                                    {alerta.message.length > 70 ? `${alerta.message.substring(0, 70)}...` : alerta.message}
+                                    {(() => {
+                                      const msg = language === 'en' ? (alerta.message_en || alerta.message) : (alerta.message_es || alerta.message);
+                                      return msg.length > 70 ? `${msg.substring(0, 70)}...` : msg;
+                                    })()}
                                   </p>
                                 </div>
                               </div>

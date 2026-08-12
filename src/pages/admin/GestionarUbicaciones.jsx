@@ -1,5 +1,6 @@
 import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { useLanguage } from '../../context/LanguageContext';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -242,7 +243,7 @@ export default function GestionarUbicaciones() {
   // Fetch locations from PostgreSQL backend
   const cargarUbicaciones = (showLoader = false) => {
     if (showLoader) triggerContentLoading();
-    fetch(`${API_BASE_URL}/ubicaciones`)
+    fetchWithAuth(`${API_BASE_URL}/ubicaciones?lang=${language}`)
       .then(res => res.json())
       .then(data => {
         setUbicaciones(Array.isArray(data) ? data : []);
@@ -255,7 +256,7 @@ export default function GestionarUbicaciones() {
 
   useEffect(() => {
     cargarUbicaciones();
-  }, []);
+  }, [language]);
 
   // Alerta de cambios pendientes al intentar recargar o cerrar la página
   useEffect(() => {
@@ -494,7 +495,7 @@ export default function GestionarUbicaciones() {
 
     if (editandoId) {
       // API UPDATE (PUT)
-      fetchWithAuth(`${API_BASE_URL}/ubicaciones/${editandoId}`, {
+      fetchWithAuth(`${API_BASE_URL}/ubicaciones/${editandoId}?lang=${language}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -507,16 +508,14 @@ export default function GestionarUbicaciones() {
           triggerContentLoading();
           const list = ubicaciones.map(u => u.id === editandoId ? updatedItem : u);
           setUbicaciones(list);
-          setEditandoId(null);
-          setMostrarFormulario(false);
+          cerrarFormularioDirecto();
 
           Swal.fire({
             icon: 'success',
-            title: 'Ubicación Actualizada',
-            text: 'Los cambios se han guardado con éxito en la base de datos.',
+            title: isEn ? 'Location Updated' : 'Ubicación Actualizada',
+            text: isEn ? 'Changes have been saved successfully.' : 'Los cambios se han guardado con éxito en la base de datos.',
             confirmButtonColor: '#ff9f1c'
           });
-          limpiarFormulario();
         })
         .catch(err => {
           console.error("Error updating location:", err);
@@ -524,7 +523,7 @@ export default function GestionarUbicaciones() {
         });
     } else {
       // API CREATE (POST)
-      fetchWithAuth(`${API_BASE_URL}/ubicaciones`, {
+      fetchWithAuth(`${API_BASE_URL}/ubicaciones?lang=${language}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -537,15 +536,14 @@ export default function GestionarUbicaciones() {
           triggerContentLoading();
           const list = [...ubicaciones, newItem];
           setUbicaciones(list);
-          setMostrarFormulario(false);
+          cerrarFormularioDirecto();
 
           Swal.fire({
             icon: 'success',
-            title: 'Ubicación Registrada',
-            text: 'El nuevo punto de telemetría ha sido añadido con éxito.',
+            title: isEn ? 'Location Registered' : 'Ubicación Registrada',
+            text: isEn ? 'The new telemetry point has been added successfully.' : 'El nuevo punto de telemetría ha sido añadido con éxito.',
             confirmButtonColor: '#ff9f1c'
           });
-          limpiarFormulario();
         })
         .catch(err => {
           console.error("Error creating location:", err);
@@ -554,14 +552,56 @@ export default function GestionarUbicaciones() {
     }
   };
 
-  const cargarEdicion = (ubi) => {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Sincronización del estado de la vista con la URL (Historial del Navegador)
+  useEffect(() => {
+    const editarIdParam = searchParams.get('editar');
+    const accionParam = searchParams.get('accion');
+
+    if (editarIdParam) {
+      if (String(editandoId) !== String(editarIdParam) || !mostrarFormulario) {
+        const foundUbi = ubicaciones.find(u => String(u.id) === String(editarIdParam));
+        if (foundUbi) {
+          cargarEdicion(foundUbi, false);
+        } else if (ubicaciones.length > 0) {
+          fetchWithAuth(`${API_BASE_URL}/ubicaciones/${editarIdParam}?lang=${language}`)
+            .then(res => res.ok ? res.json() : null)
+            .then(freshUbi => {
+              if (freshUbi) cargarEdicion(freshUbi, false);
+            })
+            .catch(() => {});
+        }
+      }
+    } else if (accionParam === 'crear') {
+      if (!mostrarFormulario || editandoId !== null) {
+        setEditandoId(null);
+        setMostrarFormulario(true);
+      }
+    } else {
+      if (mostrarFormulario) {
+        setEditandoId(null);
+        setMostrarFormulario(false);
+      }
+    }
+  }, [searchParams, ubicaciones]);
+
+  const cargarEdicion = (ubi, updateUrl = true) => {
+    const isEn = language === 'en';
     setEditandoId(ubi.id);
-    setNombre(ubi.nombre);
-    setDescripcion(ubi.descripcion || '');
+    setNombre(isEn ? (ubi.nombre_en || ubi.nombre || '') : (ubi.nombre_es || ubi.nombre || ''));
+    setDescripcion(isEn ? (ubi.descripcion_en || ubi.descripcion || '') : (ubi.descripcion_es || ubi.descripcion || ''));
     setLatitud(ubi.latitud);
     setLongitud(ubi.longitud);
     setMostrarFormulario(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    if (updateUrl && ubi && ubi.id) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('accion');
+      newParams.set('editar', String(ubi.id));
+      setSearchParams(newParams);
+    }
   };
 
   const eliminarUbicacion = (id) => {
@@ -598,8 +638,7 @@ export default function GestionarUbicaciones() {
             });
 
             if (editandoId === id) {
-              limpiarFormulario();
-              setMostrarFormulario(false);
+              cerrarFormularioDirecto();
             }
           })
           .catch(err => {
@@ -624,9 +663,22 @@ export default function GestionarUbicaciones() {
     setBusquedaMapa('');
   };
 
+  const cerrarFormularioDirecto = () => {
+    limpiarFormulario();
+    setMostrarFormulario(false);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete('accion');
+    newParams.delete('editar');
+    setSearchParams(newParams);
+  };
+
   const abrirFormulario = () => {
     limpiarFormulario();
     setMostrarFormulario(true);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete('editar');
+    newParams.set('accion', 'crear');
+    setSearchParams(newParams);
   };
 
   const isEn = language === 'en';
@@ -646,13 +698,11 @@ export default function GestionarUbicaciones() {
         cancelButtonText: t("common.keep_editing", isEn ? "Keep editing" : "Seguir editando")
       }).then((result) => {
         if (result.isConfirmed) {
-          limpiarFormulario();
-          setMostrarFormulario(false);
+          cerrarFormularioDirecto();
         }
       });
     } else {
-      limpiarFormulario();
-      setMostrarFormulario(false);
+      cerrarFormularioDirecto();
     }
   };
 
@@ -995,13 +1045,16 @@ export default function GestionarUbicaciones() {
                 ) : ubicacionesFiltradas.length === 0 ? (
                   <tr><td colSpan="4" className="ubi-empty-cell">{t("locations.empty", "No se encontraron ubicaciones que coincidan con la búsqueda.")}</td></tr>
                 ) : (
-                  ubicacionesPaginadas.map((ubi, index) => (
-                    <tr key={ubi.id} className="ubi-row">
-                      <td className="ubi-idx">{startIndex + index + 1}</td>
-                      <td>
-                        <span className="ubi-name">{ubi.nombre}</span>
-                        <span className="ubi-desc">{ubi.descripcion || t("locations.no_desc", "Sin descripción adicional")}</span>
-                      </td>
+                  ubicacionesPaginadas.map((ubi, index) => {
+                    const displayName = isEn ? (ubi.nombre_en || ubi.nombre) : (ubi.nombre_es || ubi.nombre);
+                    const displayDesc = isEn ? (ubi.descripcion_en || ubi.descripcion) : (ubi.descripcion_es || ubi.descripcion);
+                    return (
+                      <tr key={ubi.id} className="ubi-row">
+                        <td className="ubi-idx">{startIndex + index + 1}</td>
+                        <td>
+                          <span className="ubi-name">{displayName}</span>
+                          <span className="ubi-desc">{displayDesc || t("locations.no_desc", "Sin descripción adicional")}</span>
+                        </td>
                       <td className="ubi-coords-cell">
                         <span className="ubi-coord-pill ubi-coord-pill-lat">Lat: {ubi.latitud}</span>
                         <span className="ubi-coord-pill ubi-coord-pill-lng">Lng: {ubi.longitud}</span>
@@ -1031,7 +1084,8 @@ export default function GestionarUbicaciones() {
                         </div>
                       </td>
                     </tr>
-                  ))
+                  );
+                })
                 )}
               </tbody>
             </table>

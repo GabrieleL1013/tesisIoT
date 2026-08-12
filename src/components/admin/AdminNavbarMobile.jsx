@@ -1,8 +1,57 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import logoImagen from '../../assets/LOGO.png';
 import { useLanguage } from '../../context/LanguageContext';
 import '../../styles/components/admin/AdminNavbarMobile.css';
+
+const getSidebarBadgeTitle = (pathname, language) => {
+  const isEn = language === 'en';
+  const cleanPath = (pathname || '').replace(/^\/(en|es)/, '');
+
+  switch (cleanPath) {
+    case '/admin/dashboard':
+      return isEn ? 'GENERAL DASHBOARD' : 'DASHBOARD GENERAL';
+    case '/admin/monitor-en-vivo':
+    case '/admin/live-monitor':
+      return isEn ? 'LIVE MONITOR' : 'MONITOR EN VIVO';
+    case '/admin/historico':
+    case '/admin/history':
+      return isEn ? 'AGGREGATED HISTORY' : 'HISTÓRICO AGREGADO';
+    case '/admin/nodos':
+    case '/admin/nodes':
+      return isEn ? 'MANAGE NODES' : 'GESTIONAR NODOS';
+    case '/admin/sensores':
+    case '/admin/sensors':
+      return isEn ? 'MANAGE SENSORS' : 'GESTIONAR SENSORES';
+    case '/admin/metricas':
+    case '/admin/metrics':
+      return isEn ? 'METRICS & UNITS' : 'MÉTRICAS Y UNIDADES';
+    case '/admin/categorias':
+    case '/admin/categories':
+      return isEn ? 'NODE CATEGORIES' : 'CATEGORÍAS DE NODOS';
+    case '/admin/ubicaciones':
+    case '/admin/locations':
+      return isEn ? 'LOCATIONS' : 'UBICACIONES';
+    case '/admin/usuarios':
+    case '/admin/users':
+      return isEn ? 'USERS' : 'USUARIOS';
+    case '/admin/roles':
+      return isEn ? 'ROLES' : 'ROLES';
+    case '/admin/interfaces':
+      return isEn ? 'PERMISSIONS' : 'PERMISOS';
+    case '/admin/noticias':
+    case '/admin/news':
+      return isEn ? 'NEWS' : 'NOTICIAS';
+    case '/admin/articulos':
+    case '/admin/articles':
+      return isEn ? 'ARTICLES' : 'ARTÍCULOS';
+    case '/admin/notificaciones':
+    case '/admin/notifications':
+      return isEn ? 'NOTIFICATIONS' : 'NOTIFICACIONES';
+    default:
+      return isEn ? 'GENERAL DASHBOARD' : 'DASHBOARD GENERAL';
+  }
+};
 
 const MenuIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="24" height="24">
@@ -38,6 +87,7 @@ const AdminNavbarMobile = ({
   const handleMenuClick = abrirMenu || toggleMenu;
   const { language, setLanguage } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
 
@@ -73,7 +123,7 @@ const AdminNavbarMobile = ({
         <div className="logo-admin-flex-mobile">
           <img src={logoImagen} alt="Uleam Logo" />
         </div>
-        <span className="role-badge-mobile">Panel Administrativo</span>
+        <span className="role-badge-mobile">{getSidebarBadgeTitle(location.pathname, language)}</span>
       </div>
 
       {/* Botón de perfil (derecha) */}

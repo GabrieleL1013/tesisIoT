@@ -1300,7 +1300,7 @@ export default function GestionarArticulos() {
                     <div className="pub-art-card-spine">
                       <div className="pub-art-card-spine-text-wrapper">
                         <div className="pub-art-card-spine-text">
-                          {art.revista || 'REPOSITORIO CIENTÍFICO ULEAM'}
+                          {art.revista || (isEn ? 'ULEAM SCIENTIFIC REPOSITORY' : 'REPOSITORIO CIENTÍFICO ULEAM')}
                         </div>
                       </div>
                       <div className="pub-art-card-spine-logo">
@@ -1316,11 +1316,11 @@ export default function GestionarArticulos() {
                       <div className="pub-art-card-badge-row">
                         {art.tipo_registro === 'PDF' ? (
                           <span className="pub-art-card-badge pdf-badge">
-                            Enlace Externo
+                            {isEn ? 'External Link' : 'Enlace Externo'}
                           </span>
                         ) : (
                           <span className="pub-art-card-badge internal-badge">
-                            Lectura Digital
+                            {isEn ? 'Digital Reading' : 'Lectura Digital'}
                           </span>
                         )}
                       </div>
@@ -1328,17 +1328,18 @@ export default function GestionarArticulos() {
                       <h3 className="pub-art-card-title" style={{ fontSize: '1rem' }}>{art.titulo}</h3>
 
                       <div className="pub-art-card-prepared-by" style={{ margin: '0.5rem 0' }}>
-                        <div className="pub-art-prepared-label">Preparado por:</div>
+                        <div className="pub-art-prepared-label">{isEn ? 'Prepared by:' : 'Preparado por:'}</div>
                         <div className="pub-art-card-authors-text" style={{ fontSize: '0.78rem' }}>{art.autores}</div>
-                        <div className="pub-art-card-revista-text" style={{ fontSize: '0.68rem' }}>{art.revista || 'Facultad de Ciencias Informáticas (FACCI)'}</div>
+                        <div className="pub-art-card-revista-text" style={{ fontSize: '0.68rem' }}>{art.revista || (isEn ? 'Faculty of Computer Science (FACCI)' : 'Facultad de Ciencias Informáticas (FACCI)')}</div>
                         <div className="pub-art-card-date-text" style={{ fontSize: '0.68rem' }}>
-                          Publicado: {art.created_at ? new Date(art.created_at).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Reciente'}
+                          {isEn ? 'Published: ' : 'Publicado: '}
+                          {art.created_at ? new Date(art.created_at).toLocaleDateString(isEn ? 'en-US' : 'es-ES', { year: 'numeric', month: 'long', day: 'numeric' }) : (isEn ? 'Recent' : 'Reciente')}
                         </div>
                       </div>
 
                       <div className="pub-art-card-footer" style={{ borderTop: 'none', paddingTop: 0 }}>
                         <span className={`art-card-status-badge ${art.estado === 'Publicado' ? 'status-published' : 'status-draft'}`}>
-                          {art.estado === 'Publicado' ? t("manage_articles.status_published", "Publicado") : t("manage_articles.status_draft", "Borrador")}
+                          {art.estado === 'Publicado' ? (isEn ? 'Published' : t("manage_articles.status_published", "Publicado")) : (isEn ? 'Draft' : t("manage_articles.status_draft", "Borrador"))}
                         </span>
 
                         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>

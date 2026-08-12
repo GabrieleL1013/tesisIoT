@@ -1136,6 +1136,64 @@ export default function Dashboard() {
 
   }, [currentTelemetryNode?.serial_number, selectedDate, liveMode, lecturasTypesKey]);
 
+  // Polling continuo en tiempo real cuando el modo en vivo (reloj) está activo
+  useEffect(() => {
+    if (!liveMode || !currentTelemetryNode || selectedDate !== todayDateStr) return;
+
+    const serial = currentTelemetryNode.serial_number;
+    const allSelections = (currentTelemetryNode.lecturas || []).map(l => ({
+      serial_number: serial,
+      nombre_nodo: currentTelemetryNode.nombre,
+      clave_mqtt: l.data_type,
+      nombre_var: l.tipo,
+      unidad: l.unidad
+    }));
+
+    const fetchLiveHistoryBuffer = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/lecturas/recientes?serial_number=${serial}&live=1&limit=15`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const formattedPoints = data.map(item => formatTelemetryItemToPoint(item, allSelections));
+          setLiveData(prev => {
+            const existingMap = new Map();
+            (prev || []).forEach(p => { if (p.time || p.fullDateTime) existingMap.set(p.fullDateTime || p.time, p); });
+            formattedPoints.forEach(p => {
+              const k = p.fullDateTime || p.time;
+              if (k) {
+                const existing = existingMap.get(k) || {};
+                existingMap.set(k, { ...existing, ...p });
+              }
+            });
+            const mergedArr = Array.from(existingMap.values()).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+            return mergedArr.slice(-15);
+          });
+
+          setAllVarsLiveData(prev => {
+            const existingMap = new Map();
+            (prev || []).forEach(p => { if (p.time || p.fullDateTime) existingMap.set(p.fullDateTime || p.time, p); });
+            formattedPoints.forEach(p => {
+              const k = p.fullDateTime || p.time;
+              if (k) {
+                const existing = existingMap.get(k) || {};
+                existingMap.set(k, { ...existing, ...p });
+              }
+            });
+            const mergedArr = Array.from(existingMap.values()).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+            return mergedArr.slice(-30);
+          });
+        }
+      } catch (e) {
+        // Fallback silencioso
+      }
+    };
+
+    fetchLiveHistoryBuffer();
+    const liveInterval = setInterval(fetchLiveHistoryBuffer, 3000);
+    return () => clearInterval(liveInterval);
+  }, [liveMode, currentTelemetryNode?.serial_number, selectedDate, todayDateStr, lecturasTypesKey]);
+
   // WebSockets para Telemetría en Vivo: Suscripción ÚNICA sin duplicaciones
   useEffect(() => {
     if (appliedSelections.length === 0 || selectedDate !== todayDateStr) return;
@@ -1146,7 +1204,8 @@ export default function Dashboard() {
     let channel;
     try {
       channel = echo.channel(`telemetry.${serial}`);
-      channel.listen('.LecturaRecibida', (e) => {
+
+      const handleEvent = (e) => {
         const newData = e.data || e;
         if (!newData) return;
 
@@ -1157,14 +1216,12 @@ export default function Dashboard() {
             if (!prev || prev.length === 0) return [pt];
             const last = prev[prev.length - 1];
 
-            // Si la última lectura tiene la misma hora/fecha, se fusionan los datos
             if ((pt.fullDateTime && last.fullDateTime === pt.fullDateTime) || (pt.time && last.time === pt.time)) {
               const updated = [...prev];
               updated[updated.length - 1] = { ...last, ...pt };
               return updated;
             }
 
-            // Evitar duplicados comprobando si ya existe en cualquier punto del historial
             const existingIdx = prev.findIndex(item =>
               (pt.fullDateTime && item.fullDateTime === pt.fullDateTime) ||
               (pt.time && item.time === pt.time)
@@ -1214,7 +1271,10 @@ export default function Dashboard() {
             return next.length > 30 ? next.slice(-30) : next;
           });
         }
-      });
+      };
+
+      channel.listen('.LecturaRecibida', handleEvent);
+      channel.listen('LecturaRecibida', handleEvent);
     } catch (err) {
       console.warn("WebSocket channel error in Dashboard:", err);
     }
@@ -1222,6 +1282,7 @@ export default function Dashboard() {
     return () => {
       if (channel) {
         channel.stopListening('.LecturaRecibida');
+        channel.stopListening('LecturaRecibida');
         try { echo.leaveChannel(`telemetry.${serial}`); } catch (_) {}
       }
     };

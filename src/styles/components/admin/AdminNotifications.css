@@ -89,8 +89,9 @@
 }
 
 .admin-notif-dropdown-body {
-  max-height: 320px;
+  max-height: 350px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .admin-notif-empty {
@@ -109,6 +110,11 @@
   transition: background-color 0.2s ease;
   position: relative;
   text-align: left;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .admin-notif-item:last-child {
@@ -170,9 +176,9 @@
   color: #64748b;
   line-height: 1.45;
   margin: 0;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 

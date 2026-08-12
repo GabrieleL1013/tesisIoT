@@ -152,7 +152,7 @@ export default function RegistrarNodo() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(9);
 
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const categoriaFiltro = searchParams.get('categoria');
   const navigate = useNavigate();
   const isEn = language === 'en';
@@ -180,6 +180,278 @@ export default function RegistrarNodo() {
   const [isCatDropdownOpen, setIsCatDropdownOpen] = useState(false);
   const [isFrecDropdownOpen, setIsFrecDropdownOpen] = useState(false);
   const [isAlertIntervalDropdownOpen, setIsAlertIntervalDropdownOpen] = useState(false);
+
+  // Estados para Modales Inline de Creación (Ubicación y Categoría)
+  const [showModalUbicacion, setShowModalUbicacion] = useState(false);
+  const [newUbiNombre, setNewUbiNombre] = useState('');
+  const [newUbiLatitud, setNewUbiLatitud] = useState('-0.953760');
+  const [newUbiLongitud, setNewUbiLongitud] = useState('-80.744570');
+  const [newUbiDescripcion, setNewUbiDescripcion] = useState('');
+  const [newUbiGoogleLink, setNewUbiGoogleLink] = useState('');
+  const [savingUbi, setSavingUbi] = useState(false);
+
+  const [showModalCategoria, setShowModalCategoria] = useState(false);
+  const [newCatNombre, setNewCatNombre] = useState('');
+  const [newCatColor, setNewCatColor] = useState('#2563eb');
+  const [savingCat, setSavingCat] = useState(false);
+
+  const extractCoordinatesFromText = (text) => {
+    if (!text || typeof text !== 'string') return null;
+    const str = text.trim();
+    const atMatch = str.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (atMatch) return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
+    const queryMatch = str.match(/(?:q=|query=|place\/)(-?\d+\.\d+),(?:%20|\s)?(-?\d+\.\d+)/i);
+    if (queryMatch) return { lat: parseFloat(queryMatch[1]), lng: parseFloat(queryMatch[2]) };
+    const rawCoordMatch = str.match(/^@?(-?\d+\.\d+)(?:,\s*|\s+)(-?\d+\.\d+)$/);
+    if (rawCoordMatch) return { lat: parseFloat(rawCoordMatch[1]), lng: parseFloat(rawCoordMatch[2]) };
+    return null;
+  };
+
+  const handleCargarLinkGoogleMapsInline = () => {
+    if (!newUbiGoogleLink.trim()) return;
+    const coords = extractCoordinatesFromText(newUbiGoogleLink);
+    if (coords) {
+      setNewUbiLatitud(coords.lat.toFixed(6));
+      setNewUbiLongitud(coords.lng.toFixed(6));
+      Swal.fire({
+        icon: 'success',
+        title: isEn ? 'Link Loaded' : 'Enlace Cargado',
+        text: `Lat: ${coords.lat.toFixed(6)}, Lng: ${coords.lng.toFixed(6)}`,
+        timer: 1800,
+        showConfirmButton: false
+      });
+    } else {
+      Swal.fire({
+        icon: 'warning',
+        title: isEn ? 'Invalid Link' : 'Enlace No Válido',
+        text: isEn ? 'Please paste a valid Google Maps URL or coordinates.' : 'Por favor, pega un enlace válido de Google Maps.',
+        confirmButtonColor: '#2563eb'
+      });
+    }
+  };
+
+  // Leaflet map initializer for inline location creation modal
+  useEffect(() => {
+    if (!showModalUbicacion) {
+      if (window.leafletInlineModalMap) {
+        window.leafletInlineModalMap.remove();
+        window.leafletInlineModalMap = null;
+      }
+      return;
+    }
+
+    if (!document.getElementById('leaflet-css')) {
+      const link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
+    const initInlineMap = () => {
+      if (window.leafletInlineModalMap) {
+        window.leafletInlineModalMap.remove();
+        window.leafletInlineModalMap = null;
+      }
+
+      const initialLat = parseFloat(newUbiLatitud) || -0.9517;
+      const initialLng = parseFloat(newUbiLongitud) || -80.7476;
+
+      const container = document.getElementById('leaflet-modal-map-inline');
+      if (!container) return;
+
+      const map = window.L.map(container).setView([initialLat, initialLng], 15);
+      window.leafletInlineModalMap = map;
+
+      window.L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+        attribution: '&copy; Google Maps',
+        maxZoom: 20
+      }).addTo(map);
+
+      const mapPinIcon = window.L.divIcon({
+        html: `
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32" style="filter: drop-shadow(0 3px 6px rgba(0,0,0,0.4));">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" fill="#ef4444" stroke="#ffffff" stroke-width="1.5"/>
+            <circle cx="12" cy="10" r="3" fill="#ffffff"/>
+          </svg>
+        `,
+        className: 'custom-map-pin-icon',
+        iconSize: [32, 32],
+        iconAnchor: [16, 32]
+      });
+
+      const marker = window.L.marker([initialLat, initialLng], {
+        icon: mapPinIcon,
+        draggable: true
+      }).addTo(map);
+
+      marker.on('dragend', function () {
+        const pos = marker.getLatLng();
+        setNewUbiLatitud(pos.lat.toFixed(6));
+        setNewUbiLongitud(pos.lng.toFixed(6));
+      });
+
+      map.on('click', function (e) {
+        const pos = e.latlng;
+        marker.setLatLng(pos);
+        setNewUbiLatitud(pos.lat.toFixed(6));
+        setNewUbiLongitud(pos.lng.toFixed(6));
+      });
+    };
+
+    if (!window.L) {
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.async = true;
+      script.onload = () => initInlineMap();
+      document.body.appendChild(script);
+    } else {
+      const timer = setTimeout(() => initInlineMap(), 150);
+      return () => clearTimeout(timer);
+    }
+
+    return () => {
+      if (window.leafletInlineModalMap) {
+        window.leafletInlineModalMap.remove();
+        window.leafletInlineModalMap = null;
+      }
+    };
+  }, [showModalUbicacion]);
+
+  // Sync inline map when lat/lng inputs change manually
+  useEffect(() => {
+    if (window.leafletInlineModalMap && showModalUbicacion) {
+      const lat = parseFloat(newUbiLatitud);
+      const lng = parseFloat(newUbiLongitud);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        window.leafletInlineModalMap.setView([lat, lng]);
+        window.leafletInlineModalMap.eachLayer((layer) => {
+          if (layer instanceof window.L.Marker) {
+            layer.setLatLng([lat, lng]);
+          }
+        });
+      }
+    }
+  }, [newUbiLatitud, newUbiLongitud, showModalUbicacion]);
+
+  const handleCrearUbicacionInline = (e) => {
+    e.preventDefault();
+    if (!newUbiNombre.trim()) {
+      Swal.fire({
+        icon: 'warning',
+        title: isEn ? 'Required Field' : 'Campo Requerido',
+        text: isEn ? 'Please enter a location name.' : 'Por favor ingresa un nombre para la ubicación.',
+        confirmButtonColor: '#2563eb'
+      });
+      return;
+    }
+
+    setSavingUbi(true);
+    const payload = {
+      nombre: newUbiNombre.trim(),
+      latitud: parseFloat(newUbiLatitud) || -0.953760,
+      longitud: parseFloat(newUbiLongitud) || -80.744570,
+      descripcion: newUbiDescripcion.trim()
+    };
+
+    fetchWithAuth(`${API_BASE_URL}/ubicaciones?lang=${language}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Error creating location');
+        return res.json();
+      })
+      .then(newItem => {
+        triggerContentLoading();
+        setUbicaciones(prev => [...prev, newItem]);
+        setUbicacionId(String(newItem.id));
+        setShowModalUbicacion(false);
+        setNewUbiNombre('');
+        setNewUbiDescripcion('');
+        setNewUbiGoogleLink('');
+        Swal.fire({
+          icon: 'success',
+          title: isEn ? 'Location Created!' : '¡Ubicación Creada!',
+          text: isEn ? 'The new location was created and selected.' : 'La ubicación fue creada y seleccionada automáticamente.',
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 2500
+        });
+      })
+      .catch(err => {
+        console.error('Error creating location inline:', err);
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: isEn ? 'Could not create location.' : 'No se pudo crear la ubicación.',
+          confirmButtonColor: '#2563eb'
+        });
+      })
+      .finally(() => {
+        setSavingUbi(false);
+      });
+  };
+
+  const handleCrearCategoriaInline = (e) => {
+    e.preventDefault();
+    if (!newCatNombre.trim()) {
+      Swal.fire({
+        icon: 'warning',
+        title: isEn ? 'Required Field' : 'Campo Requerido',
+        text: isEn ? 'Please enter a category name.' : 'Por favor ingresa un nombre para la categoría.',
+        confirmButtonColor: '#2563eb'
+      });
+      return;
+    }
+
+    setSavingCat(true);
+    const payload = {
+      nombre: newCatNombre.trim(),
+      color: newCatColor,
+      colorHex: newCatColor
+    };
+
+    fetchWithAuth(`${API_BASE_URL}/categorias`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Error creating category');
+        return res.json();
+      })
+      .then(newItem => {
+        triggerContentLoading();
+        setCategorias(prev => [...prev, newItem]);
+        setCategoria(newItem.nombre);
+        setShowModalCategoria(false);
+        setNewCatNombre('');
+        Swal.fire({
+          icon: 'success',
+          title: isEn ? 'Category Created!' : '¡Categoría Creada!',
+          text: isEn ? 'The new category was created and selected.' : 'La categoría fue creada y seleccionada automáticamente.',
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 2500
+        });
+      })
+      .catch(err => {
+        console.error('Error creating category inline:', err);
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: isEn ? 'Could not create category.' : 'No se pudo crear la categoría.',
+          confirmButtonColor: '#2563eb'
+        });
+      })
+      .finally(() => {
+        setSavingCat(false);
+      });
+  };
 
   // Estados de Terminal de Verificación
   const [showTerminal, setShowTerminal] = useState(false);
@@ -570,6 +842,39 @@ export default function RegistrarNodo() {
     });
   }, [categoriaFiltro, language]);
 
+  // Sincronización del estado de la vista con la URL (Historial del Navegador)
+  useEffect(() => {
+    if (loadingNodos) return;
+    const editarIdParam = searchParams.get('editar');
+    const accionParam = searchParams.get('accion');
+
+    if (editarIdParam) {
+      if (String(editandoId) !== String(editarIdParam) || !mostrarFormulario) {
+        const foundNode = nodosRegistrados.find(n => String(n.id) === String(editarIdParam));
+        if (foundNode) {
+          cargarEdicion(foundNode, false);
+        } else {
+          fetchWithAuth(`${API_BASE_URL}/nodos/${editarIdParam}?include_credentials=true&lang=${language}`)
+            .then(res => res.ok ? res.json() : null)
+            .then(freshNodo => {
+              if (freshNodo && freshNodo.id) cargarEdicion(freshNodo, false);
+            })
+            .catch(() => {});
+        }
+      }
+    } else if (accionParam === 'crear') {
+      if (!mostrarFormulario || editandoId !== null) {
+        setEditandoId(null);
+        setMostrarFormulario(true);
+      }
+    } else {
+      if (mostrarFormulario) {
+        setEditandoId(null);
+        setMostrarFormulario(false);
+      }
+    }
+  }, [searchParams, loadingNodos]);
+
   // Alerta de cambios pendientes al intentar recargar o cerrar la página
   useEffect(() => {
     const handleBeforeUnload = (e) => {
@@ -750,14 +1055,25 @@ export default function RegistrarNodo() {
     const existingSensor = sensorsList.find(s => String(s.id) === String(sensorObj.id) || s.name.toLowerCase() === (sensorObj.name || sensorObj.label || '').toLowerCase());
 
     const cardMetrics = (existingSensor?.metrics || []).map(m => {
-      const stdKeyObj = (m.json_keys || m.jsonKeys || []).find(k => k.is_standard) || (m.json_keys || m.jsonKeys || [])[0];
+      const metricInList = metricsList.find(ml => String(ml.id) === String(m.id)) || m;
+      const units = metricInList.units || m.units || [];
+      const firstUnit = units.find(u => u.unit === m.unit) || units[0] || null;
+      const keys = firstUnit ? (firstUnit.json_keys || []) : (m.json_keys || m.jsonKeys || []);
+      const stdKeyObj = keys.find(k => k.is_standard) || keys[0];
+
       return {
         metric_id: m.id,
-        name: m.name,
-        unit: m.unit || '',
+        name: language === 'en' ? (m.name_en || m.name) : m.name,
+        name_es: m.name,
+        name_en: m.name_en || m.name,
+        unit: firstUnit ? firstUnit.unit : (m.unit || ''),
+        selected_unit_id: firstUnit ? firstUnit.id : null,
+        min_expected: firstUnit && firstUnit.min_expected !== null && firstUnit.min_expected !== undefined ? String(firstUnit.min_expected) : (m.min_expected !== null && m.min_expected !== undefined ? String(m.min_expected) : ''),
+        max_expected: firstUnit && firstUnit.max_expected !== null && firstUnit.max_expected !== undefined ? String(firstUnit.max_expected) : (m.max_expected !== null && m.max_expected !== undefined ? String(m.max_expected) : ''),
         symbol_image: m.symbol_image || '/symbols/default.webp',
-        json_key: stdKeyObj ? stdKeyObj.key_name : (m.name ? m.name.toLowerCase() : ''),
-        available_keys: m.json_keys || m.jsonKeys || []
+        json_key: stdKeyObj ? (typeof stdKeyObj === 'string' ? stdKeyObj : stdKeyObj.key_name) : (m.json_key || ''),
+        available_units: units,
+        available_keys: keys
       };
     });
 
@@ -844,7 +1160,6 @@ export default function RegistrarNodo() {
 
   const handleSelectMetricForRow = (cardIdx, metricIdx, metricObj) => {
     const rawName = typeof metricObj === 'string' ? metricObj : (metricObj.name || metricObj.label || '');
-    // Look up by ID first (most reliable), then by name or name_en
     const selected = metricsList.find(m =>
       (metricObj.id && String(m.id) === String(metricObj.id)) ||
       m.name.toLowerCase() === rawName.toLowerCase() ||
@@ -852,9 +1167,10 @@ export default function RegistrarNodo() {
     );
 
     if (selected) {
-      const keys = selected.json_keys || selected.jsonKeys || [];
+      const units = selected.units || [];
+      const firstUnit = units[0] || null;
+      const keys = firstUnit ? (firstUnit.json_keys || []) : (selected.json_keys || []);
       const stdKeyObj = keys.find(k => k.is_standard) || keys[0];
-      // Display localized metric name based on current language
       const displayName = language === 'en' ? (selected.name_en || selected.name) : selected.name;
 
       setSensorCards(prev => {
@@ -865,11 +1181,12 @@ export default function RegistrarNodo() {
           name: displayName,
           name_es: selected.name,
           name_en: selected.name_en || selected.name,
-          unit: selected.unit || '',
+          unit: firstUnit ? firstUnit.unit : (selected.unit || ''),
           symbol_image: selected.symbol_image || '/symbols/default.webp',
-          min_expected: selected.min_expected !== null && selected.min_expected !== undefined ? String(selected.min_expected) : (next[cardIdx].metrics[metricIdx].min_expected || ''),
-          max_expected: selected.max_expected !== null && selected.max_expected !== undefined ? String(selected.max_expected) : (next[cardIdx].metrics[metricIdx].max_expected || ''),
-          json_key: stdKeyObj ? stdKeyObj.key_name : (next[cardIdx].metrics[metricIdx].json_key || ''),
+          min_expected: firstUnit && firstUnit.min_expected !== null && firstUnit.min_expected !== undefined ? String(firstUnit.min_expected) : (selected.min_expected !== null && selected.min_expected !== undefined ? String(selected.min_expected) : ''),
+          max_expected: firstUnit && firstUnit.max_expected !== null && firstUnit.max_expected !== undefined ? String(firstUnit.max_expected) : (selected.max_expected !== null && selected.max_expected !== undefined ? String(selected.max_expected) : ''),
+          json_key: stdKeyObj ? (typeof stdKeyObj === 'string' ? stdKeyObj : stdKeyObj.key_name) : '',
+          available_units: units,
           available_keys: keys
         };
         return next;
@@ -887,7 +1204,6 @@ export default function RegistrarNodo() {
             setMetricsList(prev => [...prev, createdMetric]);
             const displayName = language === 'en' ? (createdMetric.name_en || createdMetric.name) : createdMetric.name;
 
-            // New metric: clear json_key, unit and symbol_image so user must define them
             setSensorCards(prev => {
               const next = JSON.parse(JSON.stringify(prev));
               next[cardIdx].metrics[metricIdx] = {
@@ -899,6 +1215,7 @@ export default function RegistrarNodo() {
                 unit: '',
                 symbol_image: '/symbols/default.webp',
                 json_key: '',
+                available_units: [],
                 available_keys: []
               };
               return next;
@@ -906,7 +1223,6 @@ export default function RegistrarNodo() {
           }
         })
         .catch(() => {
-          // Even on error: set name but leave json_key/unit/image blank for user to fill
           setSensorCards(prev => {
             const next = JSON.parse(JSON.stringify(prev));
             next[cardIdx].metrics[metricIdx] = {
@@ -915,12 +1231,36 @@ export default function RegistrarNodo() {
               metric_id: null,
               json_key: '',
               unit: '',
+              available_units: [],
               available_keys: []
             };
             return next;
           });
         });
     }
+  };
+
+  const handleSelectUnitForRow = (cardIdx, metricIdx, selectedUnitSymbol) => {
+    setSensorCards(prev => {
+      const next = JSON.parse(JSON.stringify(prev));
+      const metricRow = next[cardIdx].metrics[metricIdx];
+      const availableUnits = metricRow.available_units || [];
+      const matchedUnit = availableUnits.find(u => u.unit === selectedUnitSymbol);
+
+      if (matchedUnit) {
+        const keys = matchedUnit.json_keys || [];
+        const stdKeyObj = keys.find(k => k.is_standard) || keys[0];
+
+        metricRow.unit = matchedUnit.unit;
+        metricRow.min_expected = matchedUnit.min_expected !== null && matchedUnit.min_expected !== undefined ? String(matchedUnit.min_expected) : '';
+        metricRow.max_expected = matchedUnit.max_expected !== null && matchedUnit.max_expected !== undefined ? String(matchedUnit.max_expected) : '';
+        metricRow.json_key = stdKeyObj ? (typeof stdKeyObj === 'string' ? stdKeyObj : stdKeyObj.key_name) : metricRow.json_key;
+        metricRow.available_keys = keys;
+      } else {
+        metricRow.unit = selectedUnitSymbol;
+      }
+      return next;
+    });
   };
 
   const handleCreateJsonKey = (cardIdx, metricIdx, newKeyName) => {
@@ -937,6 +1277,7 @@ export default function RegistrarNodo() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           metric_id: metricRow.metric_id,
+          metric_unit_id: metricRow.selected_unit_id || null,
           key_name: cleanKey,
           is_standard: false
         })
@@ -1142,7 +1483,13 @@ export default function RegistrarNodo() {
   };
 
 
-  const cargarEdicion = (nodo) => {
+  const cargarEdicion = (nodo, updateUrl = true) => {
+    if (updateUrl && nodo && nodo.id) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('accion');
+      newParams.set('editar', String(nodo.id));
+      setSearchParams(newParams);
+    }
     // Fetch fresh individual node data with full relations and credentials
     fetchWithAuth(`${API_BASE_URL}/nodos/${nodo.id}?include_credentials=true&lang=${language}`)
       .then(res => res.ok ? res.json() : Promise.reject(res))
@@ -1177,21 +1524,31 @@ export default function RegistrarNodo() {
             brand: card.brand || '',
             description: card.description || '',
             metrics: (card.metrics || []).map(m => {
-              // Enrich available_keys from metricsList if not provided by backend
-              const metricInList = metricsList.find(ml => String(ml.id) === String(m.metric_id));
-              const keysFromList = metricInList ? (metricInList.json_keys || metricInList.jsonKeys || []) : [];
+              const metricInList = metricsList.find(ml =>
+                (m.metric_id && String(ml.id) === String(m.metric_id)) ||
+                (m.name && ml.name.toLowerCase() === m.name.toLowerCase())
+              );
+              const units = (m.available_units && m.available_units.length > 0)
+                ? m.available_units
+                : (metricInList ? (metricInList.units || []) : (m.units || []));
+
+              const matchedUnit = units.find(u => u.unit === m.unit) || units[0] || null;
+              const unitKeys = matchedUnit ? (matchedUnit.json_keys || []) : [];
               const backendKeys = m.available_keys || [];
-              const mergedKeys = backendKeys.length > 0 ? backendKeys : keysFromList;
+              const mergedKeys = backendKeys.length > 0 ? backendKeys : (metricInList ? (metricInList.json_keys || metricInList.jsonKeys || []) : unitKeys);
+
               return {
-                metric_id: m.metric_id || null,
-                name: m.name || '',
-                name_es: m.name_es || m.name || '',
-                name_en: m.name_en || m.name || '',
-                unit: m.unit || '',
-                symbol_image: m.symbol_image || '/symbols/default.webp',
+                metric_id: m.metric_id || (metricInList ? metricInList.id : null),
+                name: m.name || (metricInList ? (isEn ? (metricInList.name_en || metricInList.name) : metricInList.name) : ''),
+                name_es: m.name_es || m.name || (metricInList ? metricInList.name : ''),
+                name_en: m.name_en || m.name || (metricInList ? (metricInList.name_en || metricInList.name) : ''),
+                unit: m.unit || (matchedUnit ? matchedUnit.unit : ''),
+                selected_unit_id: matchedUnit ? matchedUnit.id : null,
+                symbol_image: m.symbol_image || (metricInList ? metricInList.symbol_image : '/symbols/default.webp') || '/symbols/default.webp',
                 json_key: m.json_key || '',
-                min_expected: m.min_expected !== null && m.min_expected !== undefined ? String(m.min_expected) : '',
-                max_expected: m.max_expected !== null && m.max_expected !== undefined ? String(m.max_expected) : '',
+                min_expected: m.min_expected !== null && m.min_expected !== undefined ? String(m.min_expected) : (matchedUnit && matchedUnit.min_expected !== null ? String(matchedUnit.min_expected) : ''),
+                max_expected: m.max_expected !== null && m.max_expected !== undefined ? String(m.max_expected) : (matchedUnit && matchedUnit.max_expected !== null ? String(matchedUnit.max_expected) : ''),
+                available_units: units,
                 available_keys: mergedKeys
               };
             })
@@ -1209,14 +1566,24 @@ export default function RegistrarNodo() {
                 metrics: []
               };
             }
-            const metricInList = metricsList.find(ml => String(ml.id) === String(l.metric_id));
-            const keysFromList = metricInList ? (metricInList.json_keys || metricInList.jsonKeys || []) : [];
+            const metricInList = metricsList.find(ml =>
+              (l.metric_id && String(ml.id) === String(l.metric_id)) ||
+              (l.tipo && ml.name.toLowerCase() === l.tipo.toLowerCase())
+            );
+            const units = metricInList ? (metricInList.units || []) : [];
+            const matchedUnit = units.find(u => u.unit === l.unidad) || units[0] || null;
+            const keysFromList = matchedUnit ? (matchedUnit.json_keys || []) : (metricInList ? (metricInList.json_keys || metricInList.jsonKeys || []) : []);
+
             cardsMap[sName].metrics.push({
-              metric_id: l.metric_id || null,
-              name: l.tipo || '',
-              unit: l.unidad || '',
-              symbol_image: l.symbol_image || l.icono || '/symbols/default.webp',
+              metric_id: l.metric_id || (metricInList ? metricInList.id : null),
+              name: l.tipo || (metricInList ? metricInList.name : ''),
+              unit: l.unidad || (matchedUnit ? matchedUnit.unit : ''),
+              selected_unit_id: matchedUnit ? matchedUnit.id : null,
+              symbol_image: l.symbol_image || l.icono || (metricInList ? metricInList.symbol_image : '/symbols/default.webp'),
               json_key: l.data_type || '',
+              min_expected: l.min_expected !== null && l.min_expected !== undefined ? String(l.min_expected) : '',
+              max_expected: l.max_expected !== null && l.max_expected !== undefined ? String(l.max_expected) : '',
+              available_units: units,
               available_keys: keysFromList
             });
           });
@@ -1451,14 +1818,21 @@ export default function RegistrarNodo() {
         cancelButtonText: t("common.keep_editing", isEn ? "Keep editing" : "Seguir editando")
       }).then((result) => {
         if (result.isConfirmed) {
-          limpiarFormulario();
-          setMostrarFormulario(false);
+          cerrarFormulario();
         }
       });
     } else {
-      limpiarFormulario();
-      setMostrarFormulario(false);
+      cerrarFormulario();
     }
+  };
+
+  const cerrarFormulario = () => {
+    limpiarFormulario();
+    setMostrarFormulario(false);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete('accion');
+    newParams.delete('editar');
+    setSearchParams(newParams);
   };
 
   const abrirCreacion = () => {
@@ -1467,6 +1841,10 @@ export default function RegistrarNodo() {
       setCategoria(categoriaFiltro);
     }
     setMostrarFormulario(true);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete('editar');
+    newParams.set('accion', 'crear');
+    setSearchParams(newParams);
   };
 
   // Helper to construct dynamic button text
@@ -1696,7 +2074,7 @@ export default function RegistrarNodo() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => navigate(`/${language}/admin/${isEn ? 'locations' : 'ubicaciones'}`)}
+                    onClick={() => setShowModalUbicacion(true)}
                     className="btn-add-inline"
                     title={isEn ? "Add new location" : "Añadir nueva ubicación"}
                   >
@@ -1740,7 +2118,7 @@ export default function RegistrarNodo() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => navigate(`/${language}/admin/${isEn ? 'categories' : 'categorias'}`)}
+                    onClick={() => setShowModalCategoria(true)}
                     className="btn-add-inline"
                     title={isEn ? "Add new category" : "Añadir nueva categoría"}
                   >
@@ -2062,7 +2440,7 @@ export default function RegistrarNodo() {
                       ) : (
                         card.metrics.map((metric, mIdx) => (
                           <div key={mIdx} className="metric-row" style={{ borderLeftColor: '#2563eb' }}>
-                            {/* Métrica Combobox */}
+                            {/* 1. Métrica Combobox */}
                             <div className="metric-col" style={{ flex: 1.5 }}>
                               <label className="metric-label">{isEn ? 'Metric' : 'Métrica'}</label>
                               <Combobox
@@ -2081,12 +2459,51 @@ export default function RegistrarNodo() {
                               />
                             </div>
 
-                            {/* JSON Key Combobox */}
+                            {/* 2. Unidad Select Dropdown (Editable con desplegable de subvariables de la métrica) */}
+                            <div className="metric-col" style={{ flex: 1 }}>
+                              <label className="metric-label">{isEn ? 'Unit' : 'Unidad'}</label>
+                              {metric.available_units && metric.available_units.length > 0 ? (
+                                <select
+                                  value={metric.unit || ''}
+                                  onChange={(e) => handleSelectUnitForRow(cIdx, mIdx, e.target.value)}
+                                  className="iot-input"
+                                  style={{
+                                    background: '#ffffff',
+                                    border: '1.5px solid #10b981',
+                                    color: '#065f46',
+                                    fontWeight: '800',
+                                    cursor: 'pointer',
+                                    padding: '0.6rem 0.75rem'
+                                  }}
+                                >
+                                  {metric.available_units.map((u, uIdx) => (
+                                    <option key={uIdx} value={u.unit}>
+                                      {u.unit} ({isEn ? (u.name_en || u.name) : u.name})
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <input
+                                  type="text"
+                                  value={metric.unit || ''}
+                                  onChange={(e) => handleSelectUnitForRow(cIdx, mIdx, e.target.value)}
+                                  placeholder="°C / % / ppm"
+                                  className="iot-input"
+                                  style={{ background: '#ffffff', color: '#0f2c59', fontWeight: '700' }}
+                                />
+                              )}
+                            </div>
+
+                            {/* 3. JSON Key Combobox */}
                             <div className="metric-col" style={{ flex: 1.5 }}>
                               <label className="metric-label">{isEn ? 'MQTT / JSON Key' : 'Clave MQTT / JSON'}</label>
                               <Combobox
                                 value={metric.json_key}
-                                options={(metric.available_keys || []).map(k => ({ label: k.key_name, value: k.key_name, is_standard: k.is_standard }))}
+                                options={(metric.available_keys || []).map(k => ({
+                                  label: typeof k === 'string' ? k : k.key_name,
+                                  value: typeof k === 'string' ? k : k.key_name,
+                                  is_standard: typeof k === 'object' ? Boolean(k.is_standard) : false
+                                }))}
                                 placeholder={isEn ? 'Select or type key...' : 'Seleccionar o escribir clave...'}
                                 allowCreate={true}
                                 createLabelPrefix={isEn ? "CREATE KEY" : "CREAR LLAVE"}
@@ -2103,22 +2520,8 @@ export default function RegistrarNodo() {
                               />
                             </div>
 
-                            {/* Unit Input (Locked) */}
+                            {/* 4. Min Expected Input */}
                             <div className="metric-col" style={{ flex: 0.9 }}>
-                              <label className="metric-label">{isEn ? 'Unit' : 'Unidad'}</label>
-                              <input
-                                type="text"
-                                disabled
-                                readOnly
-                                value={metric.unit || ''}
-                                placeholder="°C / % / ppm"
-                                className="iot-input"
-                                style={{ background: '#f1f5f9', cursor: 'not-allowed', color: '#475569', fontWeight: '700' }}
-                              />
-                            </div>
-
-                            {/* Min Expected Input */}
-                            <div className="metric-col" style={{ flex: 1 }}>
                               <label className="metric-label">{isEn ? 'Min. Expected' : 'Mín. Esperado'}</label>
                               <input
                                 type="number"
@@ -2137,8 +2540,8 @@ export default function RegistrarNodo() {
                               />
                             </div>
 
-                            {/* Max Expected Input */}
-                            <div className="metric-col" style={{ flex: 1 }}>
+                            {/* 5. Max Expected Input */}
+                            <div className="metric-col" style={{ flex: 0.9 }}>
                               <label className="metric-label">{isEn ? 'Max. Expected' : 'Máx. Esperado'}</label>
                               <input
                                 type="number"
@@ -2157,7 +2560,7 @@ export default function RegistrarNodo() {
                               />
                             </div>
 
-                            {/* Symbol Image Display (Locked Thumbnail) */}
+                            {/* 6. Symbol Image Display (Locked Thumbnail) */}
                             <div className="metric-col" style={{ flex: 0.8, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                               <label className="metric-label" style={{ width: '100%', textAlign: 'center' }}>{isEn ? 'Symbol' : 'Símbolo'}</label>
                               <div style={{
@@ -2184,7 +2587,7 @@ export default function RegistrarNodo() {
                               </div>
                             </div>
 
-                            {/* Delete Button */}
+                            {/* 7. Delete Button */}
                             <div className="metric-col-delete">
                               <button
                                 type="button"
@@ -3048,6 +3451,164 @@ export default function RegistrarNodo() {
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL INLINE CREAR UBICACIÓN ── */}
+      {showModalUbicacion && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div style={{ background: '#ffffff', borderRadius: '20px', padding: '24px 28px', maxWidth: '580px', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', border: '1.5px solid #e2e8f0', animation: 'sensorFormIn 0.2s ease-out' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1.5px solid #f1f5f9' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900, color: '#0f2c59' }}>
+                {isEn ? 'Create New Location' : 'Crear Nueva Ubicación'}
+              </h3>
+              <button type="button" onClick={() => setShowModalUbicacion(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontWeight: 800, color: '#64748b' }}>
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleCrearUbicacionInline}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div>
+                  <label className="iot-label" style={{ marginBottom: '4px' }}>{isEn ? 'Location / Campus Name *' : 'Nombre de la Ubicación / Campus *'}</label>
+                  <input
+                    type="text"
+                    value={newUbiNombre}
+                    onChange={e => setNewUbiNombre(e.target.value)}
+                    placeholder={isEn ? 'e.g. Campus Chone ULEAM' : 'ej. Campus Chone ULEAM'}
+                    className="iot-input"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="iot-label" style={{ marginBottom: '4px' }}>{isEn ? 'Description' : 'Descripción / Detalles de Acceso'}</label>
+                  <textarea
+                    value={newUbiDescripcion}
+                    onChange={e => setNewUbiDescripcion(e.target.value)}
+                    placeholder={isEn ? 'Brief description of the campus location...' : 'Descripción de la ubicación o detalles de acceso...'}
+                    className="iot-input"
+                    style={{ minHeight: '60px', resize: 'vertical' }}
+                  />
+                </div>
+
+                {/* Google Maps Link Input */}
+                <div>
+                  <label className="iot-label" style={{ marginBottom: '4px' }}>{isEn ? 'Google Maps Link or Search' : 'Enlace de Google Maps o Coordenadas'}</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      value={newUbiGoogleLink}
+                      onChange={e => {
+                        setNewUbiGoogleLink(e.target.value);
+                        const coords = extractCoordinatesFromText(e.target.value);
+                        if (coords) {
+                          setNewUbiLatitud(coords.lat.toFixed(6));
+                          setNewUbiLongitud(coords.lng.toFixed(6));
+                        }
+                      }}
+                      placeholder={isEn ? 'Paste Google Maps URL here...' : 'Pega el enlace de Google Maps aquí...'}
+                      className="iot-input"
+                      style={{ flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCargarLinkGoogleMapsInline}
+                      style={{ padding: '8px 14px', borderRadius: '10px', background: '#0f2c59', color: '#ffffff', border: 'none', fontWeight: 800, fontSize: '0.8rem', cursor: 'pointer', flexShrink: 0 }}
+                    >
+                      {isEn ? 'Load Link' : 'Cargar Link'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Interactive Leaflet Map Container */}
+                <div>
+                  <label className="iot-label" style={{ marginBottom: '4px' }}>{isEn ? 'Georeferencing Point (Click map or drag pin)' : 'Punto Geográfico (Haz clic en el mapa o arrastra el pin)'}</label>
+                  <div id="leaflet-modal-map-inline" style={{ height: '170px', borderRadius: '12px', border: '1.5px solid #cbd5e1', width: '100%' }} />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label className="iot-label" style={{ marginBottom: '4px' }}>{isEn ? 'Latitude' : 'Latitud'}</label>
+                    <input
+                      type="text"
+                      value={newUbiLatitud}
+                      onChange={e => setNewUbiLatitud(e.target.value)}
+                      className="iot-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="iot-label" style={{ marginBottom: '4px' }}>{isEn ? 'Longitude' : 'Longitud'}</label>
+                    <input
+                      type="text"
+                      value={newUbiLongitud}
+                      onChange={e => setNewUbiLongitud(e.target.value)}
+                      className="iot-input"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px', paddingTop: '14px', borderTop: '1.5px solid #f1f5f9' }}>
+                <button type="button" onClick={() => setShowModalUbicacion(false)} className="navy-btn-outline" style={{ padding: '8px 16px' }}>
+                  {isEn ? 'Cancel' : 'Cancelar'}
+                </button>
+                <button type="submit" disabled={savingUbi} className="orange-btn-primary" style={{ padding: '8px 20px', borderRadius: '10px' }}>
+                  {savingUbi ? (isEn ? 'Saving...' : 'Guardando...') : (isEn ? 'Save & Select' : 'Guardar y Seleccionar')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL INLINE CREAR CATEGORÍA ── */}
+      {showModalCategoria && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div style={{ background: '#ffffff', borderRadius: '20px', padding: '28px', maxWidth: '440px', width: '100%', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', border: '1.5px solid #e2e8f0', animation: 'sensorFormIn 0.2s ease-out' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1.5px solid #f1f5f9' }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, color: '#0f2c59' }}>
+                {isEn ? 'Create New Category' : 'Crear Nueva Categoría'}
+              </h3>
+              <button type="button" onClick={() => setShowModalCategoria(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontWeight: 800, color: '#64748b' }}>
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleCrearCategoriaInline}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label className="iot-label" style={{ marginBottom: '6px' }}>{isEn ? 'Category Name *' : 'Nombre de la Categoría *'}</label>
+                  <input
+                    type="text"
+                    value={newCatNombre}
+                    onChange={e => setNewCatNombre(e.target.value)}
+                    placeholder={isEn ? 'e.g. Air Quality / Weather' : 'ej. Calidad del Aire / Meteorología'}
+                    className="iot-input"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="iot-label" style={{ marginBottom: '6px' }}>{isEn ? 'Badge Color' : 'Color de Identificación'}</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <input
+                      type="color"
+                      value={newCatColor}
+                      onChange={e => setNewCatColor(e.target.value)}
+                      style={{ width: '42px', height: '42px', border: 'none', borderRadius: '10px', cursor: 'pointer', background: 'transparent' }}
+                    />
+                    <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f2c59', textTransform: 'uppercase' }}>{newCatColor}</span>
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '24px', paddingTop: '14px', borderTop: '1.5px solid #f1f5f9' }}>
+                <button type="button" onClick={() => setShowModalCategoria(false)} className="navy-btn-outline" style={{ padding: '8px 16px' }}>
+                  {isEn ? 'Cancel' : 'Cancelar'}
+                </button>
+                <button type="submit" disabled={savingCat} className="orange-btn-primary" style={{ padding: '8px 20px', borderRadius: '10px' }}>
+                  {savingCat ? (isEn ? 'Saving...' : 'Guardando...') : (isEn ? 'Save & Select' : 'Guardar y Seleccionar')}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

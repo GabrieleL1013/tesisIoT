@@ -190,7 +190,7 @@ const Notificaciones = () => {
   const fetchAlerts = (page = 1) => {
     setLoading(true);
     
-    const params = new URLSearchParams({ page });
+    const params = new URLSearchParams({ page, lang: language });
     if (filterType !== 'all') params.append('type', filterType);
     if (filterStatus !== 'all') params.append('status', filterStatus);
     if (search) params.append('search', search);
@@ -626,6 +626,10 @@ const Notificaciones = () => {
                 {alerts.map((alerta) => {
                   const isExpanded = !!expandedAlerts[alerta.id];
                   const isSelected = selectedIds.includes(alerta.id);
+                  const isEn = language === 'en';
+                  const displayTitle = isEn ? (alerta.title_en || alerta.title) : (alerta.title_es || alerta.title);
+                  const displayMessage = isEn ? (alerta.message_en || alerta.message) : (alerta.message_es || alerta.message);
+
                   return (
                     <div 
                       key={alerta.id} 
@@ -657,10 +661,10 @@ const Notificaciones = () => {
                         
                         <div className="alert-header-info">
                           <div className="alert-title-row">
-                            <span className="alert-title">{alerta.title}</span>
-                            {!alerta.is_read && <span className="alert-unread-pill">{language === 'en' ? 'New' : 'Nuevo'}</span>}
+                            <span className="alert-title">{displayTitle}</span>
+                            {!alerta.is_read && <span className="alert-unread-pill">{isEn ? 'New' : 'Nuevo'}</span>}
                           </div>
-                          {!isExpanded && <p className="alert-message-snippet">{alerta.message}</p>}
+                          {!isExpanded && <p className="alert-message-snippet">{displayMessage}</p>}
                         </div>
 
                         <div className="alert-header-right">
@@ -673,15 +677,15 @@ const Notificaciones = () => {
                       
                       {isExpanded && (
                         <div className="alert-item-body">
-                          <p className="alert-message-full">{alerta.message}</p>
+                          <p className="alert-message-full">{displayMessage}</p>
                           
                           {alerta.metadata?.unstable_variables && (
                             <div className="alert-metadata">
-                              <span className="metadata-title">Variables afectadas:</span>
+                              <span className="metadata-title">{isEn ? 'Affected variables:' : 'Variables afectadas:'}</span>
                               <div className="metadata-tags">
                                 {alerta.metadata.unstable_variables.map((v, i) => (
                                   <span key={i} className="metadata-tag">
-                                    {v.variable} ({v.percentage}%)
+                                    {(isEn && v.variable_en) ? v.variable_en : v.variable} ({v.percentage}%)
                                   </span>
                                 ))}
                               </div>

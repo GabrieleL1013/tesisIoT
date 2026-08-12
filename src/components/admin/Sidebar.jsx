@@ -26,6 +26,13 @@ const NodesIcon = () => (
   </svg>
 );
 
+const SensorIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="18" height="18" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+    <rect x="2" y="6" width="20" height="12" rx="3" />
+    <path d="M6 12h4m4 0h4" />
+  </svg>
+);
+
 const LocationsIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="18" height="18" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
@@ -135,6 +142,55 @@ const LayoutIcon = () => (
   </svg>
 );
 
+const getSidebarBadgeTitle = (pathname, language) => {
+  const isEn = language === 'en';
+  const cleanPath = (pathname || '').replace(/^\/(en|es)/, '');
+
+  switch (cleanPath) {
+    case '/admin/dashboard':
+      return isEn ? 'GENERAL DASHBOARD' : 'DASHBOARD GENERAL';
+    case '/admin/monitor-en-vivo':
+    case '/admin/live-monitor':
+      return isEn ? 'LIVE MONITOR' : 'MONITOR EN VIVO';
+    case '/admin/historico':
+    case '/admin/history':
+      return isEn ? 'AGGREGATED HISTORY' : 'HISTÓRICO AGREGADO';
+    case '/admin/nodos':
+    case '/admin/nodes':
+      return isEn ? 'MANAGE NODES' : 'GESTIONAR NODOS';
+    case '/admin/sensores':
+    case '/admin/sensors':
+      return isEn ? 'MANAGE SENSORS' : 'GESTIONAR SENSORES';
+    case '/admin/metricas':
+    case '/admin/metrics':
+      return isEn ? 'METRICS & UNITS' : 'MÉTRICAS Y UNIDADES';
+    case '/admin/categorias':
+    case '/admin/categories':
+      return isEn ? 'NODE CATEGORIES' : 'CATEGORÍAS DE NODOS';
+    case '/admin/ubicaciones':
+    case '/admin/locations':
+      return isEn ? 'LOCATIONS' : 'UBICACIONES';
+    case '/admin/usuarios':
+    case '/admin/users':
+      return isEn ? 'USERS' : 'USUARIOS';
+    case '/admin/roles':
+      return isEn ? 'ROLES' : 'ROLES';
+    case '/admin/interfaces':
+      return isEn ? 'PERMISSIONS' : 'PERMISOS';
+    case '/admin/noticias':
+    case '/admin/news':
+      return isEn ? 'NEWS' : 'NOTICIAS';
+    case '/admin/articulos':
+    case '/admin/articles':
+      return isEn ? 'ARTICLES' : 'ARTÍCULOS';
+    case '/admin/notificaciones':
+    case '/admin/notifications':
+      return isEn ? 'NOTIFICATIONS' : 'NOTIFICACIONES';
+    default:
+      return isEn ? 'GENERAL DASHBOARD' : 'DASHBOARD GENERAL';
+  }
+};
+
 const Sidebar = ({ isOpen, cerrarMenu, appInterfaces = [], dbUser, userSession }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -201,7 +257,7 @@ const Sidebar = ({ isOpen, cerrarMenu, appInterfaces = [], dbUser, userSession }
           <Link to={`${baseAdmin}/dashboard`} className="logo-admin-flex" onClick={cerrarMenu}>
             <img src={logoImagen} alt="Uleam Logo" />
           </Link>
-          <span className="role-badge">{t("admin.dashboard", "Panel Administrativo")}</span>
+          <span className="role-badge">{getSidebarBadgeTitle(location.pathname, language)}</span>
         </div>
 
         <nav className="sidebar-nav">
@@ -273,7 +329,23 @@ const Sidebar = ({ isOpen, cerrarMenu, appInterfaces = [], dbUser, userSession }
                         className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
                         onClick={cerrarMenu}
                       >
-                        <AddIcon /> <span>{t("admin.register_node", "Registrar Nodo")}</span>
+                        <NodesIcon /> <span>{t("admin.register_node", "Gestionar Nodos")}</span>
+                      </NavLink>)}
+
+                      {canAccess('/admin/sensores') && (<NavLink
+                        to={`${baseAdmin}/${language === 'en' ? 'sensors' : 'sensores'}`}
+                        className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
+                        onClick={cerrarMenu}
+                      >
+                        <SensorIcon /> <span>{t("admin.sensors", "Gestionar Sensores")}</span>
+                      </NavLink>)}
+
+                      {canAccess('/admin/metricas') && (<NavLink
+                        to={`${baseAdmin}/${language === 'en' ? 'metrics' : 'metricas'}`}
+                        className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
+                        onClick={cerrarMenu}
+                      >
+                        <MetricIcon /> <span>{t("admin.metrics", "Métricas / Unidades")}</span>
                       </NavLink>)}
 
                       {canAccess('/admin/categorias') && (<NavLink
@@ -282,14 +354,6 @@ const Sidebar = ({ isOpen, cerrarMenu, appInterfaces = [], dbUser, userSession }
                         onClick={cerrarMenu}
                       >
                         <TagIcon /> <span>{t("admin.categories", "Categorías de Nodos")}</span>
-                      </NavLink>)}
-
-                      {canAccess('/admin/metricas') && (<NavLink
-                        to={`${baseAdmin}/${language === 'en' ? 'metrics' : 'metricas'}`}
-                        className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
-                        onClick={cerrarMenu}
-                      >
-                        <MetricIcon /> <span>{t("admin.metrics", "Métricas de Nodos")}</span>
                       </NavLink>)}
                     </div>
                   )}
