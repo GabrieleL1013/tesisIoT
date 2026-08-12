@@ -1,8 +1,7 @@
 /* NoticiasPublicas.css — Portal de Divulgación Científica */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 .pub-news-container {
-  font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  font-family: 'Montserrat', sans-serif;
   max-width: 1200px;
   margin: 0 auto;
   padding: 3rem 2rem;
@@ -14,13 +13,12 @@
 }
 
 .pub-news-label {
-  font-family: 'Outfit', sans-serif;
-  font-size: 0.75rem;
-  font-weight: 850;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: #d0182b;
-  /* Uleam Red */
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: none;
+  color: #FF0000;
   display: inline-block;
   margin-bottom: 0.6rem;
 }

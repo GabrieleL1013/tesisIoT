@@ -86,43 +86,93 @@ const BookOpenIcon = () => (
   </svg>
 );
 
+const NewspaperIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="36" height="36">
+    <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2" />
+    <path d="M18 14h-8" />
+    <path d="M15 18h-5" />
+    <rect x="10" y="6" width="8" height="4" rx="1" fill="currentColor" opacity="0.3" />
+  </svg>
+);
+
 export default function Inicio() {
   const navigate = useNavigate();
   const { language, t } = useLanguage();
   usePageTitle(language === 'en' ? 'Home' : 'Inicio');
-  const newsCarouselRef = useRef(null);
   const { images } = useInterfaceImage();
-  const [novedades, setNovedades] = useState([]);
+  
+  const [noticias, setNoticias] = useState([]);
+  const [articulos, setArticulos] = useState([]);
+  const [openNoticias, setOpenNoticias] = useState(true);
+  const [openArticulos, setOpenArticulos] = useState(false);
+
+  const noticiasCarouselRef = useRef(null);
+  const articulosCarouselRef = useRef(null);
+
   const [nodosCount, setNodosCount] = useState(0);
   const [categoriasCount, setCategoriasCount] = useState(0);
   
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(true);
+  const [canScrollLeftNoticias, setCanScrollLeftNoticias] = useState(false);
+  const [canScrollRightNoticias, setCanScrollRightNoticias] = useState(true);
+  const [canScrollLeftArticulos, setCanScrollLeftArticulos] = useState(false);
+  const [canScrollRightArticulos, setCanScrollRightArticulos] = useState(true);
 
-  const checkScrollPosition = () => {
-    if (newsCarouselRef.current) {
-      const { scrollLeft, scrollWidth, clientWidth } = newsCarouselRef.current;
-      setCanScrollLeft(scrollLeft > 0);
-      // Allow a 1px tolerance for rounding issues
-      setCanScrollRight(Math.ceil(scrollLeft + clientWidth) < scrollWidth);
+  const checkNoticiasScrollPosition = () => {
+    if (noticiasCarouselRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = noticiasCarouselRef.current;
+      setCanScrollLeftNoticias(scrollLeft > 0);
+      setCanScrollRightNoticias(Math.ceil(scrollLeft + clientWidth) < scrollWidth);
+    }
+  };
+
+  const checkArticulosScrollPosition = () => {
+    if (articulosCarouselRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = articulosCarouselRef.current;
+      setCanScrollLeftArticulos(scrollLeft > 0);
+      setCanScrollRightArticulos(Math.ceil(scrollLeft + clientWidth) < scrollWidth);
     }
   };
 
   useEffect(() => {
-    checkScrollPosition();
-    window.addEventListener('resize', checkScrollPosition);
-    return () => window.removeEventListener('resize', checkScrollPosition);
-  }, [novedades]);
+    checkNoticiasScrollPosition();
+    checkArticulosScrollPosition();
+    window.addEventListener('resize', checkNoticiasScrollPosition);
+    window.addEventListener('resize', checkArticulosScrollPosition);
+    return () => {
+      window.removeEventListener('resize', checkNoticiasScrollPosition);
+      window.removeEventListener('resize', checkArticulosScrollPosition);
+    };
+  }, [noticias, articulos, openNoticias, openArticulos]);
 
-  const scrollCarousel = (direction) => {
-    if (newsCarouselRef.current) {
-      const container = newsCarouselRef.current;
-      const scrollAmount = container.clientWidth;
-      if (direction === 'left') {
-        container.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
-      } else {
-        container.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-      }
+  const scrollNoticias = (direction) => {
+    if (direction === 'left') {
+      setNoticias(prev => {
+        if (prev.length <= 1) return prev;
+        const last = prev[prev.length - 1];
+        return [last, ...prev.slice(0, prev.length - 1)];
+      });
+    } else {
+      setNoticias(prev => {
+        if (prev.length <= 1) return prev;
+        const first = prev[0];
+        return [...prev.slice(1), first];
+      });
+    }
+  };
+
+  const scrollArticulos = (direction) => {
+    if (direction === 'left') {
+      setArticulos(prev => {
+        if (prev.length <= 1) return prev;
+        const last = prev[prev.length - 1];
+        return [last, ...prev.slice(0, prev.length - 1)];
+      });
+    } else {
+      setArticulos(prev => {
+        if (prev.length <= 1) return prev;
+        const first = prev[0];
+        return [...prev.slice(1), first];
+      });
     }
   };
 
@@ -148,8 +198,8 @@ export default function Inicio() {
   };
 
   useEffect(() => {
-    const fetchNoticias = fetchDeduplicated(`${API_BASE_URL}/noticias?estado=Publicado&limit=5&lang=${language}`).then(res => res.json()).catch(() => []);
-    const fetchArticulos = fetchDeduplicated(`${API_BASE_URL}/articulos?estado=Publicado&limit=5&lang=${language}`).then(res => res.json()).catch(() => []);
+    const fetchNoticias = fetchDeduplicated(`${API_BASE_URL}/noticias?estado=Publicado&limit=15&lang=${language}`).then(res => res.json()).catch(() => []);
+    const fetchArticulos = fetchDeduplicated(`${API_BASE_URL}/articulos?estado=Publicado&limit=15&lang=${language}`).then(res => res.json()).catch(() => []);
     const fetchNodosCount = fetchDeduplicated(`${API_BASE_URL}/nodos/count`).then(res => res.json()).catch(() => ({ count: 0 }));
     const fetchCategoriasCount = fetchDeduplicated(`${API_BASE_URL}/categorias/count`).then(res => res.json()).catch(() => ({ count: 0 }));
 
@@ -189,11 +239,8 @@ export default function Inicio() {
               }))
           : [];
 
-        const combinadas = [...noticiasList, ...articulosList]
-          .sort((a, b) => b.createdAt - a.createdAt)
-          .slice(0, 5);
-
-        setNovedades(combinadas);
+        setNoticias(noticiasList);
+        setArticulos(articulosList);
       })
       .catch(err => {
         console.error("Error loading updates for home portal:", err);
@@ -201,17 +248,29 @@ export default function Inicio() {
   }, [language]);
 
   const obtenerResumen = (contenidoRaw) => {
+    let text = '';
     try {
       if (contenidoRaw && contenidoRaw.startsWith('[')) {
         const blocks = JSON.parse(contenidoRaw);
         const textBlocks = blocks.filter(b => b.type === 'text' && b.value);
         if (textBlocks.length > 0) {
-          const firstText = textBlocks[0].value;
-          return firstText.length > 170 ? `${firstText.substring(0, 170)}...` : firstText;
+          text = textBlocks[0].value;
         }
       }
     } catch (e) {}
-    return contenidoRaw && contenidoRaw.length > 170 ? `${contenidoRaw.substring(0, 170)}...` : (contenidoRaw || '');
+    if (!text) {
+      text = contenidoRaw || '';
+    }
+
+    text = text.trim();
+
+    if (text.length > 170) {
+      const truncated = text.substring(0, 170);
+      const lastSpace = truncated.lastIndexOf(' ');
+      const cleanText = lastSpace > 0 ? truncated.substring(0, lastSpace) : truncated;
+      return `${cleanText} [...]`;
+    }
+    return text;
   };
 
   const ARCHITECTURE_STEPS = [
@@ -350,137 +409,233 @@ export default function Inicio() {
 
       <HideableSection sectionKey="home_news">
         <section className="portal-news-section">
-          <div className="section-header text-center">
-            <span className="section-label"><EditableText textKey="home_news_badge" defaultText={t("home.news_badge", "Actualizaciones")} /></span>
-            <h2 className="section-title"><EditableText textKey="home_news_title" defaultText={t("home.featured_news", "Hitos e Investigación IoT")} /></h2>
-            <p className="section-subtitle-text">
-              <EditableText textKey="home_news_desc" defaultText={t("home.news_desc", "Mantente al tanto del progreso de los despliegues de hardware y las publicaciones académicas asociadas al proyecto.")} isTextArea={true} />
-            </p>
+          {/* Header con Icono Circular y Hitos e Investigación en la MISMA LÍNEA */}
+          <div className="uleam-accordion-header-main text-center">
+            <div className="uleam-header-title-row">
+              <div className="uleam-circle-icon-badge">
+                <NewspaperIcon />
+              </div>
+              <h2 className="uleam-accordion-main-title">
+                <EditableText textKey="home_news_title" defaultText={t("home.featured_news", "Hitos e Investigación IoT")} />
+              </h2>
+            </div>
           </div>
 
-          <div className="news-carousel-wrapper" style={{ position: 'relative', maxWidth: '1280px', margin: '0 auto' }}>
-            {novedades.length > 0 && (
-              <button 
-                className="carousel-btn prev-btn" 
-                onClick={() => scrollCarousel('left')} 
-                disabled={!canScrollLeft}
-                aria-label="Anterior"
+          <div className="uleam-accordions-container">
+            {/* Apartado 1: Noticias ULEAM (Estilo Imagen 1) */}
+            <div className="uleam-accordion-item">
+              <button
+                type="button"
+                className="uleam-accordion-btn"
+                onClick={() => setOpenNoticias(!openNoticias)}
               >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                <span>{t("nav.news", "Noticias")}</span>
+                <svg 
+                  className={`uleam-accordion-chevron ${openNoticias ? 'open' : ''}`} 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2.5" 
+                  width="18" 
+                  height="18"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
               </button>
-            )}
 
-            <div className="news-cards-grid" ref={newsCarouselRef} onScroll={checkScrollPosition}>
-              {novedades.length === 0 ? (
-                <div className="no-news-banner" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3.5rem 1.5rem', color: '#64748b', fontStyle: 'italic', border: '2px dashed #cbd5e1', borderRadius: '16px', background: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="48" height="48" style={{ color: '#cbd5e1' }}>
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                    <path d="M16 8h2M16 12h2M8 8h4v8H8z" />
-                  </svg>
-                  <span>{t("common.no_results", "No hay novedades registradas en el sistema.")}</span>
-                </div>
-              ) : (
-                novedades.map((n, index) => {
-                if (n.tipo === 'articulo') {
-                  return (
-                    <div 
-                      key={`articulo-${n.id}`} 
-                      className={`pub-art-card ${n.tipo_registro === 'PDF' ? 'card-pdf' : 'card-internal'}`}
-                    >
-                      <div className="pub-art-card-spine">
-                        <div className="pub-art-card-spine-text-wrapper">
-                          <div className="pub-art-card-spine-text">
-                            {n.revista || 'REPOSITORIO CIENTÍFICO ULEAM'}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="pub-art-card-right-content">
-                        <div className="pub-art-card-journal-banner">
-                          {t("articles.title", "Artículo Científico")} • {n.revista || 'FACCI'}
-                        </div>
-
-                        <h3 className="pub-art-card-title">
-                          {n.titulo}
-                        </h3>
-
-                        <div className="pub-art-card-prepared-by">
-                          <div className="pub-art-prepared-label">{t("articles.authors", "Autores")}:</div>
-                          <div className="pub-art-card-authors-text">{n.autores}</div>
-                          <div className="pub-art-card-date-text">{formatFecha(n.created_at, language)}</div>
-                        </div>
-
-                        <div className="pub-art-card-footer" style={{ borderTop: 'none', paddingTop: 0, marginTop: 'auto' }}>
-                          <span 
-                            className="pub-art-click-indicator"
-                            onClick={() => handleItemClick(n)}
-                            style={{ cursor: 'pointer' }}
-                          >
-                            {t("home.read_more", "Leer más")} →
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div key={`noticia-${n.id}`} className="portal-news-card">
-                    {n.imagenUrl ? (
-                      <img 
-                        src={n.imagenUrl} 
-                        alt={n.titulo} 
-                        className="portal-news-image" 
-                        style={{ height: '190px', width: '100%', objectFit: 'cover', borderBottom: '1px solid var(--border-light)' }} 
-                      />
-                    ) : (
-                      <div className={`news-tag-banner ${['news-green', 'news-blue'][index % 2]}`} />
+              {openNoticias && (
+                <div className="uleam-accordion-content">
+                  <div className="carousel-with-side-arrows-wrapper">
+                    {noticias.length > 0 && (
+                      <button 
+                        className="carousel-side-arrow prev-arrow" 
+                        onClick={() => scrollNoticias('left')} 
+                        aria-label="Anterior"
+                      >
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                      </button>
                     )}
-                    <div className="news-card-content">
-                      <div className="pub-art-card-journal-banner">
-                        {t("news.title", "Noticias")}
-                      </div>
-                      
-                      <div className="news-date-row" style={{ marginTop: '0.2rem' }}>
-                        <CalendarIcon />
-                        <span>{n.fechaStr}</span>
-                      </div>
 
-                      <h3>{n.titulo}</h3>
+                    <div className="news-cards-grid" ref={noticiasCarouselRef} onScroll={checkNoticiasScrollPosition}>
+                      {noticias.length === 0 ? (
+                        <div className="no-news-banner" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3.5rem 1.5rem', color: '#64748b', fontStyle: 'italic', border: '2px dashed #cbd5e1', borderRadius: '16px', background: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="48" height="48" style={{ color: '#cbd5e1' }}>
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                            <path d="M16 8h2M16 12h2M8 8h4v8H8z" />
+                          </svg>
+                          <span>{t("common.no_news", "No hay noticias registradas en el sistema.")}</span>
+                        </div>
+                      ) : (
+                        noticias.slice(0, 5).map((n) => (
+                          <div key={`noticia-${n.id}`} className="portal-news-card news-card-uleam-style">
+                            <img 
+                              src={n.imagenUrl || IotJpg} 
+                              alt={n.titulo} 
+                              className="portal-news-image" 
+                              style={{ height: '200px', width: '100%', objectFit: 'cover' }} 
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = IotJpg;
+                              }}
+                            />
+                            <div className="news-card-content news-card-body-uleam">
+                              <h3 className="news-card-title-red">{n.titulo}</h3>
 
-                      <p style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '4.5rem', textAlign: 'justify' }}>
-                        {obtenerResumen(n.contenido)}
-                      </p>
+                              <div className="news-card-date-centered">
+                                {n.fechaStr ? n.fechaStr.toUpperCase() : ''}
+                              </div>
 
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: '1rem' }}>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleItemClick(n);
-                          }}
-                          className="btn-read-more"
-                          style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: '800', cursor: 'pointer' }}
-                        >
-                          {t("home.read_more", "Leer más")} →
-                        </button>
-                      </div>
+                              <p className="news-card-summary-centered">
+                                {obtenerResumen(n.contenido)}
+                              </p>
+
+                              <div className="news-card-footer-btn-wrapper">
+                                <Link
+                                  to={`/${language}/${newsSlug}?id=${n.id}`}
+                                  className="btn-read-more-solid"
+                                >
+                                  {t("home.read_more", "LEER MÁS")}
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
+
+                    {noticias.length > 0 && (
+                      <button 
+                        className="carousel-side-arrow next-arrow" 
+                        onClick={() => scrollNoticias('right')} 
+                        aria-label="Siguiente"
+                      >
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                      </button>
+                    )}
                   </div>
-                );
-              })
-            )}
+
+                  <div className="uleam-accordion-more-btn-wrapper">
+                    <Link 
+                      to={`/${language}/${newsSlug}`}
+                      className="btn-mas-noticias"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                      </svg>
+                      {t("home.more_news", "MÁS NOTICIAS")}
+                    </Link>
+                  </div>
+                </div>
+              )}
             </div>
-            {novedades.length > 0 && (
-              <button 
-                className="carousel-btn next-btn" 
-                onClick={() => scrollCarousel('right')} 
-                disabled={!canScrollRight}
-                aria-label="Siguiente"
+
+            {/* Apartado 2: Artículos Científicos */}
+            <div className="uleam-accordion-item">
+              <button
+                type="button"
+                className="uleam-accordion-btn"
+                onClick={() => setOpenArticulos(!openArticulos)}
               >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                <span>{t("nav.articles", "Artículos")}</span>
+                <svg 
+                  className={`uleam-accordion-chevron ${openArticulos ? 'open' : ''}`} 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2.5" 
+                  width="18" 
+                  height="18"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
               </button>
-            )}
+
+              {openArticulos && (
+                <div className="uleam-accordion-content">
+                  <div className="carousel-with-side-arrows-wrapper">
+                    {articulos.length > 0 && (
+                      <button 
+                        className="carousel-side-arrow prev-arrow" 
+                        onClick={() => scrollArticulos('left')} 
+                        aria-label="Anterior"
+                      >
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                      </button>
+                    )}
+
+                    <div className="news-cards-grid" ref={articulosCarouselRef} onScroll={checkArticulosScrollPosition}>
+                      {articulos.length === 0 ? (
+                        <div className="no-news-banner" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3.5rem 1.5rem', color: '#64748b', fontStyle: 'italic', border: '2px dashed #cbd5e1', borderRadius: '16px', background: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                          <BookOpenIcon />
+                          <span>{t("common.no_articles", "No hay artículos científicos registrados en el sistema.")}</span>
+                        </div>
+                      ) : (
+                        articulos.slice(0, 5).map((n) => (
+                          <Link 
+                            key={`articulo-${n.id}`} 
+                            to={n.tipo_registro === 'PDF' && n.url_pdf ? formatExternalUrl(n.url_pdf) : `/${language}/${articlesSlug}?id=${n.id}`}
+                            target={n.tipo_registro === 'PDF' && n.url_pdf ? "_blank" : "_self"}
+                            rel="noopener noreferrer"
+                            className={`pub-art-card ${n.tipo_registro === 'PDF' ? 'card-pdf' : 'card-internal'}`}
+                            style={{ textDecoration: 'none', color: 'inherit' }}
+                          >
+                            <div className="pub-art-card-spine">
+                              <div className="pub-art-card-spine-text-wrapper">
+                                <div className="pub-art-card-spine-text">
+                                  {n.revista || 'REPOSITORIO CIENTÍFICO ULEAM'}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="pub-art-card-right-content">
+                              <div className="pub-art-card-journal-banner">
+                                {t("articles.title", "Artículo Científico")} • {n.revista || 'FACCI'}
+                              </div>
+
+                              <h3 className="pub-art-card-title">
+                                {n.titulo}
+                              </h3>
+
+                              <div className="pub-art-card-prepared-by">
+                                <div className="pub-art-prepared-label">{t("articles.authors", "Autores")}:</div>
+                                <div className="pub-art-card-authors-text">{n.autores}</div>
+                                <div className="pub-art-card-date-text">{formatFecha(n.created_at, language)}</div>
+                              </div>
+                            </div>
+                          </Link>
+                        ))
+                      )}
+                    </div>
+
+                    {articulos.length > 0 && (
+                      <button 
+                        className="carousel-side-arrow next-arrow" 
+                        onClick={() => scrollArticulos('right')} 
+                        aria-label="Siguiente"
+                      >
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="uleam-accordion-more-btn-wrapper">
+                    <Link 
+                      to={`/${language}/${articlesSlug}`}
+                      className="btn-mas-noticias"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                      </svg>
+                      {t("home.more_articles", "MÁS ARTÍCULOS")}
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </section>
       </HideableSection>

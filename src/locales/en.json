@@ -69,7 +69,9 @@
     "arch_step_4_title": "Management Portal",
     "arch_step_4_desc": "Responsive web interfaces and analytical dashboards for decision-making.",
     "news_badge": "Updates",
-    "news_desc": "Stay up to date with hardware deployment progress and related academic publications."
+    "news_desc": "Stay up to date with hardware deployment progress and related academic publications.",
+    "more_news": "MORE NEWS",
+    "more_articles": "MORE ARTICLES"
   },
   "map": {
     "title": "Geographic IoT Node Visualizer",

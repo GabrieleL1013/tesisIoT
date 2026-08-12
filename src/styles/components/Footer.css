@@ -5,7 +5,7 @@
   color: #94a3b8;
   padding: 2.25rem 2rem 1.25rem;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
-  font-family: 'Outfit', 'Inter', sans-serif;
+  font-family: 'Montserrat', sans-serif;
 }
 
 .footer-container {
@@ -45,10 +45,11 @@
 }
 
 .footer-desc {
-  font-size: 0.84rem;
+  font-size: 0.86rem;
   line-height: 1.55;
-  color: #64748b;
+  color: #94a3b8;
   max-width: 380px;
+  font-family: 'Montserrat', sans-serif;
 }
 
 /* Columna de Enlaces */
@@ -58,12 +59,13 @@
 
 .footer-links-col h3,
 .footer-contact-col h3 {
-  font-size: 0.92rem;
-  font-weight: 800;
+  font-size: 0.95rem;
+  font-weight: 600;
   color: #ffffff;
   margin-bottom: 0.85rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  font-family: 'Montserrat', sans-serif;
 }
 
 .footer-links-col ul {
@@ -80,10 +82,11 @@
   text-decoration: none;
   font-size: 0.86rem;
   transition: color 0.2s;
+  font-family: 'Montserrat', sans-serif;
 }
 
 .footer-links-col ul li a:hover {
-  color: #62ffb1; /* Verde neón en hover */
+  color: #94C11F;
 }
 
 /* Columna de Contacto */
@@ -228,7 +231,7 @@
   }
 
   .footer-links-col ul li a:hover {
-    color: #62ffb1 !important;
+    color: #94C11F !important;
   }
 
   /* Columna 3: Contacto y Soporte (Abajo ocupando todo el ancho) */
