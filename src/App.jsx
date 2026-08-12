@@ -27,7 +27,6 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const Dashboard = lazy(() => import("./pages/admin/Dashboard"));
 const RegistrarNodo = lazy(() => import("./pages/admin/RegistrarNodo"));
 const GestionarSensores = lazy(() => import("./pages/admin/GestionarSensores"));
-const GestionarSensores = lazy(() => import("./pages/admin/GestionarSensores"));
 const GestionarCategorias = lazy(() => import("./pages/admin/GestionarCategorias"));
 const GestionarMetricas = lazy(() => import("./pages/admin/GestionarMetricas"));
 const GestionarUbicaciones = lazy(() => import("./pages/admin/GestionarUbicaciones"));
@@ -205,8 +204,6 @@ export default function App() {
                       <Route path="nodos" element={<RegistrarNodo />} />
                       <Route path="sensores" element={<GestionarSensores />} />
                       <Route path="metricas" element={<GestionarMetricas />} />
-                      <Route path="sensores" element={<GestionarSensores />} />
-                      <Route path="metricas" element={<GestionarMetricas />} />
                       <Route path="categorias" element={<GestionarCategorias />} />
                       <Route path="ubicaciones" element={<GestionarUbicaciones />} />
                       <Route path="usuarios" element={<GestionarUsuarios />} />
@@ -247,8 +244,6 @@ export default function App() {
                       <Route index element={<Navigate to="dashboard" replace />} />
                       <Route path="dashboard" element={<Dashboard />} />
                       <Route path="nodes" element={<RegistrarNodo />} />
-                      <Route path="sensors" element={<GestionarSensores />} />
-                      <Route path="metrics" element={<GestionarMetricas />} />
                       <Route path="sensors" element={<GestionarSensores />} />
                       <Route path="metrics" element={<GestionarMetricas />} />
                       <Route path="categories" element={<GestionarCategorias />} />

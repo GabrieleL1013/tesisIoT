@@ -309,9 +309,10 @@ const Sidebar = ({ isOpen, cerrarMenu, appInterfaces = [], dbUser, userSession }
                       </NavLink>)}
                     </div>
                   )}
-                </div>)}
+                </div>
+              )}
 
-              {(canAccess('/admin/nodos') || canAccess('/admin/categorias') || canAccess('/admin/metricas')) && (
+              {(canAccess('/admin/nodos') || canAccess('/admin/sensores') || canAccess('/admin/categorias') || canAccess('/admin/metricas')) && (
                 <div className={`side-menu-parent ${nodosSubmenuOpen ? 'expanded' : ''}`}>
                   <button
                     type="button"
@@ -324,54 +325,50 @@ const Sidebar = ({ isOpen, cerrarMenu, appInterfaces = [], dbUser, userSession }
 
                   {nodosSubmenuOpen && (
                     <div className="submenu-nav">
-                      {canAccess('/admin/nodos') && (<NavLink
-                        to={`${baseAdmin}/${language === 'en' ? 'nodes' : 'nodos'}`}
-                        end
-                        className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
-                        onClick={cerrarMenu}
-                      >
-                        <NodesIcon /> <span>{t("admin.register_node", "Gestionar Nodos")}</span>
-                        <NodesIcon /> <span>{t("admin.register_node", "Gestionar Nodos")}</span>
-                      </NavLink>)}
+                      {canAccess('/admin/nodos') && (
+                        <NavLink
+                          to={`${baseAdmin}/${language === 'en' ? 'nodes' : 'nodos'}`}
+                          end
+                          className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
+                          onClick={cerrarMenu}
+                        >
+                          <NodesIcon /> <span>{t("admin.register_node", "Gestionar Nodos")}</span>
+                        </NavLink>
+                      )}
 
-                      {canAccess('/admin/sensores') && (<NavLink
-                        to={`${baseAdmin}/${language === 'en' ? 'sensors' : 'sensores'}`}
-                      {canAccess('/admin/sensores') && (<NavLink
-                        to={`${baseAdmin}/${language === 'en' ? 'sensors' : 'sensores'}`}
-                        className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
-                        onClick={cerrarMenu}
-                      >
-                        <SensorIcon /> <span>{t("admin.sensors", "Gestionar Sensores")}</span>
-                        <SensorIcon /> <span>{t("admin.sensors", "Gestionar Sensores")}</span>
-                      </NavLink>)}
+                      {canAccess('/admin/sensores') && (
+                        <NavLink
+                          to={`${baseAdmin}/${language === 'en' ? 'sensors' : 'sensores'}`}
+                          className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
+                          onClick={cerrarMenu}
+                        >
+                          <SensorIcon /> <span>{t("admin.sensors", "Gestionar Sensores")}</span>
+                        </NavLink>
+                      )}
 
-                      {canAccess('/admin/metricas') && (<NavLink
-                        to={`${baseAdmin}/${language === 'en' ? 'metrics' : 'metricas'}`}
-                        className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
-                        onClick={cerrarMenu}
-                      >
-                        <MetricIcon /> <span>{t("admin.metrics", "Métricas / Unidades")}</span>
-                      </NavLink>)}
+                      {canAccess('/admin/metricas') && (
+                        <NavLink
+                          to={`${baseAdmin}/${language === 'en' ? 'metrics' : 'metricas'}`}
+                          className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
+                          onClick={cerrarMenu}
+                        >
+                          <MetricIcon /> <span>{t("admin.metrics", "Métricas / Unidades")}</span>
+                        </NavLink>
+                      )}
 
-                      {canAccess('/admin/categorias') && (<NavLink
-                        to={`${baseAdmin}/${language === 'en' ? 'categories' : 'categorias'}`}
-                        className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
-                        onClick={cerrarMenu}
-                      >
-                        <TagIcon /> <span>{t("admin.categories", "Categorías de Nodos")}</span>
-                        <MetricIcon /> <span>{t("admin.metrics", "Métricas / Unidades")}</span>
-                      </NavLink>)}
-
-                      {canAccess('/admin/categorias') && (<NavLink
-                        to={`${baseAdmin}/${language === 'en' ? 'categories' : 'categorias'}`}
-                        className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
-                        onClick={cerrarMenu}
-                      >
-                        <TagIcon /> <span>{t("admin.categories", "Categorías de Nodos")}</span>
-                      </NavLink>)}
+                      {canAccess('/admin/categorias') && (
+                        <NavLink
+                          to={`${baseAdmin}/${language === 'en' ? 'categories' : 'categorias'}`}
+                          className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
+                          onClick={cerrarMenu}
+                        >
+                          <TagIcon /> <span>{t("admin.categories", "Categorías de Nodos")}</span>
+                        </NavLink>
+                      )}
                     </div>
                   )}
-                </div>)}
+                </div>
+              )}
 
               {canAccess('/admin/ubicaciones') && (
                 <NavLink to={`${baseAdmin}/${language === 'en' ? 'locations' : 'ubicaciones'}`} className="side-item" onClick={cerrarMenu}>
@@ -417,7 +414,8 @@ const Sidebar = ({ isOpen, cerrarMenu, appInterfaces = [], dbUser, userSession }
                       </NavLink>)}
                     </div>
                   )}
-                </div>)}
+                </div>
+              )}
 
               {canAccess('/admin/noticias') && (
                 <NavLink to={`${baseAdmin}/${language === 'en' ? 'news' : 'noticias'}`} className="side-item" onClick={cerrarMenu}>
