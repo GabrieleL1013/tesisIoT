@@ -69,7 +69,9 @@
     "arch_step_4_title": "Portal de Gestión",
     "arch_step_4_desc": "Interfaces web responsivas y paneles de control analíticos para toma de decisiones.",
     "news_badge": "Actualizaciones",
-    "news_desc": "Mantente al tanto del progreso de los despliegues de hardware y las publicaciones académicas asociadas al proyecto."
+    "news_desc": "Mantente al tanto del progreso de los despliegues de hardware y las publicaciones académicas asociadas al proyecto.",
+    "more_news": "MÁS NOTICIAS",
+    "more_articles": "MÁS ARTÍCULOS"
   },
   "map": {
     "title": "Visualizador Geográfico de Nodos IoT",
@@ -183,10 +185,10 @@
   "admin": {
     "dashboard": "Dashboard General",
     "nodes": "Gestionar Nodos",
-    "register_node": "Registrar Nodo",
-    "modify_node": "Modificar Nodo Sensor",
+    "register_node": "Gestionar Nodos",
+    "sensors": "Gestionar Sensores",
+    "metrics": "Métricas / Unidades",
     "categories": "Categorías de Nodos",
-    "metrics": "Métricas de Nodos",
     "locations": "Ubicaciones",
     "users": "Usuarios",
     "roles": "Roles",

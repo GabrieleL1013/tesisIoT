@@ -1,5 +1,5 @@
 import React, { useEffect, lazy, Suspense } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation, useParams } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation, useParams, useNavigationType } from "react-router-dom";
 import i18n from "./i18n";
 import { LanguageProvider, useLanguage } from "./context/LanguageContext";
 import { AuthProvider } from "./context/AuthContext";
@@ -26,6 +26,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 // Interfaces de Administrador cargadas bajo demanda
 const Dashboard = lazy(() => import("./pages/admin/Dashboard"));
 const RegistrarNodo = lazy(() => import("./pages/admin/RegistrarNodo"));
+const GestionarSensores = lazy(() => import("./pages/admin/GestionarSensores"));
 const GestionarCategorias = lazy(() => import("./pages/admin/GestionarCategorias"));
 const GestionarMetricas = lazy(() => import("./pages/admin/GestionarMetricas"));
 const GestionarUbicaciones = lazy(() => import("./pages/admin/GestionarUbicaciones"));
@@ -40,6 +41,7 @@ const Notificaciones = lazy(() => import("./pages/admin/Notificaciones"));
 const Error403 = lazy(() => import("./pages/admin/Error403"));
 const AdminLayout = lazy(() => import("./components/admin/AdminLayout"));
 
+// Componente helper para validación y sincronización de idioma en la URL
 function LanguageRouteSync() {
   const { lang } = useParams();
   const location = useLocation();
@@ -59,10 +61,12 @@ function LanguageRouteSync() {
   return <Outlet />;
 }
 
+// Redirección para rutas raíz o no localizadas
 function RedirectToLocalizedRoute() {
+  const { language } = useLanguage();
   const location = useLocation();
+  const currentLang = getUrlLanguage(location.pathname) || language || 'es';
   const pathname = location.pathname;
-  const currentLang = getUrlLanguage(pathname) || 'es';
 
   if (pathname === "/") {
     return <Navigate to={`/${currentLang}`} replace />;
@@ -76,13 +80,44 @@ function RedirectToLocalizedRoute() {
 }
 
 function ScrollToTop() {
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const navType = useNavigationType();
+
+  // Permite la gestión manual de la posición de scroll
+  useEffect(() => {
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+  }, []);
+
+  // Guarda continuamente la posición del scroll antes de cambiar de página
+  useEffect(() => {
+    const handleScroll = () => {
+      if (location.key) {
+        sessionStorage.setItem(`scroll_pos_${location.key}`, window.scrollY.toString());
+      }
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [location.key]);
 
   useEffect(() => {
-    window.scrollTo(0, 0);
-    if (document.documentElement) document.documentElement.scrollTop = 0;
-    if (document.body) document.body.scrollTop = 0;
-  }, [pathname]);
+    // Si la navegación es retroceder/avanzar en la flecha del navegador ("POP")
+    if (navType === 'POP') {
+      const savedPos = location.key ? sessionStorage.getItem(`scroll_pos_${location.key}`) : null;
+      if (savedPos !== null) {
+        const y = parseInt(savedPos, 10);
+        setTimeout(() => {
+          window.scrollTo(0, y);
+        }, 60);
+      }
+    } else {
+      // Si se hizo clic explícito en un enlace/menú ("PUSH" o "REPLACE"), se reinicia arriba
+      window.scrollTo(0, 0);
+      if (document.documentElement) document.documentElement.scrollTop = 0;
+      if (document.body) document.body.scrollTop = 0;
+    }
+  }, [location.pathname, location.key, navType]);
 
   return null;
 }
@@ -167,8 +202,9 @@ export default function App() {
                       <Route index element={<Navigate to="dashboard" replace />} />
                       <Route path="dashboard" element={<Dashboard />} />
                       <Route path="nodos" element={<RegistrarNodo />} />
-                      <Route path="categorias" element={<GestionarCategorias />} />
+                      <Route path="sensores" element={<GestionarSensores />} />
                       <Route path="metricas" element={<GestionarMetricas />} />
+                      <Route path="categorias" element={<GestionarCategorias />} />
                       <Route path="ubicaciones" element={<GestionarUbicaciones />} />
                       <Route path="usuarios" element={<GestionarUsuarios />} />
                       <Route path="roles" element={<GestionarRoles />} />
@@ -208,8 +244,9 @@ export default function App() {
                       <Route index element={<Navigate to="dashboard" replace />} />
                       <Route path="dashboard" element={<Dashboard />} />
                       <Route path="nodes" element={<RegistrarNodo />} />
-                      <Route path="categories" element={<GestionarCategorias />} />
+                      <Route path="sensors" element={<GestionarSensores />} />
                       <Route path="metrics" element={<GestionarMetricas />} />
+                      <Route path="categories" element={<GestionarCategorias />} />
                       <Route path="locations" element={<GestionarUbicaciones />} />
                       <Route path="users" element={<GestionarUsuarios />} />
                       <Route path="roles" element={<GestionarRoles />} />

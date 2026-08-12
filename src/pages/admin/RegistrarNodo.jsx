@@ -152,7 +152,7 @@ export default function RegistrarNodo() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(9);
 
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const categoriaFiltro = searchParams.get('categoria');
   const navigate = useNavigate();
   const isEn = language === 'en';
@@ -570,6 +570,39 @@ export default function RegistrarNodo() {
     });
   }, [categoriaFiltro, language]);
 
+  // Sincronización del estado de la vista con la URL (Historial del Navegador)
+  useEffect(() => {
+    if (loadingNodos) return;
+    const editarIdParam = searchParams.get('editar');
+    const accionParam = searchParams.get('accion');
+
+    if (editarIdParam) {
+      if (String(editandoId) !== String(editarIdParam) || !mostrarFormulario) {
+        const foundNode = nodosRegistrados.find(n => String(n.id) === String(editarIdParam));
+        if (foundNode) {
+          cargarEdicion(foundNode, false);
+        } else {
+          fetchWithAuth(`${API_BASE_URL}/nodos/${editarIdParam}?include_credentials=true&lang=${language}`)
+            .then(res => res.ok ? res.json() : null)
+            .then(freshNodo => {
+              if (freshNodo && freshNodo.id) cargarEdicion(freshNodo, false);
+            })
+            .catch(() => {});
+        }
+      }
+    } else if (accionParam === 'crear') {
+      if (!mostrarFormulario || editandoId !== null) {
+        setEditandoId(null);
+        setMostrarFormulario(true);
+      }
+    } else {
+      if (mostrarFormulario) {
+        setEditandoId(null);
+        setMostrarFormulario(false);
+      }
+    }
+  }, [searchParams, loadingNodos]);
+
   // Alerta de cambios pendientes al intentar recargar o cerrar la página
   useEffect(() => {
     const handleBeforeUnload = (e) => {
@@ -750,14 +783,25 @@ export default function RegistrarNodo() {
     const existingSensor = sensorsList.find(s => String(s.id) === String(sensorObj.id) || s.name.toLowerCase() === (sensorObj.name || sensorObj.label || '').toLowerCase());
 
     const cardMetrics = (existingSensor?.metrics || []).map(m => {
-      const stdKeyObj = (m.json_keys || m.jsonKeys || []).find(k => k.is_standard) || (m.json_keys || m.jsonKeys || [])[0];
+      const metricInList = metricsList.find(ml => String(ml.id) === String(m.id)) || m;
+      const units = metricInList.units || m.units || [];
+      const firstUnit = units.find(u => u.unit === m.unit) || units[0] || null;
+      const keys = firstUnit ? (firstUnit.json_keys || []) : (m.json_keys || m.jsonKeys || []);
+      const stdKeyObj = keys.find(k => k.is_standard) || keys[0];
+
       return {
         metric_id: m.id,
-        name: m.name,
-        unit: m.unit || '',
+        name: language === 'en' ? (m.name_en || m.name) : m.name,
+        name_es: m.name,
+        name_en: m.name_en || m.name,
+        unit: firstUnit ? firstUnit.unit : (m.unit || ''),
+        selected_unit_id: firstUnit ? firstUnit.id : null,
+        min_expected: firstUnit && firstUnit.min_expected !== null && firstUnit.min_expected !== undefined ? String(firstUnit.min_expected) : (m.min_expected !== null && m.min_expected !== undefined ? String(m.min_expected) : ''),
+        max_expected: firstUnit && firstUnit.max_expected !== null && firstUnit.max_expected !== undefined ? String(firstUnit.max_expected) : (m.max_expected !== null && m.max_expected !== undefined ? String(m.max_expected) : ''),
         symbol_image: m.symbol_image || '/symbols/default.webp',
-        json_key: stdKeyObj ? stdKeyObj.key_name : (m.name ? m.name.toLowerCase() : ''),
-        available_keys: m.json_keys || m.jsonKeys || []
+        json_key: stdKeyObj ? (typeof stdKeyObj === 'string' ? stdKeyObj : stdKeyObj.key_name) : (m.json_key || ''),
+        available_units: units,
+        available_keys: keys
       };
     });
 
@@ -844,7 +888,6 @@ export default function RegistrarNodo() {
 
   const handleSelectMetricForRow = (cardIdx, metricIdx, metricObj) => {
     const rawName = typeof metricObj === 'string' ? metricObj : (metricObj.name || metricObj.label || '');
-    // Look up by ID first (most reliable), then by name or name_en
     const selected = metricsList.find(m =>
       (metricObj.id && String(m.id) === String(metricObj.id)) ||
       m.name.toLowerCase() === rawName.toLowerCase() ||
@@ -852,9 +895,10 @@ export default function RegistrarNodo() {
     );
 
     if (selected) {
-      const keys = selected.json_keys || selected.jsonKeys || [];
+      const units = selected.units || [];
+      const firstUnit = units[0] || null;
+      const keys = firstUnit ? (firstUnit.json_keys || []) : (selected.json_keys || []);
       const stdKeyObj = keys.find(k => k.is_standard) || keys[0];
-      // Display localized metric name based on current language
       const displayName = language === 'en' ? (selected.name_en || selected.name) : selected.name;
 
       setSensorCards(prev => {
@@ -865,11 +909,12 @@ export default function RegistrarNodo() {
           name: displayName,
           name_es: selected.name,
           name_en: selected.name_en || selected.name,
-          unit: selected.unit || '',
+          unit: firstUnit ? firstUnit.unit : (selected.unit || ''),
           symbol_image: selected.symbol_image || '/symbols/default.webp',
-          min_expected: selected.min_expected !== null && selected.min_expected !== undefined ? String(selected.min_expected) : (next[cardIdx].metrics[metricIdx].min_expected || ''),
-          max_expected: selected.max_expected !== null && selected.max_expected !== undefined ? String(selected.max_expected) : (next[cardIdx].metrics[metricIdx].max_expected || ''),
-          json_key: stdKeyObj ? stdKeyObj.key_name : (next[cardIdx].metrics[metricIdx].json_key || ''),
+          min_expected: firstUnit && firstUnit.min_expected !== null && firstUnit.min_expected !== undefined ? String(firstUnit.min_expected) : (selected.min_expected !== null && selected.min_expected !== undefined ? String(selected.min_expected) : ''),
+          max_expected: firstUnit && firstUnit.max_expected !== null && firstUnit.max_expected !== undefined ? String(firstUnit.max_expected) : (selected.max_expected !== null && selected.max_expected !== undefined ? String(selected.max_expected) : ''),
+          json_key: stdKeyObj ? (typeof stdKeyObj === 'string' ? stdKeyObj : stdKeyObj.key_name) : '',
+          available_units: units,
           available_keys: keys
         };
         return next;
@@ -887,7 +932,6 @@ export default function RegistrarNodo() {
             setMetricsList(prev => [...prev, createdMetric]);
             const displayName = language === 'en' ? (createdMetric.name_en || createdMetric.name) : createdMetric.name;
 
-            // New metric: clear json_key, unit and symbol_image so user must define them
             setSensorCards(prev => {
               const next = JSON.parse(JSON.stringify(prev));
               next[cardIdx].metrics[metricIdx] = {
@@ -899,6 +943,7 @@ export default function RegistrarNodo() {
                 unit: '',
                 symbol_image: '/symbols/default.webp',
                 json_key: '',
+                available_units: [],
                 available_keys: []
               };
               return next;
@@ -906,7 +951,6 @@ export default function RegistrarNodo() {
           }
         })
         .catch(() => {
-          // Even on error: set name but leave json_key/unit/image blank for user to fill
           setSensorCards(prev => {
             const next = JSON.parse(JSON.stringify(prev));
             next[cardIdx].metrics[metricIdx] = {
@@ -915,12 +959,36 @@ export default function RegistrarNodo() {
               metric_id: null,
               json_key: '',
               unit: '',
+              available_units: [],
               available_keys: []
             };
             return next;
           });
         });
     }
+  };
+
+  const handleSelectUnitForRow = (cardIdx, metricIdx, selectedUnitSymbol) => {
+    setSensorCards(prev => {
+      const next = JSON.parse(JSON.stringify(prev));
+      const metricRow = next[cardIdx].metrics[metricIdx];
+      const availableUnits = metricRow.available_units || [];
+      const matchedUnit = availableUnits.find(u => u.unit === selectedUnitSymbol);
+
+      if (matchedUnit) {
+        const keys = matchedUnit.json_keys || [];
+        const stdKeyObj = keys.find(k => k.is_standard) || keys[0];
+
+        metricRow.unit = matchedUnit.unit;
+        metricRow.min_expected = matchedUnit.min_expected !== null && matchedUnit.min_expected !== undefined ? String(matchedUnit.min_expected) : '';
+        metricRow.max_expected = matchedUnit.max_expected !== null && matchedUnit.max_expected !== undefined ? String(matchedUnit.max_expected) : '';
+        metricRow.json_key = stdKeyObj ? (typeof stdKeyObj === 'string' ? stdKeyObj : stdKeyObj.key_name) : metricRow.json_key;
+        metricRow.available_keys = keys;
+      } else {
+        metricRow.unit = selectedUnitSymbol;
+      }
+      return next;
+    });
   };
 
   const handleCreateJsonKey = (cardIdx, metricIdx, newKeyName) => {
@@ -937,6 +1005,7 @@ export default function RegistrarNodo() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           metric_id: metricRow.metric_id,
+          metric_unit_id: metricRow.selected_unit_id || null,
           key_name: cleanKey,
           is_standard: false
         })
@@ -1142,7 +1211,13 @@ export default function RegistrarNodo() {
   };
 
 
-  const cargarEdicion = (nodo) => {
+  const cargarEdicion = (nodo, updateUrl = true) => {
+    if (updateUrl && nodo && nodo.id) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('accion');
+      newParams.set('editar', String(nodo.id));
+      setSearchParams(newParams);
+    }
     // Fetch fresh individual node data with full relations and credentials
     fetchWithAuth(`${API_BASE_URL}/nodos/${nodo.id}?include_credentials=true&lang=${language}`)
       .then(res => res.ok ? res.json() : Promise.reject(res))
@@ -1177,21 +1252,31 @@ export default function RegistrarNodo() {
             brand: card.brand || '',
             description: card.description || '',
             metrics: (card.metrics || []).map(m => {
-              // Enrich available_keys from metricsList if not provided by backend
-              const metricInList = metricsList.find(ml => String(ml.id) === String(m.metric_id));
-              const keysFromList = metricInList ? (metricInList.json_keys || metricInList.jsonKeys || []) : [];
+              const metricInList = metricsList.find(ml =>
+                (m.metric_id && String(ml.id) === String(m.metric_id)) ||
+                (m.name && ml.name.toLowerCase() === m.name.toLowerCase())
+              );
+              const units = (m.available_units && m.available_units.length > 0)
+                ? m.available_units
+                : (metricInList ? (metricInList.units || []) : (m.units || []));
+
+              const matchedUnit = units.find(u => u.unit === m.unit) || units[0] || null;
+              const unitKeys = matchedUnit ? (matchedUnit.json_keys || []) : [];
               const backendKeys = m.available_keys || [];
-              const mergedKeys = backendKeys.length > 0 ? backendKeys : keysFromList;
+              const mergedKeys = backendKeys.length > 0 ? backendKeys : (metricInList ? (metricInList.json_keys || metricInList.jsonKeys || []) : unitKeys);
+
               return {
-                metric_id: m.metric_id || null,
-                name: m.name || '',
-                name_es: m.name_es || m.name || '',
-                name_en: m.name_en || m.name || '',
-                unit: m.unit || '',
-                symbol_image: m.symbol_image || '/symbols/default.webp',
+                metric_id: m.metric_id || (metricInList ? metricInList.id : null),
+                name: m.name || (metricInList ? (isEn ? (metricInList.name_en || metricInList.name) : metricInList.name) : ''),
+                name_es: m.name_es || m.name || (metricInList ? metricInList.name : ''),
+                name_en: m.name_en || m.name || (metricInList ? (metricInList.name_en || metricInList.name) : ''),
+                unit: m.unit || (matchedUnit ? matchedUnit.unit : ''),
+                selected_unit_id: matchedUnit ? matchedUnit.id : null,
+                symbol_image: m.symbol_image || (metricInList ? metricInList.symbol_image : '/symbols/default.webp') || '/symbols/default.webp',
                 json_key: m.json_key || '',
-                min_expected: m.min_expected !== null && m.min_expected !== undefined ? String(m.min_expected) : '',
-                max_expected: m.max_expected !== null && m.max_expected !== undefined ? String(m.max_expected) : '',
+                min_expected: m.min_expected !== null && m.min_expected !== undefined ? String(m.min_expected) : (matchedUnit && matchedUnit.min_expected !== null ? String(matchedUnit.min_expected) : ''),
+                max_expected: m.max_expected !== null && m.max_expected !== undefined ? String(m.max_expected) : (matchedUnit && matchedUnit.max_expected !== null ? String(matchedUnit.max_expected) : ''),
+                available_units: units,
                 available_keys: mergedKeys
               };
             })
@@ -1209,14 +1294,24 @@ export default function RegistrarNodo() {
                 metrics: []
               };
             }
-            const metricInList = metricsList.find(ml => String(ml.id) === String(l.metric_id));
-            const keysFromList = metricInList ? (metricInList.json_keys || metricInList.jsonKeys || []) : [];
+            const metricInList = metricsList.find(ml =>
+              (l.metric_id && String(ml.id) === String(l.metric_id)) ||
+              (l.tipo && ml.name.toLowerCase() === l.tipo.toLowerCase())
+            );
+            const units = metricInList ? (metricInList.units || []) : [];
+            const matchedUnit = units.find(u => u.unit === l.unidad) || units[0] || null;
+            const keysFromList = matchedUnit ? (matchedUnit.json_keys || []) : (metricInList ? (metricInList.json_keys || metricInList.jsonKeys || []) : []);
+
             cardsMap[sName].metrics.push({
-              metric_id: l.metric_id || null,
-              name: l.tipo || '',
-              unit: l.unidad || '',
-              symbol_image: l.symbol_image || l.icono || '/symbols/default.webp',
+              metric_id: l.metric_id || (metricInList ? metricInList.id : null),
+              name: l.tipo || (metricInList ? metricInList.name : ''),
+              unit: l.unidad || (matchedUnit ? matchedUnit.unit : ''),
+              selected_unit_id: matchedUnit ? matchedUnit.id : null,
+              symbol_image: l.symbol_image || l.icono || (metricInList ? metricInList.symbol_image : '/symbols/default.webp'),
               json_key: l.data_type || '',
+              min_expected: l.min_expected !== null && l.min_expected !== undefined ? String(l.min_expected) : '',
+              max_expected: l.max_expected !== null && l.max_expected !== undefined ? String(l.max_expected) : '',
+              available_units: units,
               available_keys: keysFromList
             });
           });
@@ -1451,14 +1546,21 @@ export default function RegistrarNodo() {
         cancelButtonText: t("common.keep_editing", isEn ? "Keep editing" : "Seguir editando")
       }).then((result) => {
         if (result.isConfirmed) {
-          limpiarFormulario();
-          setMostrarFormulario(false);
+          cerrarFormulario();
         }
       });
     } else {
-      limpiarFormulario();
-      setMostrarFormulario(false);
+      cerrarFormulario();
     }
+  };
+
+  const cerrarFormulario = () => {
+    limpiarFormulario();
+    setMostrarFormulario(false);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete('accion');
+    newParams.delete('editar');
+    setSearchParams(newParams);
   };
 
   const abrirCreacion = () => {
@@ -1467,6 +1569,10 @@ export default function RegistrarNodo() {
       setCategoria(categoriaFiltro);
     }
     setMostrarFormulario(true);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete('editar');
+    newParams.set('accion', 'crear');
+    setSearchParams(newParams);
   };
 
   // Helper to construct dynamic button text
@@ -2062,7 +2168,7 @@ export default function RegistrarNodo() {
                       ) : (
                         card.metrics.map((metric, mIdx) => (
                           <div key={mIdx} className="metric-row" style={{ borderLeftColor: '#2563eb' }}>
-                            {/* Métrica Combobox */}
+                            {/* 1. Métrica Combobox */}
                             <div className="metric-col" style={{ flex: 1.5 }}>
                               <label className="metric-label">{isEn ? 'Metric' : 'Métrica'}</label>
                               <Combobox
@@ -2081,12 +2187,51 @@ export default function RegistrarNodo() {
                               />
                             </div>
 
-                            {/* JSON Key Combobox */}
+                            {/* 2. Unidad Select Dropdown (Editable con desplegable de subvariables de la métrica) */}
+                            <div className="metric-col" style={{ flex: 1 }}>
+                              <label className="metric-label">{isEn ? 'Unit' : 'Unidad'}</label>
+                              {metric.available_units && metric.available_units.length > 0 ? (
+                                <select
+                                  value={metric.unit || ''}
+                                  onChange={(e) => handleSelectUnitForRow(cIdx, mIdx, e.target.value)}
+                                  className="iot-input"
+                                  style={{
+                                    background: '#ffffff',
+                                    border: '1.5px solid #10b981',
+                                    color: '#065f46',
+                                    fontWeight: '800',
+                                    cursor: 'pointer',
+                                    padding: '0.6rem 0.75rem'
+                                  }}
+                                >
+                                  {metric.available_units.map((u, uIdx) => (
+                                    <option key={uIdx} value={u.unit}>
+                                      {u.unit} ({isEn ? (u.name_en || u.name) : u.name})
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <input
+                                  type="text"
+                                  value={metric.unit || ''}
+                                  onChange={(e) => handleSelectUnitForRow(cIdx, mIdx, e.target.value)}
+                                  placeholder="°C / % / ppm"
+                                  className="iot-input"
+                                  style={{ background: '#ffffff', color: '#0f2c59', fontWeight: '700' }}
+                                />
+                              )}
+                            </div>
+
+                            {/* 3. JSON Key Combobox */}
                             <div className="metric-col" style={{ flex: 1.5 }}>
                               <label className="metric-label">{isEn ? 'MQTT / JSON Key' : 'Clave MQTT / JSON'}</label>
                               <Combobox
                                 value={metric.json_key}
-                                options={(metric.available_keys || []).map(k => ({ label: k.key_name, value: k.key_name, is_standard: k.is_standard }))}
+                                options={(metric.available_keys || []).map(k => ({
+                                  label: typeof k === 'string' ? k : k.key_name,
+                                  value: typeof k === 'string' ? k : k.key_name,
+                                  is_standard: typeof k === 'object' ? Boolean(k.is_standard) : false
+                                }))}
                                 placeholder={isEn ? 'Select or type key...' : 'Seleccionar o escribir clave...'}
                                 allowCreate={true}
                                 createLabelPrefix={isEn ? "CREATE KEY" : "CREAR LLAVE"}
@@ -2103,22 +2248,8 @@ export default function RegistrarNodo() {
                               />
                             </div>
 
-                            {/* Unit Input (Locked) */}
+                            {/* 4. Min Expected Input */}
                             <div className="metric-col" style={{ flex: 0.9 }}>
-                              <label className="metric-label">{isEn ? 'Unit' : 'Unidad'}</label>
-                              <input
-                                type="text"
-                                disabled
-                                readOnly
-                                value={metric.unit || ''}
-                                placeholder="°C / % / ppm"
-                                className="iot-input"
-                                style={{ background: '#f1f5f9', cursor: 'not-allowed', color: '#475569', fontWeight: '700' }}
-                              />
-                            </div>
-
-                            {/* Min Expected Input */}
-                            <div className="metric-col" style={{ flex: 1 }}>
                               <label className="metric-label">{isEn ? 'Min. Expected' : 'Mín. Esperado'}</label>
                               <input
                                 type="number"
@@ -2137,8 +2268,8 @@ export default function RegistrarNodo() {
                               />
                             </div>
 
-                            {/* Max Expected Input */}
-                            <div className="metric-col" style={{ flex: 1 }}>
+                            {/* 5. Max Expected Input */}
+                            <div className="metric-col" style={{ flex: 0.9 }}>
                               <label className="metric-label">{isEn ? 'Max. Expected' : 'Máx. Esperado'}</label>
                               <input
                                 type="number"
@@ -2157,7 +2288,7 @@ export default function RegistrarNodo() {
                               />
                             </div>
 
-                            {/* Symbol Image Display (Locked Thumbnail) */}
+                            {/* 6. Symbol Image Display (Locked Thumbnail) */}
                             <div className="metric-col" style={{ flex: 0.8, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                               <label className="metric-label" style={{ width: '100%', textAlign: 'center' }}>{isEn ? 'Symbol' : 'Símbolo'}</label>
                               <div style={{
@@ -2184,7 +2315,7 @@ export default function RegistrarNodo() {
                               </div>
                             </div>
 
-                            {/* Delete Button */}
+                            {/* 7. Delete Button */}
                             <div className="metric-col-delete">
                               <button
                                 type="button"

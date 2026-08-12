@@ -26,6 +26,13 @@ const NodesIcon = () => (
   </svg>
 );
 
+const SensorIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="18" height="18" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+    <rect x="2" y="6" width="20" height="12" rx="3" />
+    <path d="M6 12h4m4 0h4" />
+  </svg>
+);
+
 const LocationsIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="18" height="18" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
@@ -273,7 +280,23 @@ const Sidebar = ({ isOpen, cerrarMenu, appInterfaces = [], dbUser, userSession }
                         className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
                         onClick={cerrarMenu}
                       >
-                        <AddIcon /> <span>{t("admin.register_node", "Registrar Nodo")}</span>
+                        <NodesIcon /> <span>{t("admin.register_node", "Gestionar Nodos")}</span>
+                      </NavLink>)}
+
+                      {canAccess('/admin/sensores') && (<NavLink
+                        to={`${baseAdmin}/${language === 'en' ? 'sensors' : 'sensores'}`}
+                        className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
+                        onClick={cerrarMenu}
+                      >
+                        <SensorIcon /> <span>{t("admin.sensors", "Gestionar Sensores")}</span>
+                      </NavLink>)}
+
+                      {canAccess('/admin/metricas') && (<NavLink
+                        to={`${baseAdmin}/${language === 'en' ? 'metrics' : 'metricas'}`}
+                        className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
+                        onClick={cerrarMenu}
+                      >
+                        <MetricIcon /> <span>{t("admin.metrics", "Métricas / Unidades")}</span>
                       </NavLink>)}
 
                       {canAccess('/admin/categorias') && (<NavLink
@@ -282,14 +305,6 @@ const Sidebar = ({ isOpen, cerrarMenu, appInterfaces = [], dbUser, userSession }
                         onClick={cerrarMenu}
                       >
                         <TagIcon /> <span>{t("admin.categories", "Categorías de Nodos")}</span>
-                      </NavLink>)}
-
-                      {canAccess('/admin/metricas') && (<NavLink
-                        to={`${baseAdmin}/${language === 'en' ? 'metrics' : 'metricas'}`}
-                        className={({ isActive }) => `submenu-item ${isActive ? 'active' : ''}`}
-                        onClick={cerrarMenu}
-                      >
-                        <MetricIcon /> <span>{t("admin.metrics", "Métricas de Nodos")}</span>
                       </NavLink>)}
                     </div>
                   )}

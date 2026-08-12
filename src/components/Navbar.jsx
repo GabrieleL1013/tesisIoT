@@ -11,7 +11,7 @@ import IotLogoImg from "../assets/IOT-LOGO.png";
 import "../styles/components/Navbar.css"; 
 
 const ChevronDownIcon = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ marginLeft: "4px", display: "inline-block", verticalAlign: "middle" }}><polyline points="6 9 12 15 18 9"/></svg>
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="6 9 12 15 18 9"/></svg>
 );
 const MenuIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -20,16 +20,16 @@ const CloseIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 );
 const GlobeIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ display: "inline-block", verticalAlign: "middle" }}><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z"></path></svg>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z"></path></svg>
 );
 const LoginIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" className="icon-login" style={{ display: "inline-block", verticalAlign: "middle" }}><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" className="icon-login"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
 );
 const LogoutIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" className="icon-logout" style={{ display: "inline-block", verticalAlign: "middle" }}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" className="icon-logout"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
 );
 const DashboardIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" className="icon-dashboard" style={{ display: "inline-block", verticalAlign: "middle" }}>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" className="icon-dashboard">
     <rect x="3" y="3" width="7" height="9" />
     <rect x="14" y="3" width="7" height="5" />
     <rect x="14" y="12" width="7" height="9" />
@@ -242,17 +242,22 @@ export default function Navbar() {
             {mobileOpen ? <CloseIcon /> : <MenuIcon />}
           </button>
 
-          <Link to={`/${language}`} className="nav-logo">
-            <img
-              src={LogoImg}
-              alt="Universidad Logo"
-              className="nav-logo-img"
-            />
-            <img
-              src={IotLogoImg}
-              alt="IOT Logo"
-              className="nav-logo-img-secondary"
-            />
+          <Link to={`/${language}`} className="nav-logo" aria-label="Ir a Inicio ULEAM IoT">
+            <div className="nav-logo-uleam-wrapper">
+              <img
+                src={LogoImg}
+                alt="Universidad Laica Eloy Alfaro de Manabí"
+                className="nav-logo-img-uleam"
+              />
+            </div>
+            <span className="nav-logo-divider" aria-hidden="true" />
+            <div className="nav-logo-iot-wrapper">
+              <img
+                src={IotLogoImg}
+                alt="Proyecto IoT ULEAM"
+                className="nav-logo-img-iot"
+              />
+            </div>
           </Link>
 
           <div className="nav-desktop-links">
@@ -269,17 +274,18 @@ export default function Navbar() {
               >
                 {item.children ? (
                   <button
+                    type="button"
                     className={`nav-link ${isItemActive(item) ? "active" : ""} ${openDropdown === item.label ? "dropdown-open" : ""}`}
-                    style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', background: 'none', border: 'none', fontFamily: 'inherit', cursor: 'pointer', padding: '0 0.8rem' }}
                   >
-                    {item.label} <ChevronDownIcon className={openDropdown === item.label ? "rotated" : ""} />
+                    <span>{item.label}</span>
+                    <ChevronDownIcon className={openDropdown === item.label ? "rotated" : ""} />
                   </button>
                 ) : (
                   <Link
                     to={item.path}
                     className={`nav-link ${isItemActive(item) ? "active" : ""}`}
                   >
-                    {item.label}
+                    <span>{item.label}</span>
                   </Link>
                 )}
                 
@@ -313,7 +319,7 @@ export default function Navbar() {
                 className="nav-btn-lang"
               >
                 <GlobeIcon />
-                <span className="nav-btn-text" style={{ marginLeft: "6px" }}>
+                <span className="nav-btn-text">
                   {LANGUAGES.find((l) => l.code === language)?.name || "Español"}
                 </span>
                 <ChevronDownIcon className="nav-btn-chevron" />
@@ -385,7 +391,7 @@ export default function Navbar() {
             ) : (
               <button onClick={() => navigate(`/${language}/login`)} className="nav-btn-access desktop-only">
                 <LoginIcon />
-                <span className="nav-btn-text" style={{ marginLeft: "6px" }}>
+                <span className="nav-btn-text">
                   {t("nav.login", "Acceso")}
                 </span>
               </button>
@@ -395,34 +401,17 @@ export default function Navbar() {
               <button 
                 onClick={toggleEditMode}
                 className="nav-edit-mode-text-only-btn desktop-only"
-                style={{
-                  marginLeft: '20px',
-                  marginRight: '0px',
-                  background: 'none',
-                  border: 'none',
-                  color: editMode ? '#62ffb1' : 'rgba(255, 255, 255, 0.75)',
-                  fontSize: '0.88rem',
-                  fontWeight: '750',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '6px 0',
-                  transition: 'all 0.2s ease',
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
-                  outline: 'none'
-                }}
               >
                 <span>{t("nav.edit_mode", "Modo Edición")}</span>
-                <svg viewBox="0 0 38 22" width="28" height="16" fill="none" style={{ verticalAlign: 'middle' }}>
+                <svg viewBox="0 0 38 22" width="28" height="16" fill="none">
                   <rect 
                     x="1" 
                     y="1" 
                     width="36" 
                     height="20" 
                     rx="10" 
-                    fill={editMode ? '#62ffb1' : 'rgba(255, 255, 255, 0.15)'} 
-                    stroke={editMode ? '#62ffb1' : 'rgba(255, 255, 255, 0.4)'} 
+                    fill={editMode ? '#94C11F' : 'rgba(255, 255, 255, 0.15)'} 
+                    stroke={editMode ? '#94C11F' : 'rgba(255, 255, 255, 0.4)'} 
                     strokeWidth="1.5" 
                   />
                   <circle 
@@ -546,8 +535,8 @@ export default function Navbar() {
                         width="36" 
                         height="20" 
                         rx="10" 
-                        fill={editMode ? '#62ffb1' : 'rgba(255, 255, 255, 0.15)'} 
-                        stroke={editMode ? '#62ffb1' : 'rgba(255, 255, 255, 0.4)'} 
+                        fill={editMode ? '#94C11F' : 'rgba(255, 255, 255, 0.15)'} 
+                        stroke={editMode ? '#94C11F' : 'rgba(255, 255, 255, 0.4)'} 
                         strokeWidth="1.5" 
                       />
                       <circle 

@@ -164,24 +164,22 @@ export default function GestionarMetricas() {
   const { language } = useLanguage();
   const isEn = language === 'en';
 
-  usePageTitle({ es: 'Gestionar Métricas', en: 'Manage Metrics' }, 'Admin · IoT ULEAM');
+  usePageTitle({ es: 'Métricas / Unidades', en: 'Metrics / Units' }, 'Admin · IoT ULEAM');
 
   const [metricas, setMetricas]               = useState([]);
   const [loading, setLoading]                 = useState(true);
   const [showForm, setShowForm]               = useState(false);
   const [editandoId, setEditandoId]           = useState(null);
-  
+
   const symbolFileInputRef                    = useRef(null);
 
-  // Metric Form Fields
+  // Metric General Form Fields
   const [nombre, setNombre]                   = useState('');
-  const [unidad, setUnidad]                   = useState('');
-  const [minExpected, setMinExpected]         = useState('');
-  const [maxExpected, setMaxExpected]         = useState('');
   const [symbolImage, setSymbolImage]         = useState('');
   const [symbolFile, setSymbolFile]           = useState(null);
-  const [jsonKeys, setJsonKeys]               = useState([]);
-  const [newKeyInput, setNewKeyInput]         = useState('');
+
+  // Subvariables / Unidades (Array of rows)
+  const [subvariables, setSubvariables]       = useState([]);
 
   const [saving, setSaving]                   = useState(false);
   const [busqueda, setBusqueda]               = useState('');
@@ -201,14 +199,20 @@ export default function GestionarMetricas() {
       const query = busqueda.toLowerCase().trim();
       if (!query) return true;
       const nameStr = (m.name || m.name_es || m.nombre || '').toLowerCase();
-      const unitStr = (m.unit || m.unidad || '').toLowerCase();
-      const matchName = nameStr.includes(query) || unitStr.includes(query);
-      const keysList = m.json_keys || m.jsonKeys || m.subvariables || [];
-      const matchKeys = keysList.some(k => {
-        const kName = typeof k === 'string' ? k : (k.key_name || k.claveMqtt || k.nombre || '');
-        return kName.toLowerCase().includes(query);
+      const matchName = nameStr.includes(query);
+
+      const unitsList = m.units || [];
+      const matchUnits = unitsList.some(u => {
+        const uName = (u.name || u.name_es || '').toLowerCase();
+        const uSymbol = (u.unit || '').toLowerCase();
+        const uKeys = u.json_keys || [];
+        return uName.includes(query) || uSymbol.includes(query) || uKeys.some(k => (k.key_name || '').toLowerCase().includes(query));
       });
-      return matchName || matchKeys;
+
+      const keysList = m.json_keys || [];
+      const matchKeys = keysList.some(k => (k.key_name || '').toLowerCase().includes(query));
+
+      return matchName || matchUnits || matchKeys;
     })
     .sort((a, b) => {
       const nameA = a.name || a.name_es || a.nombre || '';
@@ -258,19 +262,26 @@ export default function GestionarMetricas() {
   const limpiar = () => {
     setEditandoId(null);
     setNombre('');
-    setUnidad('');
-    setMinExpected('');
-    setMaxExpected('');
     setSymbolImage('');
     setSymbolFile(null);
-    setJsonKeys([]);
-    setNewKeyInput('');
+    setSubvariables([]);
     setSaving(false);
   };
 
   const abrirCreacion = () => {
     limpiar();
-    setJsonKeys([{ key_name: '', is_standard: true, isNew: true }]);
+    setSubvariables([
+      {
+        id: null,
+        name: '',
+        unit: '',
+        min_expected: '',
+        max_expected: '',
+        json_keys: [{ key_name: '', is_standard: true }],
+        standard_json_key: '',
+        new_key_input: ''
+      }
+    ]);
     setShowForm(true);
   };
 
@@ -308,110 +319,150 @@ export default function GestionarMetricas() {
     setSymbolFile(null);
   };
 
-  // Standard Key Toggle handler
-  const handleToggleStandardKey = (targetIndex) => {
-    setJsonKeys(prev => prev.map((k, idx) => ({
-      ...k,
-      is_standard: idx === targetIndex
-    })));
-
-    // If editing existing metric and key has an ID, notify API
-    const targetKey = jsonKeys[targetIndex];
-    if (editandoId && targetKey && targetKey.id) {
-      fetchWithAuth(`${API_BASE_URL}/metric-json-keys/${targetKey.id}/set-standard`, {
-        method: 'PUT'
-      }).catch(err => console.error("Error setting standard key:", err));
-    }
+  // Subvariables Handler Functions
+  const handleAddSubvariable = () => {
+    setSubvariables(prev => [
+      ...prev,
+      {
+        id: null,
+        name: '',
+        unit: '',
+        min_expected: '',
+        max_expected: '',
+        json_keys: [{ key_name: '', is_standard: true }],
+        standard_json_key: '',
+        new_key_input: '',
+        expanded_keys: false
+      }
+    ]);
   };
 
-  const handleAddJsonKey = () => {
-    const clean = newKeyInput.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_.-]/g, '');
+  const handleRemoveSubvariable = (subIdx) => {
+    setSubvariables(prev => prev.filter((_, idx) => idx !== subIdx));
+  };
+
+  const handleUpdateSubvariable = (subIdx, field, val) => {
+    setSubvariables(prev => prev.map((item, idx) => {
+      if (idx === subIdx) {
+        return { ...item, [field]: val };
+      }
+      return item;
+    }));
+  };
+
+  const handleToggleExpandKeys = (subIdx) => {
+    setSubvariables(prev => prev.map((item, idx) => {
+      if (idx === subIdx) {
+        return { ...item, expanded_keys: !item.expanded_keys };
+      }
+      return item;
+    }));
+  };
+
+  const handleRemoveKeyFromSubvariable = (subIdx, keyNameToRemove) => {
+    setSubvariables(prev => prev.map((item, idx) => {
+      if (idx === subIdx) {
+        const nextKeys = item.json_keys.filter(k => {
+          const kName = typeof k === 'string' ? k : k.key_name;
+          return kName.toLowerCase() !== keyNameToRemove.toLowerCase();
+        });
+
+        const currentStd = item.standard_json_key || '';
+        const wasStd = currentStd.toLowerCase() === keyNameToRemove.toLowerCase();
+        const firstKey = nextKeys[0] ? (typeof nextKeys[0] === 'string' ? nextKeys[0] : nextKeys[0].key_name) : '';
+        const newStd = wasStd ? firstKey : currentStd;
+
+        const updatedKeys = nextKeys.map(k => {
+          const kName = typeof k === 'string' ? k : k.key_name;
+          return {
+            key_name: kName,
+            is_standard: kName.toLowerCase() === newStd.toLowerCase()
+          };
+        });
+
+        return {
+          ...item,
+          standard_json_key: newStd,
+          json_keys: updatedKeys
+        };
+      }
+      return item;
+    }));
+  };
+
+  // Add JSON key to specific subvariable row
+  const handleAddKeyToSubvariable = (subIdx) => {
+    const sub = subvariables[subIdx];
+    if (!sub) return;
+    const clean = (sub.new_key_input || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_.-]/g, '');
     if (!clean) return;
 
-    if (jsonKeys.some(k => k.key_name.toLowerCase() === clean)) {
+    if (sub.json_keys.some(k => (typeof k === 'string' ? k : k.key_name).toLowerCase() === clean)) {
       Swal.fire({
         icon: 'warning',
         title: isEn ? 'Key exists' : 'Clave ya existe',
-        text: isEn ? 'This JSON key is already added.' : 'Esta clave JSON ya está agregada.',
+        text: isEn ? 'This JSON key is already added to this unit.' : 'Esta clave JSON ya está agregada a esta unidad.',
         confirmButtonColor: '#2563eb'
       });
       return;
     }
 
-    const isFirst = jsonKeys.length === 0;
+    const isFirst = sub.json_keys.length === 0;
 
-    if (editandoId) {
-      // Add via backend immediately
-      fetchWithAuth(`${API_BASE_URL}/metric-json-keys`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          metric_id: editandoId,
-          key_name: clean,
-          is_standard: isFirst
-        })
-      })
-        .then(res => res.json())
-        .then(created => {
-          setJsonKeys(prev => [...prev, created]);
-          setNewKeyInput('');
-        })
-        .catch(err => console.error("Error adding json key:", err));
-    } else {
-      setJsonKeys(prev => [...prev, { key_name: clean, is_standard: isFirst, isNew: true }]);
-      setNewKeyInput('');
-    }
+    setSubvariables(prev => prev.map((item, idx) => {
+      if (idx === subIdx) {
+        const nextKeys = [...item.json_keys, { key_name: clean, is_standard: isFirst }];
+        return {
+          ...item,
+          json_keys: nextKeys,
+          standard_json_key: isFirst ? clean : item.standard_json_key,
+          new_key_input: ''
+        };
+      }
+      return item;
+    }));
   };
 
-  const handleRemoveJsonKey = (index) => {
-    const targetKey = jsonKeys[index];
-    if (editandoId && targetKey && targetKey.id) {
-      fetchWithAuth(`${API_BASE_URL}/metric-json-keys/${targetKey.id}`, {
-        method: 'DELETE'
-      })
-        .then(() => {
-          setJsonKeys(prev => {
-            const next = prev.filter((_, idx) => idx !== index);
-            if (targetKey.is_standard && next.length > 0) {
-              next[0].is_standard = true;
-              if (next[0].id) {
-                fetchWithAuth(`${API_BASE_URL}/metric-json-keys/${next[0].id}/set-standard`, { method: 'PUT' });
-              }
-            }
-            return next;
-          });
-        })
-        .catch(err => console.error("Error deleting json key:", err));
-    } else {
-      setJsonKeys(prev => {
-        const next = prev.filter((_, idx) => idx !== index);
-        if (targetKey?.is_standard && next.length > 0) {
-          next[0].is_standard = true;
-        }
-        return next;
-      });
-    }
+  // Select standard key for subvariable row
+  const handleSelectStandardKey = (subIdx, selectedKeyName) => {
+    setSubvariables(prev => prev.map((item, idx) => {
+      if (idx === subIdx) {
+        const nextKeys = item.json_keys.map(k => {
+          const kName = typeof k === 'string' ? k : k.key_name;
+          return {
+            key_name: kName,
+            is_standard: kName === selectedKeyName
+          };
+        });
+        return {
+          ...item,
+          standard_json_key: selectedKeyName,
+          json_keys: nextKeys
+        };
+      }
+      return item;
+    }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!nombre.trim() || !unidad.trim()) {
+    if (!nombre.trim()) {
       Swal.fire({
         icon: 'warning',
         title: isEn ? 'Incomplete fields' : 'Campos incompletos',
-        text: isEn ? 'Please enter metric name and unit.' : 'Por favor ingresa el nombre de la métrica y su unidad.',
+        text: isEn ? 'Please enter metric name.' : 'Por favor ingresa el nombre de la métrica.',
         confirmButtonColor: '#2563eb'
       });
       return;
     }
 
-    const validKeys = jsonKeys.filter(k => k.key_name && k.key_name.trim());
-    if (validKeys.length === 0 && !editandoId) {
+    const validSubs = subvariables.filter(s => (s.name && s.name.trim()) || (s.unit && s.unit.trim()));
+    if (validSubs.length === 0) {
       Swal.fire({
         icon: 'warning',
-        title: isEn ? 'Missing JSON Keys' : 'Faltan Claves JSON',
-        text: isEn ? 'Please add at least one JSON key for this metric.' : 'Por favor añade al menos una clave JSON para esta métrica.',
+        title: isEn ? 'Missing subvariables' : 'Faltan subvariables',
+        text: isEn ? 'Please add at least one unit/subvariable row.' : 'Por favor añade al menos una fila de subvariable / unidad.',
         confirmButtonColor: '#2563eb'
       });
       return;
@@ -421,65 +472,56 @@ export default function GestionarMetricas() {
 
     try {
       let metricId = editandoId;
-      const stdKeyObj = validKeys.find(k => k.is_standard) || validKeys[0];
 
       let cleanSymbolImage = symbolImage;
       if (cleanSymbolImage && cleanSymbolImage.startsWith('data:')) {
         cleanSymbolImage = undefined;
       }
 
-      if (editandoId) {
-        // Update metric
-        const putPayload = {
-          name: nombre.trim(),
-          unit: unidad.trim(),
-          min_expected: minExpected !== '' ? parseFloat(minExpected) : null,
-          max_expected: maxExpected !== '' ? parseFloat(maxExpected) : null
-        };
-        if (cleanSymbolImage !== undefined) {
-          putPayload.symbol_image = cleanSymbolImage;
-        }
+      const formattedUnits = validSubs.map(s => {
+        const validKeys = s.json_keys
+          .map(k => typeof k === 'string' ? { key_name: k, is_standard: false } : k)
+          .filter(k => k.key_name && k.key_name.trim());
 
+        const stdKey = s.standard_json_key || (validKeys[0] ? validKeys[0].key_name : '');
+
+        return {
+          id: s.id || null,
+          name: s.name.trim() || nombre.trim(),
+          unit: s.unit.trim(),
+          min_expected: s.min_expected !== '' ? parseFloat(s.min_expected) : null,
+          max_expected: s.max_expected !== '' ? parseFloat(s.max_expected) : null,
+          standard_json_key: stdKey,
+          json_keys: validKeys
+        };
+      });
+
+      const payload = {
+        name: nombre.trim(),
+        units: formattedUnits
+      };
+      if (cleanSymbolImage !== undefined) {
+        payload.symbol_image = cleanSymbolImage;
+      }
+
+      if (editandoId) {
         const res = await fetchWithAuth(`${API_BASE_URL}/metricas/${editandoId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(putPayload)
+          body: JSON.stringify(payload)
         });
         if (!res.ok) throw new Error();
       } else {
-        // Create metric
         const res = await fetchWithAuth(`${API_BASE_URL}/metricas`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: nombre.trim(),
-            unit: unidad.trim(),
-            min_expected: minExpected !== '' ? parseFloat(minExpected) : null,
-            max_expected: maxExpected !== '' ? parseFloat(maxExpected) : null,
-            standard_json_key: stdKeyObj ? stdKeyObj.key_name : ''
-          })
+          body: JSON.stringify(payload)
         });
         if (!res.ok) throw new Error();
         const createdMetric = await res.json();
         metricId = createdMetric.id;
-
-        // Add additional non-standard keys if any
-        for (const k of validKeys) {
-          if (k.key_name !== (stdKeyObj ? stdKeyObj.key_name : '')) {
-            await fetchWithAuth(`${API_BASE_URL}/metric-json-keys`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                metric_id: metricId,
-                key_name: k.key_name,
-                is_standard: false
-              })
-            });
-          }
-        }
       }
 
-      // If user uploaded a new symbol image file, upload it
       if (symbolFile && metricId) {
         const formData = new FormData();
         formData.append('image', symbolFile);
@@ -515,18 +557,50 @@ export default function GestionarMetricas() {
   const cargarEdicion = (m) => {
     setEditandoId(m.id);
     setNombre(m.name || m.name_es || m.nombre || '');
-    setUnidad(m.unit || m.unidad || '');
-    setMinExpected(m.min_expected !== null && m.min_expected !== undefined ? String(m.min_expected) : '');
-    setMaxExpected(m.max_expected !== null && m.max_expected !== undefined ? String(m.max_expected) : '');
     setSymbolImage(m.symbol_image || m.imagen || '/symbols/default.webp');
     setSymbolFile(null);
 
-    const keys = m.json_keys || m.jsonKeys || [];
-    setJsonKeys(keys.map(k => ({
-      id: k.id,
-      key_name: k.key_name || k.claveMqtt || '',
-      is_standard: Boolean(k.is_standard)
-    })));
+    const unitsList = m.units || [];
+    if (unitsList.length > 0) {
+      setSubvariables(unitsList.map(u => {
+        const keys = (u.json_keys || []).map(k => ({
+          id: k.id,
+          key_name: k.key_name || '',
+          is_standard: Boolean(k.is_standard)
+        }));
+        const stdKeyObj = keys.find(k => k.is_standard) || keys[0];
+        return {
+          id: u.id,
+          name: u.name || u.name_es || '',
+          unit: u.unit || '',
+          min_expected: u.min_expected !== null && u.min_expected !== undefined ? String(u.min_expected) : '',
+          max_expected: u.max_expected !== null && u.max_expected !== undefined ? String(u.max_expected) : '',
+          json_keys: keys,
+          standard_json_key: stdKeyObj ? stdKeyObj.key_name : '',
+          new_key_input: ''
+        };
+      }));
+    } else {
+      // Fallback single unit if metric didn't have units
+      const keys = (m.json_keys || []).map(k => ({
+        id: k.id,
+        key_name: k.key_name || '',
+        is_standard: Boolean(k.is_standard)
+      }));
+      const stdKeyObj = keys.find(k => k.is_standard) || keys[0];
+      setSubvariables([
+        {
+          id: null,
+          name: m.name || m.name_es || '',
+          unit: m.unit || '',
+          min_expected: m.min_expected !== null && m.min_expected !== undefined ? String(m.min_expected) : '',
+          max_expected: m.max_expected !== null && m.max_expected !== undefined ? String(m.max_expected) : '',
+          json_keys: keys,
+          standard_json_key: stdKeyObj ? stdKeyObj.key_name : '',
+          new_key_input: ''
+        }
+      ]);
+    }
 
     setShowForm(true);
   };
@@ -537,7 +611,7 @@ export default function GestionarMetricas() {
 
     Swal.fire({
       title: isEn ? 'Delete metric?' : '¿Eliminar métrica?',
-      text: isEn ? `"${mName}" and all its JSON keys will be deleted.` : `"${mName}" y todas sus claves JSON serán eliminadas.`,
+      text: isEn ? `"${mName}" and all its subvariables will be deleted.` : `"${mName}" y todas sus subvariables serán eliminadas.`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#ef4444',
@@ -565,7 +639,7 @@ export default function GestionarMetricas() {
     <div className="met-page">
 
       {/* ══════════════════════════════════════════
-          MODO FORMULARIO — Full-screen layout
+          MODO FORMULARIO — Visual Design from Image 3
       ══════════════════════════════════════════ */}
       {showForm ? (
         <div className="met-form-fullscreen">
@@ -591,62 +665,27 @@ export default function GestionarMetricas() {
             </button>
           </div>
 
-          {/* ── Cuerpo en dos columnas ── */}
+          {/* ── Cuerpo en dos columnas (Imagen 3) ── */}
           <form onSubmit={handleSubmit} className="met-form-body">
 
-            {/* ── COL IZQUIERDA: Nombre, Unidad + Imagen de Símbolo ── */}
+            {/* ── COL IZQUIERDA: Nombre de la Métrica + Imagen de Símbolo ── */}
             <div className="met-form-left">
               <div className="met-field-group">
-                <label className="met-label">{isEn ? 'Metric Name' : 'Nombre de la Métrica'}</label>
+                <label className="met-label">{isEn ? 'Metric Name' : 'NOMBRE DE LA MÉTRICA'}</label>
                 <input
                   autoFocus
                   type="text"
                   value={nombre}
                   onChange={e => setNombre(e.target.value)}
-                  placeholder={isEn ? 'e.g. Temperature, Air Quality Index' : 'ej. Temperatura, Índice de Calidad de Aire'}
+                  placeholder={isEn ? 'e.g. Temperature, Distance / Length' : 'ej. Temperatura, Distancia / Longitud'}
                   className="met-input met-input--full"
+                  style={{ width: '100%', maxWidth: '100%' }}
                 />
               </div>
 
-              <div className="met-field-group">
-                <label className="met-label">{isEn ? 'Unit of Measurement' : 'Unidad de Medida'}</label>
-                <input
-                  type="text"
-                  value={unidad}
-                  onChange={e => setUnidad(e.target.value)}
-                  placeholder={isEn ? 'e.g. °C, %, ppm, µg/m³' : 'ej. °C, %, ppm, µg/m³'}
-                  className="met-input met-input--full"
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '12px', width: '100%', maxWidth: '420px' }}>
-                <div className="met-field-group" style={{ flex: 1 }}>
-                  <label className="met-label">{isEn ? 'Default Min Expected' : 'Mín. Esperado Defecto'}</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={minExpected}
-                    onChange={e => setMinExpected(e.target.value)}
-                    placeholder={isEn ? 'e.g. 0' : 'ej. 0'}
-                    className="met-input met-input--full"
-                  />
-                </div>
-                <div className="met-field-group" style={{ flex: 1 }}>
-                  <label className="met-label">{isEn ? 'Default Max Expected' : 'Máx. Esperado Defecto'}</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={maxExpected}
-                    onChange={e => setMaxExpected(e.target.value)}
-                    placeholder={isEn ? 'e.g. 100' : 'ej. 100'}
-                    className="met-input met-input--full"
-                  />
-                </div>
-              </div>
-
-              {/* Imagen de Símbolo (.webp en /symbols/) */}
+              {/* Imagen de Símbolo */}
               <div className="met-field-group" style={{ flex: 1 }}>
-                <label className="met-label">{isEn ? 'Symbol Image (.webp in /symbols/)' : 'Imagen de Símbolo (.webp en /symbols/)'}</label>
+                <label className="met-label">{isEn ? 'Symbol Image (.webp in /symbols/)' : 'IMAGEN DE SÍMBOLO (.WEBP EN /SYMBOLS/)'}</label>
                 <input
                   type="file"
                   ref={symbolFileInputRef}
@@ -658,29 +697,32 @@ export default function GestionarMetricas() {
                 <div className="met-symbol-upload-box" style={{
                   border: '2px dashed #cbd5e1',
                   borderRadius: '14px',
-                  padding: '16px',
+                  padding: '24px',
                   textAlign: 'center',
-                  background: '#f8fafc',
+                  background: '#ffffff',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: '220px',
                   gap: '12px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
                   transition: 'all 0.2s ease',
                   position: 'relative'
                 }}>
                   {symbolImage ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', width: '100%' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', width: '100%' }}>
                       <div style={{
-                        width: '90px',
-                        height: '90px',
-                        borderRadius: '12px',
+                        width: '110px',
+                        height: '110px',
+                        borderRadius: '14px',
                         background: '#ffffff',
                         border: '1.5px solid #e2e8f0',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        padding: '6px',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.06)'
+                        padding: '10px',
+                        boxShadow: '0 6px 16px rgba(0,0,0,0.06)'
                       }}>
                         <img
                           src={formatImageUrl(symbolImage)}
@@ -701,7 +743,7 @@ export default function GestionarMetricas() {
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '6px',
-                            padding: '6px 14px',
+                            padding: '7px 16px',
                             borderRadius: '8px',
                             background: '#2563eb',
                             color: '#ffffff',
@@ -728,7 +770,7 @@ export default function GestionarMetricas() {
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '4px',
-                            padding: '6px 12px',
+                            padding: '7px 12px',
                             borderRadius: '8px',
                             background: '#ffffff',
                             color: '#ef4444',
@@ -767,123 +809,417 @@ export default function GestionarMetricas() {
                       <span style={{ fontWeight: 700, color: '#0f2c59', fontSize: '0.88rem' }}>
                         {isEn ? 'Click to upload symbol image' : 'Haz clic para subir imagen de símbolo'}
                       </span>
-                      <span style={{ fontSize: '0.76rem', color: '#64748b' }}>
-                        {isEn ? 'PNG, JPG, WEBP, SVG · Converts to .webp in /symbols/' : 'PNG, JPG, WEBP, SVG · Se guarda como .webp en /symbols/'}
-                      </span>
                     </div>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* ── COL DERECHA: Claves JSON (claves_json) ── */}
+            {/* ── COL DERECHA: Subvariables de Métricas (Imagen 3) ── */}
             <div className="met-form-right">
-              <div className="met-subs-section met-subs-section--full">
-                <div className="met-subs-header">
-                  <span className="met-section-label">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14" style={{ display: 'inline', verticalAlign: 'middle', marginRight: '5px' }}>
-                      <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
-                      <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-                    </svg>
-                    {isEn ? 'JSON Reading Keys (claves_json)' : 'Claves de Lectura JSON (claves_json)'}
-                  </span>
-                </div>
+              <div className="met-subs-section met-subs-section--full" style={{ background: '#ffffff', border: '1.5px solid #e2e8f0', borderRadius: '16px', padding: '20px' }}>
 
-                {/* Inline Add Key Input */}
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-                  <input
-                    type="text"
-                    value={newKeyInput}
-                    onChange={e => setNewKeyInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddJsonKey(); } }}
-                    placeholder={isEn ? 'Enter key name (e.g. temp, temperature)...' : 'Escribir clave (ej. temp, temperatura)...'}
-                    className="met-sub-input"
-                    style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #cbd5e1' }}
-                  />
+                {/* Subvariables Header Banner */}
+                <div style={{
+                  background: '#3b82f6',
+                  color: '#ffffff',
+                  fontWeight: 900,
+                  fontSize: '0.88rem',
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase',
+                  padding: '12px 18px',
+                  borderRadius: '10px',
+                  marginBottom: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  boxShadow: '0 4px 12px rgba(59, 130, 246, 0.2)'
+                }}>
+                  <span>{isEn ? 'ADD METRIC SUBVARIABLES' : 'AGREGAR SUBVARIABLES DE MÉTRICAS'}</span>
                   <button
                     type="button"
-                    onClick={handleAddJsonKey}
-                    className="met-btn-add-sub"
-                    style={{ padding: '0 16px', borderRadius: '10px', height: 'auto' }}
+                    onClick={handleAddSubvariable}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.22)',
+                      color: '#ffffff',
+                      border: '1px solid rgba(255, 255, 255, 0.4)',
+                      borderRadius: '8px',
+                      padding: '4px 12px',
+                      fontWeight: 800,
+                      fontSize: '0.78rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="12" height="12">
+                      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    {isEn ? 'Add Row' : 'Añadir Fila'}
+                  </button>
+                </div>
+
+                {/* Subvariables Header Columns */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1.4fr 0.8fr 1.8fr 0.8fr 0.8fr 40px',
+                  gap: '10px',
+                  marginBottom: '10px',
+                  padding: '0 6px'
+                }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{isEn ? 'NAME' : 'NOMBRE'}</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{isEn ? 'UNIT' : 'UNIDAD'}</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{isEn ? 'STANDARD JSON KEY' : 'CLAVE JSON ESTÁNDAR'}</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{isEn ? 'MIN' : 'MIN'}</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{isEn ? 'MAX' : 'MAX'}</span>
+                  <span></span>
+                </div>
+
+                {/* Subvariables Rows List */}
+                <div className="met-subs-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {subvariables.length === 0 ? (
+                    <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic', background: '#f8fafc', borderRadius: '12px' }}>
+                      {isEn ? 'No subvariables added. Click "Add Row" above.' : 'Sin subvariables. Haz clic en "Añadir Fila" arriba.'}
+                    </div>
+                  ) : (
+                    subvariables.map((sub, sIdx) => {
+                      const keysList = sub.json_keys || [];
+
+                      return (
+                        <div key={sIdx} style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px',
+                          background: '#f8fafc',
+                          border: '1.5px solid #e2e8f0',
+                          borderRadius: '12px',
+                          padding: '12px',
+                          transition: 'all 0.2s ease'
+                        }}>
+                          <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1.4fr 0.8fr 1.8fr 0.8fr 0.8fr 40px',
+                            gap: '10px',
+                            alignItems: 'center'
+                          }}>
+                            {/* NOMBRE (ej. Grados Celsius) */}
+                            <input
+                              type="text"
+                              value={sub.name}
+                              onChange={e => handleUpdateSubvariable(sIdx, 'name', e.target.value)}
+                              placeholder={isEn ? 'e.g. Degrees Celsius' : 'ej. Grados Celsius'}
+                              style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                borderRadius: '8px',
+                                border: '1.5px solid #cbd5e1',
+                                background: '#ffffff',
+                                color: '#0f2c59',
+                                fontWeight: 700,
+                                fontSize: '0.85rem'
+                              }}
+                            />
+
+                            {/* UNIDAD (ej. ºC) */}
+                            <input
+                              type="text"
+                              value={sub.unit}
+                              onChange={e => handleUpdateSubvariable(sIdx, 'unit', e.target.value)}
+                              placeholder={isEn ? 'e.g. °C' : 'ej. °C'}
+                              style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                borderRadius: '8px',
+                                border: '1.5px solid #cbd5e1',
+                                background: '#ffffff',
+                                color: '#0f2c59',
+                                fontWeight: 700,
+                                fontSize: '0.85rem'
+                              }}
+                            />
+
+                            {/* CLAVE JSON ESTÁNDAR + Botón Desplegable de Claves */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <select
+                                value={sub.standard_json_key || (keysList[0] ? (typeof keysList[0] === 'string' ? keysList[0] : keysList[0].key_name) : '')}
+                                onChange={e => handleSelectStandardKey(sIdx, e.target.value)}
+                                style={{
+                                  flex: 1,
+                                  padding: '8px 10px',
+                                  borderRadius: '8px',
+                                  border: '1.5px solid #2563eb',
+                                  background: '#ffffff',
+                                  color: '#1e40af',
+                                  fontWeight: 800,
+                                  fontSize: '0.82rem',
+                                  outline: 'none',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                {keysList.length === 0 ? (
+                                  <option value="">{isEn ? '-- Select key --' : '-- Seleccionar clave --'}</option>
+                                ) : (
+                                  keysList.map((k, kIdx) => {
+                                    const kName = typeof k === 'string' ? k : k.key_name;
+                                    return (
+                                      <option key={kIdx} value={kName}>
+                                        {kName} {k.is_standard ? '★ (Estándar)' : ''}
+                                      </option>
+                                    );
+                                  })
+                                )}
+                              </select>
+
+                              {/* Botón con flecha hacia abajo para desplegar claves */}
+                              <button
+                                type="button"
+                                onClick={() => handleToggleExpandKeys(sIdx)}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '4px',
+                                  padding: '8px 10px',
+                                  borderRadius: '8px',
+                                  background: sub.expanded_keys ? '#2563eb' : '#ffffff',
+                                  color: sub.expanded_keys ? '#ffffff' : '#2563eb',
+                                  border: '1.5px solid #2563eb',
+                                  fontWeight: 800,
+                                  fontSize: '0.78rem',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease',
+                                  flexShrink: 0
+                                }}
+                                title={isEn ? "Toggle JSON keys list" : "Desplegar / ocultar claves JSON asociadas"}
+                              >
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="3"
+                                  width="12"
+                                  height="12"
+                                  style={{
+                                    transform: sub.expanded_keys ? 'rotate(180deg)' : 'rotate(0deg)',
+                                    transition: 'transform 0.2s ease'
+                                  }}
+                                >
+                                  <polyline points="6 9 12 15 18 9" />
+                                </svg>
+                              </button>
+                            </div>
+
+                            {/* MIN */}
+                            <input
+                              type="number"
+                              step="any"
+                              value={sub.min_expected}
+                              onChange={e => handleUpdateSubvariable(sIdx, 'min_expected', e.target.value)}
+                              placeholder="0"
+                              style={{
+                                width: '100%',
+                                padding: '8px 10px',
+                                borderRadius: '8px',
+                                border: '1.5px solid #cbd5e1',
+                                background: '#ffffff',
+                                color: '#0f2c59',
+                                fontWeight: 700,
+                                fontSize: '0.85rem',
+                                textAlign: 'center'
+                              }}
+                            />
+
+                            {/* MAX */}
+                            <input
+                              type="number"
+                              step="any"
+                              value={sub.max_expected}
+                              onChange={e => handleUpdateSubvariable(sIdx, 'max_expected', e.target.value)}
+                              placeholder="100"
+                              style={{
+                                width: '100%',
+                                padding: '8px 10px',
+                                borderRadius: '8px',
+                                border: '1.5px solid #cbd5e1',
+                                background: '#ffffff',
+                                color: '#0f2c59',
+                                fontWeight: 700,
+                                fontSize: '0.85rem',
+                                textAlign: 'center'
+                              }}
+                            />
+
+                            {/* Delete Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSubvariable(sIdx)}
+                              style={{
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '8px',
+                                background: '#ffffff',
+                                border: '1.5px solid #fca5a5',
+                                color: '#ef4444',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                              title={isEn ? 'Remove row' : 'Eliminar fila'}
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                              </svg>
+                            </button>
+                          </div>
+
+                          {/* Sub-row Desplegable: Claves asociadas a la unidad con botón X para borrar */}
+                          {sub.expanded_keys && (
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '10px',
+                              marginTop: '6px',
+                              paddingTop: '8px',
+                              borderTop: '1px dashed #cbd5e1',
+                              animation: 'metFormIn 0.15s ease'
+                            }}>
+                              <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
+                                {isEn ? 'Keys linked to this unit:' : 'Claves asociadas a esta unidad:'}
+                              </span>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', flex: 1 }}>
+                                {keysList.length === 0 ? (
+                                  <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                                    {isEn ? 'No keys linked yet' : 'Sin claves asociadas aún'}
+                                  </span>
+                                ) : (
+                                  keysList.map((k, kIdx) => {
+                                    const kName = typeof k === 'string' ? k : k.key_name;
+                                    const isStd = (typeof k === 'object' && k.is_standard) || (sub.standard_json_key === kName);
+                                    return (
+                                      <span key={kIdx} style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '5px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 800,
+                                        padding: '3px 8px',
+                                        borderRadius: '6px',
+                                        background: isStd ? '#dbeafe' : '#ffffff',
+                                        color: isStd ? '#1e40af' : '#475569',
+                                        border: isStd ? '1.5px solid #93c5fd' : '1.5px solid #cbd5e1',
+                                        boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+                                      }}>
+                                        <span>{isStd ? `★ ${kName}` : kName}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveKeyFromSubvariable(sIdx, kName)}
+                                          style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: '#ef4444',
+                                            fontWeight: 900,
+                                            fontSize: '0.85rem',
+                                            lineHeight: 1,
+                                            cursor: 'pointer',
+                                            padding: '0 2px',
+                                            marginLeft: '2px',
+                                            borderRadius: '4px',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                          }}
+                                          title={isEn ? "Delete key" : "Borrar clave"}
+                                        >
+                                          ×
+                                        </button>
+                                      </span>
+                                    );
+                                  })
+                                )}
+                              </div>
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                <input
+                                  type="text"
+                                  value={sub.new_key_input || ''}
+                                  onChange={e => handleUpdateSubvariable(sIdx, 'new_key_input', e.target.value)}
+                                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddKeyToSubvariable(sIdx); } }}
+                                  placeholder={isEn ? 'New key (e.g. temp)...' : 'Nueva clave (ej. temp)...'}
+                                  style={{
+                                    padding: '4px 10px',
+                                    fontSize: '0.78rem',
+                                    borderRadius: '6px',
+                                    border: '1px solid #cbd5e1',
+                                    background: '#ffffff',
+                                    color: '#0f2c59',
+                                    fontWeight: 600,
+                                    width: '150px'
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddKeyToSubvariable(sIdx)}
+                                  style={{
+                                    padding: '4px 10px',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 800,
+                                    borderRadius: '6px',
+                                    background: '#2563eb',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  {isEn ? '+ Key' : '+ Clave'}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Add Row Button at Bottom */}
+                <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-start' }}>
+                  <button
+                    type="button"
+                    onClick={handleAddSubvariable}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 18px',
+                      borderRadius: '8px',
+                      background: '#eff6ff',
+                      color: '#2563eb',
+                      border: '1.5px solid #93c5fd',
+                      fontWeight: 800,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="14" height="14">
                       <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                     </svg>
-                    {isEn ? 'Add Key' : 'Añadir Clave'}
+                    {isEn ? 'Add Subvariable / Unit' : '+ Añadir Subvariable / Unidad'}
                   </button>
                 </div>
 
-                {/* List of JSON Keys with Standard Selector */}
-                <div className="met-subs-list">
-                  {jsonKeys.length === 0 ? (
-                    <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>
-                      {isEn ? 'No JSON keys added yet. Add at least one key above.' : 'Sin claves JSON aún. Añade al menos una clave arriba.'}
-                    </div>
-                  ) : (
-                    jsonKeys.map((k, idx) => (
-                      <div key={idx} className="met-sub-row" style={{ alignItems: 'center', gap: '12px', padding: '10px 14px', border: k.is_standard ? '2px solid #2563eb' : '1px solid #e2e8f0', background: k.is_standard ? '#f0f6ff' : '#ffffff', borderRadius: '12px' }}>
-
-                        {/* Standard Switcher (Checkbox/Radio) on Left */}
-                        <label title={isEn ? "Mark as standard key" : "Marcar como clave estándar"} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}>
-                          <input
-                            type="checkbox"
-                            checked={Boolean(k.is_standard)}
-                            onChange={() => handleToggleStandardKey(idx)}
-                            style={{ width: '18px', height: '18px', accentColor: '#2563eb', cursor: 'pointer' }}
-                          />
-                          <span style={{ fontSize: '0.78rem', fontWeight: 800, color: k.is_standard ? '#2563eb' : '#64748b' }}>
-                            {k.is_standard ? (isEn ? '★ Standard' : '★ Estándar') : (isEn ? 'Standard' : 'Estándar')}
-                          </span>
-                        </label>
-
-                        {/* Key Name Input */}
-                        <div style={{ flex: 1 }}>
-                          <input
-                            type="text"
-                            value={k.key_name}
-                            readOnly={Boolean(k.id)} // Existing keys read-only name, can delete or change standard
-                            onChange={e => {
-                              const val = e.target.value.toLowerCase().replace(/\s+/g, '_');
-                              setJsonKeys(prev => prev.map((item, i) => i === idx ? { ...item, key_name: val } : item));
-                            }}
-                            className="met-sub-input met-sub-input--mono"
-                            style={{ fontWeight: 700, color: '#0f172a' }}
-                          />
-                        </div>
-
-                        {/* Remove Key Button */}
-                        <button
-                          type="button"
-                          className="met-btn-remove-sub"
-                          onClick={() => handleRemoveJsonKey(idx)}
-                          title={isEn ? "Delete key" : "Eliminar clave"}
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" width="14" height="14">
-                            <polyline points="3 6 5 6 21 6"/>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                          </svg>
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
               </div>
 
               {/* Actions */}
-              <div className="met-form-actions">
+              <div className="met-form-actions" style={{ marginTop: '20px' }}>
                 <button type="button" onClick={cancelar} className="met-btn-cancel">{isEn ? 'Cancel' : 'Cancelar'}</button>
                 <button type="submit" className="met-btn-save" disabled={saving}>
                   {saving ? (
                     isEn ? 'Saving...' : 'Guardando...'
-                  ) : editandoId ? (
-                    <>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '6px' }}>
-                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                        <polyline points="17 21 17 13 7 13 7 21"/>
-                        <polyline points="7 3 7 8 15 8"/>
-                      </svg>
-                      {isEn ? 'Apply Changes' : 'Aplicar Cambios'}
-                    </>
                   ) : (
                     <>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '6px' }}>
@@ -891,7 +1227,7 @@ export default function GestionarMetricas() {
                         <polyline points="17 21 17 13 7 13 7 21"/>
                         <polyline points="7 3 7 8 15 8"/>
                       </svg>
-                      {isEn ? 'Save Metric' : 'Guardar Métrica'}
+                      {editandoId ? (isEn ? 'Apply Changes' : 'Aplicar Cambios') : (isEn ? 'Save Metric' : 'Guardar Métrica')}
                     </>
                   )}
                 </button>
@@ -916,7 +1252,7 @@ export default function GestionarMetricas() {
               </svg>
               <input
                 type="text"
-                placeholder={isEn ? 'Search metric or JSON key...' : 'Buscar métrica o clave JSON...'}
+                placeholder={isEn ? 'Search metric or subvariable...' : 'Buscar métrica o subvariable...'}
                 value={busqueda}
                 onChange={e => setBusqueda(e.target.value)}
                 className="met-filter-input met-search-input"
@@ -925,7 +1261,7 @@ export default function GestionarMetricas() {
 
             {/* Ordenar */}
             <div className="pub-news-filter-group met-filter-group-orden" style={{ position: 'relative' }}>
-              <button 
+              <button
                 type="button"
                 className={`pub-news-unified-filter-btn ${showOrdenPanel ? 'open' : ''}`}
                 onClick={(e) => {
@@ -1003,7 +1339,7 @@ export default function GestionarMetricas() {
             </button>
           </div>
 
-          {/* ── Cards ── */}
+          {/* ── Cards de Métricas Generales ── */}
           <div className="met-grid">
             {loading && <div className="met-loading-text">{isEn ? 'Loading metrics...' : 'Cargando métricas...'}</div>}
             {!loading && metricasFiltradas.length === 0 && (
@@ -1012,8 +1348,7 @@ export default function GestionarMetricas() {
 
             {!loading && paginatedMetricas.map((m, idx) => {
               const mName = m.name || m.name_es || m.nombre || 'Métrica';
-              const mUnit = m.unit || m.unidad || '';
-              const keysList = m.json_keys || m.jsonKeys || m.subvariables || [];
+              const unitsList = m.units || [];
 
               return (
                 <div key={m.id} className="met-card">
@@ -1029,27 +1364,40 @@ export default function GestionarMetricas() {
                   <div className="met-card-content">
                     <h3 className="met-card-name">
                       {mName}
-                      {mUnit && <span style={{ fontSize: '0.85rem', color: '#2563eb', fontWeight: 700, marginLeft: '8px' }}>({mUnit})</span>}
                     </h3>
 
-                    <div className="met-card-section-title">🔑 {isEn ? 'JSON Keys (claves_json)' : 'Claves JSON (claves_json)'}</div>
+                    <div className="met-card-section-title">📐 {isEn ? 'Subvariables / Units' : 'Subvariables de Métrica'}</div>
 
                     <div className="met-card-subs">
-                      {keysList.length === 0 ? (
-                        <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>{isEn ? 'No keys registered' : 'Sin claves registradas'}</span>
+                      {unitsList.length === 0 ? (
+                        <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>{isEn ? 'No units registered' : 'Sin unidades registradas'}</span>
                       ) : (
-                        keysList.map((k, i) => {
-                          const kName = typeof k === 'string' ? k : (k.key_name || k.claveMqtt || k.nombre || '');
-                          const isStd = typeof k === 'object' && Boolean(k.is_standard);
+                        unitsList.map((u, i) => {
+                          const uName = u.name || u.name_es || 'Unidad';
+                          const uSymbol = u.unit ? `(${u.unit})` : '';
+                          const keys = u.json_keys || [];
+                          const stdKeyObj = keys.find(k => k.is_standard) || keys[0];
+                          const stdKeyName = stdKeyObj ? (typeof stdKeyObj === 'string' ? stdKeyObj : stdKeyObj.key_name) : '';
 
                           return (
-                            <div key={i} className={`met-sub-badge ${isStd ? 'met-sub-badge--standard' : ''}`} style={{ border: isStd ? '1.5px solid #2563eb' : '1px solid #cbd5e1', background: isStd ? '#eff6ff' : '#f8fafc' }}>
-                              <span className="met-sub-badge-key" style={{ fontWeight: 800, color: isStd ? '#1e40af' : '#334155' }}>
-                                {isStd ? `★ ${kName}` : kName}
-                              </span>
-                              {isStd && (
-                                <span style={{ fontSize: '0.68rem', fontWeight: 800, background: '#2563eb', color: '#ffffff', padding: '1px 6px', borderRadius: '6px', marginLeft: '4px' }}>
-                                  {isEn ? 'Standard' : 'Estándar'}
+                            <div key={i} style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '6px',
+                              padding: '6px 10px',
+                              background: '#f8fafc',
+                              border: '1.5px solid #e2e8f0',
+                              borderRadius: '8px',
+                              width: '100%'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0f2c59' }}>{uName}</span>
+                                {uSymbol && <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#2563eb' }}>{uSymbol}</span>}
+                              </div>
+                              {stdKeyName && (
+                                <span style={{ fontSize: '0.72rem', fontWeight: 800, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '1px 7px', borderRadius: '6px' }}>
+                                  ★ {stdKeyName}
                                 </span>
                               )}
                             </div>
@@ -1145,4 +1493,3 @@ export default function GestionarMetricas() {
     </div>
   );
 }
-
