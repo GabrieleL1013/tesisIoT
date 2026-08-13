@@ -444,3 +444,133 @@
   color: #64748b;
   font-weight: 600;
 }
+
+/* ── Paginación de Sensores ── */
+.sensors-pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 16px 20px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+}
+
+.sensors-pagination-bar .pagination-info-text {
+  font-size: 0.85rem;
+  color: #475569;
+  font-weight: 600;
+}
+
+.sensors-pagination-bar .pagination-controls-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sensors-pagination-bar .pagination-buttons-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sensors-pagination-bar .pagination-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 10px;
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f2c59;
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sensors-pagination-bar .pagination-nav-btn:hover:not(.disabled) {
+  border-color: #2563eb;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.sensors-pagination-bar .pagination-nav-btn.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sensors-pagination-bar .pagination-number-list {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sensors-pagination-bar .pagination-num-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1.5px solid #e2e8f0;
+  background: #ffffff;
+  color: #0f2c59;
+  font-weight: 800;
+  font-size: 0.82rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.sensors-pagination-bar .pagination-num-btn:hover:not(.active) {
+  border-color: #93c5fd;
+  background: #f8fafc;
+}
+
+.sensors-pagination-bar .pagination-num-btn.active {
+  background: #0f2c59;
+  color: #ffffff;
+  border-color: #0f2c59;
+}
+
+/* ── COMPORTAMIENTO RESPONSIVO CELULAR (IDÉNTICO A REGISTRAR NODO) ── */
+@media (max-width: 640px) {
+  .sen-grid {
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    scroll-snap-type: x mandatory !important;
+    gap: 1rem !important;
+    padding-bottom: 1.25rem !important;
+    margin-top: 1rem !important;
+    width: 100% !important;
+  }
+
+  .sen-card {
+    flex: 0 0 85vw !important;
+    max-width: 320px !important;
+    scroll-snap-align: start !important;
+  }
+
+  .sensors-pagination-bar {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 12px;
+  }
+
+  .sensors-pagination-bar .pagination-controls-group {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .sensors-pagination-bar .pagination-btn-label {
+    display: none !important;
+  }
+}

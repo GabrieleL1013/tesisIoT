@@ -127,6 +127,16 @@ export default function EditableText({ textKey, defaultText, isTextArea = false,
             const len = input.value.length;
             input.setSelectionRange(len, len);
           }
+
+          input.addEventListener("keydown", (evt) => {
+            if (evt.key === "Enter" && (!isTextArea || evt.ctrlKey)) {
+              evt.preventDefault();
+              Swal.clickConfirm();
+            } else if (evt.key === "Escape") {
+              evt.preventDefault();
+              Swal.clickCancel();
+            }
+          });
         }
       },
       preConfirm: () => {

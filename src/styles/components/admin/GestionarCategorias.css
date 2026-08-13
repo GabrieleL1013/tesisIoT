@@ -1,9 +1,17 @@
-/* GestionarCategorias.css — Inline Table Edition */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+/* GestionarCategorias.css — ULEAM Brand Guidelines Edition */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap');
+
+/* Regla estricta: Bordes totalmente cuadrados (0px) para la gestión de categorías */
+.cat-page,
+.cat-page *,
+.cat-page *::before,
+.cat-page *::after {
+  border-radius: 0 !important;
+}
 
 /* ── Page shell ── */
 .cat-page {
-  font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  font-family: 'Montserrat', 'Century Gothic', Arial, sans-serif;
   max-width: 75rem;
   margin: 1rem auto;
   padding: 0rem;
@@ -25,44 +33,44 @@
 }
 
 .cat-heading {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Montserrat', sans-serif;
   font-size: 1.75rem;
-  font-weight: 900;
+  font-weight: 700;
   letter-spacing: -0.03em;
-  background: linear-gradient(135deg, #0f2c59, #1e40af);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #4A4A49;
   margin: 0 0 0.2rem;
 }
 
 .cat-subheading {
+  font-family: 'Montserrat', 'Century Gothic', Arial, sans-serif;
   font-size: 0.875rem;
-  color: #64748b;
+  color: #4A4A49;
   font-weight: 500;
   margin: 0;
+  opacity: 0.8;
 }
 
 .cat-btn-add {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  background: #FF0000;
   color: #fff;
-  font-family: 'Outfit', sans-serif;
-  font-weight: 800;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
   font-size: 0.875rem;
   padding: 0.65rem 1.5rem;
   border: none;
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.22s ease;
-  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.22);
+  box-shadow: 0 6px 16px rgba(255, 0, 0, 0.22);
 }
 
 .cat-btn-add:hover {
-  background: linear-gradient(135deg, #1d4ed8, #1e40af);
+  background: #d60000;
   transform: translateY(-2px);
-  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 10px 22px rgba(255, 0, 0, 0.3);
 }
 
 /* ── Table wrapper ── */

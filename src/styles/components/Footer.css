@@ -1,265 +1,234 @@
 /* ── Estilos del Footer Público ULEAM IoT ── */
 
 .portal-footer {
-  background-color: #090c15;
-  color: #94a3b8;
-  padding: 2.25rem 2rem 1.25rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background-color: #262626;
+  color: #ffffff;
+  padding: 3rem 3rem 0 3rem;
   font-family: 'Montserrat', sans-serif;
+  border-top: 1px solid #333333;
 }
 
 .footer-container {
-  max-width: 1200px;
-  margin: 0 auto 1.5rem;
-  display: grid;
-  grid-template-columns: 1.5fr 1fr 1.2fr;
-  gap: 3.5rem;
+  max-width: 1350px;
+  margin: 0 auto 3rem auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 2.5rem;
 }
 
-/* Columna de Marca y Logos */
+/* Columna 1: Logo Institucional */
 .footer-brand-col {
   display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-  text-align: left;
-}
-
-.footer-logos {
-  display: flex;
   align-items: center;
-  gap: 15px;
 }
 
 .footer-logo-img {
-  height: 52px;
+  height: 65px;
   width: auto;
   object-fit: contain;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.15));
+  filter: brightness(1) invert(0);
 }
 
-.footer-logo-img-secondary {
-  height: 44px;
-  width: auto;
-  object-fit: contain;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.15));
-}
-
-.footer-desc {
-  font-size: 0.86rem;
-  line-height: 1.55;
-  color: #94a3b8;
-  max-width: 380px;
-  font-family: 'Montserrat', sans-serif;
-}
-
-/* Columna de Enlaces */
-.footer-links-col {
-  text-align: left;
-}
-
-.footer-links-col h3,
-.footer-contact-col h3 {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: #ffffff;
-  margin-bottom: 0.85rem;
-  letter-spacing: 0.02em;
-  text-transform: none;
-  font-family: 'Montserrat', sans-serif;
-}
-
-.footer-links-col ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.footer-links-col ul li a {
-  color: #94a3b8;
-  text-decoration: none;
-  font-size: 0.86rem;
-  transition: color 0.2s;
-  font-family: 'Montserrat', sans-serif;
-}
-
-.footer-links-col ul li a:hover {
-  color: #94C11F;
-}
-
-/* Columna de Contacto */
+/* Columna 2: Contacta */
 .footer-contact-col {
-  text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  font-size: 0.86rem;
+  align-items: flex-start;
+  text-align: left;
+  gap: 0.6rem;
 }
 
-.footer-contact-col p {
+.footer-col-title-red {
+  color: #e52320 !important;
+  font-size: 1.45rem;
+  font-weight: 700;
+  margin: 0 0 0.8rem 0;
+  letter-spacing: -0.01em;
+}
+
+.footer-address-text {
+  font-size: 0.95rem;
+  color: #ffffff;
   margin: 0;
-  line-height: 1.45;
+  font-weight: 400;
 }
 
-.footer-contact-col strong {
-  color: #e2e8f0;
-}
-
-/* Barra inferior */
-.footer-bottom-bar {
-  max-width: 1200px;
-  margin: 0 auto;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  padding-top: 1.1rem;
+.footer-email-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
-  font-size: 0.76rem;
-  color: #64748b;
+  gap: 0.35rem;
+  font-size: 0.95rem;
+  color: #ffffff;
+  margin-top: 0.2rem;
+}
+
+.footer-email-row a {
+  color: #ffffff;
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.footer-email-row a:hover {
+  color: #ff6b6b;
+}
+
+/* Columna 3: Síguenos */
+.footer-social-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 0.6rem;
+}
+
+.footer-social-boxes {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.social-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff !important;
+  text-decoration: none;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.social-box:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+}
+
+.facebook-box {
+  background-color: #3b5998;
+}
+
+.twitter-box {
+  background-color: #000000;
+  border: 1px solid #333333;
+}
+
+.youtube-box {
+  background-color: #e52320;
+}
+
+.github-box {
+  background-color: #24292e;
+}
+
+.btn-edit-social-footer {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  transition: background 0.2s;
+}
+
+.btn-edit-social-footer:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ── BOTÓN FLOTANTE ESTÁTICO "VOLVER ARRIBA" ── */
+.floating-scroll-top-btn {
+  position: fixed;
+  bottom: 2.2rem;
+  right: 2.2rem;
+  z-index: 9999;
+  background: #383838;
+  border: 1.5px solid #555555;
+  color: #ffffff;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  transition: all 0.25s ease;
+  animation: fadeInFab 0.25s ease forwards;
+}
+
+.floating-scroll-top-btn:hover {
+  background: #1f1f1f;
+  border-color: #ffffff;
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+@keyframes fadeInFab {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Sub-Footer Inferior */
+.footer-bottom-bar {
+  background-color: #141414;
+  margin: 0 -3rem;
+  padding: 1.2rem 3rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  border-top: 1px solid #1a1a1a;
 }
 
 .footer-bottom-bar p {
+  font-size: 0.88rem;
+  color: #ffffff;
   margin: 0;
+  text-align: center;
+  line-height: 1.5;
 }
 
-.portal-system-ver {
-  font-family: 'Consolas', monospace;
-  display: block;
+.footer-bottom-bar p a {
+  color: #888888;
+  text-decoration: underline;
 }
 
-/* ── Medias Queries Responsivas ── */
+.footer-bottom-bar p a:hover {
+  color: #ffffff;
+}
+
+/* Responsive */
 @media (max-width: 900px) {
-  .footer-container {
-    grid-template-columns: 1fr;
-    gap: 3rem;
-    margin-bottom: 2.5rem;
-  }
-
-  .footer-brand-col,
-  .footer-links-col,
-  .footer-contact-col {
-    text-align: center;
-    align-items: center;
-  }
-
-  .footer-logos {
-    justify-content: center;
-  }
-
-  .footer-desc {
-    max-width: 500px;
-  }
-
-  .footer-bottom-bar {
-    flex-direction: column;
-    text-align: center;
-    padding-top: 1.5rem;
-  }
-}
-
-@media (max-width: 768px) {
   .portal-footer {
-    padding: 1.5rem 0.85rem 1.25rem;
+    padding: 2rem 1.5rem 0 1.5rem;
   }
 
   .footer-container {
-    display: grid !important;
-    grid-template-columns: 1.35fr 1fr !important;
-    gap: 1rem 0.75rem !important;
-    margin-bottom: 1rem !important;
-    text-align: left !important;
-  }
-
-  /* Columna 1: Logos y Descripción (Izquierda) */
-  .footer-brand-col {
-    text-align: left !important;
-    align-items: flex-start !important;
-    gap: 0.4rem !important;
-  }
-
-  .footer-logos {
-    justify-content: flex-start !important;
-    gap: 8px !important;
-  }
-
-  .footer-logo-img {
-    height: 32px !important;
-  }
-
-  .footer-logo-img-secondary {
-    height: 28px !important;
-  }
-
-  .footer-desc {
-    font-size: 0.74rem !important;
-    line-height: 1.35 !important;
-    color: #64748b !important;
-    margin-top: 0.2rem !important;
-    text-align: left !important;
-    max-width: 100% !important;
-  }
-
-  /* Columna 2: Enlaces Rápidos (Derecha, al lado de la marca) */
-  .footer-links-col {
-    text-align: left !important;
-    align-items: flex-start !important;
-  }
-
-  .footer-links-col h3 {
-    font-size: 0.78rem !important;
-    margin-bottom: 0.4rem !important;
-    letter-spacing: 0.04em !important;
-    text-align: left !important;
-  }
-
-  .footer-links-col ul {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: flex-start !important;
-    gap: 4px !important;
-  }
-
-  .footer-links-col ul li a {
-    font-size: 0.76rem !important;
-    padding: 0 !important;
-    background: transparent !important;
-    color: #94a3b8 !important;
-  }
-
-  .footer-links-col ul li a:hover {
-    color: #94C11F !important;
-  }
-
-  /* Columna 3: Contacto y Soporte (Abajo ocupando todo el ancho) */
-  .footer-contact-col {
-    grid-column: 1 / -1 !important;
-    text-align: center !important;
-    align-items: center !important;
-    gap: 0.25rem !important;
-    font-size: 0.75rem !important;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    padding-top: 0.75rem !important;
-    margin-top: 0.25rem !important;
-  }
-
-  .footer-contact-col h3 {
-    font-size: 0.78rem !important;
-    margin-bottom: 0.35rem !important;
-    text-align: center !important;
-  }
-
-  .footer-contact-col p {
-    font-size: 0.75rem !important;
-    line-height: 1.3 !important;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2rem;
   }
 
   .footer-bottom-bar {
-    padding-top: 0.75rem !important;
-    gap: 0.35rem !important;
-    font-size: 0.7rem !important;
+    margin: 0 -1.5rem;
+    padding: 1.2rem 1.5rem;
+  }
+
+  .floating-scroll-top-btn {
+    bottom: 1.5rem;
+    right: 1.5rem;
   }
 }

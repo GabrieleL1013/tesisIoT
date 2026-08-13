@@ -1,7 +1,7 @@
 import { API_BASE_URL, fetchDeduplicated } from '../config/api';
 import SEO from "../components/SEO";
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useInterfaceText } from '../context/InterfaceTextContext';
@@ -9,6 +9,7 @@ import '../styles/NoticiasPublicas.css';
 import '../styles/ArticulosPublicos.css';
 import EditableText from '../components/EditableText';
 import EditableImage from '../components/EditableImage';
+import IotJpg from '../assets/IOT.jpg';
 
 const formatImageUrl = (urlStr) => {
   if (!urlStr) return '';
@@ -38,14 +39,14 @@ const ArrowRightIcon = () => (
 const formatFecha = (dateStr, lang) => {
   if (!dateStr) return '';
   try {
-    const locale = lang === 'en' ? 'en-US' : 'es-ES';
-    return new Date(dateStr).toLocaleDateString(locale, {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return String(dateStr);
+    const monthNamesEs = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const monthNamesEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const month = lang === 'en' ? monthNamesEn[date.getMonth()] : monthNamesEs[date.getMonth()];
+    const day = date.getDate();
+    const year = date.getFullYear();
+    return `${month.toUpperCase()} ${day}, ${year}`;
   } catch (e) {
     return String(dateStr);
   }
@@ -113,6 +114,9 @@ const PublicCarousel = ({ images }) => {
 };
 
 export default function NoticiasPublicas() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { pageNum } = useParams();
   const { language, t } = useLanguage();
   const { texts } = useInterfaceText();
   usePageTitle(language === 'en' ? 'News' : 'Noticias');
@@ -125,15 +129,49 @@ export default function NoticiasPublicas() {
   const [modalImagenFull, setModalImagenFull] = useState(null);
 
   const [busqueda, setBusqueda] = useState('');
+  const [debouncedBusqueda, setDebouncedBusqueda] = useState('');
   const [filtroAnio, setFiltroAnio] = useState(null);
   const [criterioOrden, setCriterioOrden] = useState(null);
   const [ordenFecha, setOrdenFecha] = useState('desc');
   const [ordenAlfa, setOrdenAlfa] = useState('asc');
   const [loading, setLoading] = useState(true);
-  const [paginaActual, setPaginaActual] = useState(1);
+
+  const newsSlug = language === 'en' ? 'news' : 'noticias';
+  const routePage = pageNum ? parseInt(pageNum, 10) : null;
+  const queryPage = searchParams.get('pag') || searchParams.get('page');
+  const initialPagina = routePage && !isNaN(routePage) ? Math.max(1, routePage) : (queryPage ? Math.max(1, parseInt(queryPage, 10) || 1) : 1);
+  const [paginaActual, setPaginaActual] = useState(initialPagina);
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const searchInputRef = useRef(null);
+
+  // Sync state with route params and searchParams when user navigates
+  useEffect(() => {
+    let target = 1;
+    if (pageNum) {
+      const p = parseInt(pageNum, 10);
+      if (!isNaN(p) && p > 0) target = p;
+    } else if (searchParams.get('pag') || searchParams.get('page')) {
+      const p = parseInt(searchParams.get('pag') || searchParams.get('page'), 10);
+      if (!isNaN(p) && p > 0) target = p;
+    }
+    if (target !== paginaActual) {
+      setPaginaActual(target);
+    }
+  }, [pageNum, searchParams]);
+
+  const cambiarPagina = (nuevaPagina) => {
+    setPaginaActual(nuevaPagina);
+    const basePath = `/${language}/${newsSlug}`;
+    const currentParamsStr = searchParams.toString();
+    const searchString = currentParamsStr ? `?${currentParamsStr}` : '';
+    if (nuevaPagina > 1) {
+      navigate(`${basePath}/page/${nuevaPagina}${searchString}`);
+    } else {
+      navigate(`${basePath}${searchString}`);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Cargar años únicos con noticias en la base de datos
   useEffect(() => {
@@ -151,8 +189,6 @@ export default function NoticiasPublicas() {
       });
   }, []);
 
-  const [debouncedBusqueda, setDebouncedBusqueda] = useState('');
-
   // Debounce para evitar llamadas API repetidas mientras el usuario escribe en el buscador
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -167,10 +203,34 @@ export default function NoticiasPublicas() {
     }
   }, [searchExpanded]);
 
-  const noticiaIdParam = searchParams.get('id');
+  const prevFilterStateRef = useRef({
+    busqueda: debouncedBusqueda,
+    filtroAnio,
+    criterioOrden,
+    ordenFecha,
+    ordenAlfa
+  });
 
   useEffect(() => {
-    setPaginaActual(1);
+    const prev = prevFilterStateRef.current;
+    const filterChanged =
+      prev.busqueda !== debouncedBusqueda ||
+      prev.filtroAnio !== filtroAnio ||
+      prev.criterioOrden !== criterioOrden ||
+      prev.ordenFecha !== ordenFecha ||
+      prev.ordenAlfa !== ordenAlfa;
+
+    prevFilterStateRef.current = {
+      busqueda: debouncedBusqueda,
+      filtroAnio,
+      criterioOrden,
+      ordenFecha,
+      ordenAlfa
+    };
+
+    if (filterChanged && paginaActual !== 1) {
+      cambiarPagina(1);
+    }
   }, [debouncedBusqueda, filtroAnio, criterioOrden, ordenFecha, ordenAlfa]);
 
   // Cargar noticias con paginación backend (9 por página)
@@ -223,6 +283,8 @@ export default function NoticiasPublicas() {
         setLoading(false);
       });
   }, [language, paginaActual, debouncedBusqueda, filtroAnio, criterioOrden, ordenFecha, ordenAlfa]);
+
+  const noticiaIdParam = searchParams.get('id');
 
   // Manejar detalle de noticia si viene id en la URL
   useEffect(() => {
@@ -330,17 +392,21 @@ export default function NoticiasPublicas() {
 
   // Mantener actualizado el slug en la URL al cambiar de idioma dentro de una noticia
   useEffect(() => {
-    if (noticiaSeleccionada) {
+    if (noticiaSeleccionada && noticiaIdParam) {
       const slug = slugify(noticiaSeleccionada.titulo);
-      setSearchParams({ id: noticiaSeleccionada.id, slug: slug });
+      if (searchParams.get('slug') !== slug) {
+        setSearchParams({ id: noticiaSeleccionada.id, slug: slug }, { replace: true });
+      }
     }
-  }, [language, noticiaSeleccionada]);
+  }, [language, noticiaSeleccionada, noticiaIdParam]);
 
   const handleVolverClick = (e) => {
-    if (e) e.stopPropagation();
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setNoticiaSeleccionada(null);
-    setSearchParams({});
-    window.scrollTo(0, 0);
+    setSearchParams({}, { replace: true });
   };
 
   const parseAndNormalizeBlocks = (contenidoRaw) => {
@@ -390,9 +456,9 @@ export default function NoticiasPublicas() {
     const textBlocks = blocks.filter(b => b.type === 'text' && b.value);
     if (textBlocks.length > 0) {
       const firstText = textBlocks[0].value;
-      return firstText.length > 160 ? `${firstText.substring(0, 160)}...` : firstText;
+      return firstText.length > 400 ? `${firstText.substring(0, 400)}...` : firstText;
     }
-    return contenidoRaw && typeof contenidoRaw === 'string' && contenidoRaw.length > 160 ? `${contenidoRaw.substring(0, 160)}...` : (contenidoRaw || '');
+    return contenidoRaw && typeof contenidoRaw === 'string' && contenidoRaw.length > 400 ? `${contenidoRaw.substring(0, 400)}...` : (contenidoRaw || '');
   };
 
   const renderContenidoArticulo = (contenidoRaw) => {
@@ -423,6 +489,8 @@ export default function NoticiasPublicas() {
   };
 
   if (noticiaSeleccionada) {
+    const heroImgSrc = noticiaSeleccionada.imagenUrl ? formatImageUrl(noticiaSeleccionada.imagenUrl) : IotJpg;
+
     return (
       <div className="pub-news-reader-container">
         <SEO 
@@ -439,42 +507,48 @@ export default function NoticiasPublicas() {
           </button>
         </div>
 
-        {noticiaSeleccionada.imagenUrl && (
-          <div className="pub-news-reader-hero" style={{ position: 'relative' }}>
-            <img src={formatImageUrl(noticiaSeleccionada.imagenUrl)} alt={noticiaSeleccionada.titulo} className="pub-news-reader-cover" />
-            <button
-              type="button"
-              onClick={() => setModalImagenFull(formatImageUrl(noticiaSeleccionada.imagenUrl))}
-              className="pub-news-fullscreen-img-btn"
-              title={language === 'en' ? "View full screen" : "Ver en pantalla completa"}
-              style={{
-                position: 'absolute',
-                top: '16px',
-                right: '16px',
-                background: 'rgba(15, 23, 42, 0.75)',
-                color: '#ffffff',
-                border: '1.5px solid rgba(255, 255, 255, 0.5)',
-                borderRadius: '10px',
-                width: '40px',
-                height: '40px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                backdropFilter: 'blur(6px)',
-                transition: 'all 0.2s ease',
-                zIndex: 10
-              }}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="20" height="20">
-                <polyline points="15 3 21 3 21 9" />
-                <polyline points="9 21 3 21 3 15" />
-                <line x1="21" y1="3" x2="14" y2="10" />
-                <line x1="3" y1="21" x2="10" y2="14" />
-              </svg>
-            </button>
-          </div>
-        )}
+        <div className="pub-news-reader-hero" style={{ position: 'relative' }}>
+          <img
+            src={heroImgSrc}
+            alt={noticiaSeleccionada.titulo}
+            className="pub-news-reader-cover"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = IotJpg;
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setModalImagenFull(heroImgSrc)}
+            className="pub-news-fullscreen-img-btn"
+            title={language === 'en' ? "View full screen" : "Ver en pantalla completa"}
+            style={{
+              position: 'absolute',
+              top: '16px',
+              right: '16px',
+              background: 'rgba(15, 23, 42, 0.75)',
+              color: '#ffffff',
+              border: '1.5px solid rgba(255, 255, 255, 0.5)',
+              borderRadius: '10px',
+              width: '40px',
+              height: '40px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              backdropFilter: 'blur(6px)',
+              transition: 'all 0.2s ease',
+              zIndex: 10
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="20" height="20">
+              <polyline points="15 3 21 3 21 9" />
+              <polyline points="9 21 3 21 3 15" />
+              <line x1="21" y1="3" x2="14" y2="10" />
+              <line x1="3" y1="21" x2="10" y2="14" />
+            </svg>
+          </button>
+        </div>
 
         <article className="pub-news-reader-article">
           <div className="pub-news-reader-meta">
@@ -727,9 +801,13 @@ export default function NoticiasPublicas() {
                 type="button"
                 className="pub-news-search-clear-btn"
                 onClick={() => { setBusqueda(''); setSearchExpanded(false); }}
-                title="Limpiar"
+                title={language === 'en' ? 'Clear' : 'Limpiar'}
+                aria-label="Limpiar búsqueda"
               >
-                ✕
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
               </button>
             )}
           </div>
@@ -751,8 +829,12 @@ export default function NoticiasPublicas() {
             className="pub-news-search-related-clear"
             onClick={() => { setBusqueda(''); setSearchExpanded(false); }}
             title={language === 'en' ? 'Clear search' : 'Limpiar búsqueda'}
+            aria-label="Limpiar búsqueda"
           >
-            ✕
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         </div>
       )}
@@ -803,30 +885,32 @@ export default function NoticiasPublicas() {
               noticiasPaginadas.map((n, index) => (
                 <div key={n.id} id={`news-card-${n.id}`} className="pub-news-card">
                   <div className="pub-news-image-wrapper">
-                    {n.imagenUrl ? (
-                      <img src={formatImageUrl(n.imagenUrl)} alt={n.titulo} className="pub-news-image" />
-                    ) : (
-                      <div className={`pub-news-fallback-banner ${['banner-green', 'banner-blue', 'banner-red'][index % 3]}`} style={{ height: '100%' }} />
-                    )}
+                    <img 
+                      src={n.imagenUrl ? formatImageUrl(n.imagenUrl) : IotJpg} 
+                      alt={n.titulo} 
+                      className="pub-news-image" 
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = IotJpg;
+                      }}
+                    />
                   </div>
 
                   <div className="pub-news-content">
-                    <div className="pub-news-meta">
-                      <CalendarIcon />
-                      <span style={{ marginLeft: '6px' }}>{n.fecha}</span>
-                    </div>
                     <h3 className="pub-news-card-title">{n.titulo}</h3>
+
+                    <div className="pub-news-meta">
+                      <span>{n.fecha ? n.fecha.toUpperCase() : ''}</span>
+                    </div>
+
                     <p className="pub-news-excerpt">{obtenerResumen(n.contenido)}</p>
 
                     <div className="pub-news-footer">
-                      <span className="pub-news-author-badge">
-                        {t("news.author", "Por")}: {n.autor}
-                      </span>
                       <button
                         onClick={() => handleLeerMasClick(n)}
                         className="pub-news-btn-read"
                       >
-                        <EditableText textKey="news_read_more" defaultText={t("home.read_more", "Leer más")} /> <ArrowRightIcon />
+                        <EditableText textKey="news_read_more" defaultText={t("home.read_more", "SEGUIR LEYENDO")} />
                       </button>
                     </div>
                   </div>
@@ -840,7 +924,7 @@ export default function NoticiasPublicas() {
             <div className="pub-art-pagination">
               <button
                 className="pub-art-pagination-btn"
-                onClick={() => { setPaginaActual(prev => Math.max(prev - 1, 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                onClick={() => cambiarPagina(Math.max(paginaActual - 1, 1))}
                 disabled={paginaActual === 1}
                 title={language === 'en' ? 'Previous page' : 'Página anterior'}
               >
@@ -855,7 +939,7 @@ export default function NoticiasPublicas() {
                   <button
                     key={num}
                     className={`pub-art-pagination-number ${num === paginaActual ? 'active' : ''}`}
-                    onClick={() => { setPaginaActual(num); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    onClick={() => cambiarPagina(num)}
                   >
                     {num}
                   </button>
@@ -864,7 +948,7 @@ export default function NoticiasPublicas() {
 
               <button
                 className="pub-art-pagination-btn"
-                onClick={() => { setPaginaActual(prev => Math.min(prev + 1, totalPaginas)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                onClick={() => cambiarPagina(Math.min(paginaActual + 1, totalPaginas))}
                 disabled={paginaActual === totalPaginas}
                 title={language === 'en' ? 'Next page' : 'Página siguiente'}
               >

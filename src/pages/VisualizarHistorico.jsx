@@ -61,6 +61,23 @@ const getTheme = (clave, icono, idx = null) => {
   return baseTheme || DYNAMIC_ICONS_PUBLIC.general;
 };
 
+// Helper para obtener la URL completa de la imagen del símbolo de la métrica desde la BD (backend/public/symbols/...)
+const getMetricSymbolUrl = (l) => {
+  const backendHost = API_BASE_URL.replace(/\/api\/?$/, '');
+  const symbolImage = l?.symbol_image || l?.metric_symbol_image || l?.icono_imagen || l?.metric?.symbol_image || l?.subvariable?.symbol_image;
+
+  if (symbolImage && typeof symbolImage === 'string' && symbolImage.trim() !== '') {
+    if (symbolImage.startsWith('data:') || symbolImage.startsWith('http://') || symbolImage.startsWith('https://')) {
+      return symbolImage;
+    }
+    const cleanPath = symbolImage.startsWith('/') ? symbolImage : `/${symbolImage}`;
+    const relativePath = cleanPath.startsWith('/storage/') ? cleanPath.replace('/storage', '') : cleanPath;
+    return `${backendHost}${relativePath}`;
+  }
+
+  return `${backendHost}/symbols/default.webp`;
+};
+
 // Botón Marcar Todas parcial con estado neutro inicial y hover verde
 const MarcarTodasBtnPartial = ({ onClick }) => {
   const { language } = useLanguage();
@@ -365,7 +382,7 @@ const PublicCustomSelectOption = ({ options, value, onChange, label, style = {} 
       </button>
 
       {open && (
-        <div className="public-custom-select-dropdown" style={{ minWidth: '150px' }}>
+        <div className="public-custom-select-dropdown" style={{ top: 'calc(100% + 6px)', right: 0, left: 'auto', minWidth: '180px', zIndex: 999 }}>
           {options.map(opt => {
             const isSelected = opt.value === value;
             return (
@@ -520,7 +537,7 @@ export default function VisualizarHistorico() {
     }
   }, [nodoSeleccionadoId, nodos]);
 
-  // Cargar lecturas desde el controlador backend (Promedio diario por día para el gráfico)
+  // Cargar lecturas desde el controlador backend (según período e intervalo seleccionado)
   const fetchHistoricalData = useCallback(() => {
     if (!nodoSeleccionadoId) {
       setLoading(false);
@@ -528,7 +545,7 @@ export default function VisualizarHistorico() {
     }
 
     setLoading(true);
-    fetchDeduplicated(`${API_BASE_URL}/public/lecturas/historico?node_id=${nodoSeleccionadoId}&periodo=${periodo}&intervalo=1440`)
+    fetchDeduplicated(`${API_BASE_URL}/public/lecturas/historico?node_id=${nodoSeleccionadoId}&periodo=${periodo}&intervalo=${intervalo}`)
       .then(res => res.json())
       .then(data => {
         setSeriesData(data.series || {});
@@ -556,16 +573,16 @@ export default function VisualizarHistorico() {
         console.error("Error fetching public historical readings:", err);
         setLoading(false);
       });
-  }, [nodoSeleccionadoId, periodo, nodoActual]);
+  }, [nodoSeleccionadoId, periodo, intervalo, nodoActual]);
 
-  // División de los 30 días en 2 grupos de 15 días cada uno
+  // División de los 30 días en 2 grupos de 15 días cada uno (o timeline completo cuando es agrupado por horas)
   const displayTimeline = useMemo(() => {
     if (!chartTimeline || chartTimeline.length === 0) return [];
-    if (chartTimeline.length <= 15) return chartTimeline;
+    if (intervalo !== '1440' || chartTimeline.length <= 15) return chartTimeline;
     return paginaGrafico === 1
       ? chartTimeline.slice(15, 30) // Página 1: 15 días más recientes (hasta hoy)
       : chartTimeline.slice(0, 15);  // Página 2: 15 días anteriores (días 16 a 30)
-  }, [chartTimeline, paginaGrafico]);
+  }, [chartTimeline, paginaGrafico, intervalo]);
 
   const lecturas = nodoActual?.lecturas || [];
   const activeLecturas = lecturas.filter(l => Boolean(activeVariables && activeVariables[l.data_type]));
@@ -867,6 +884,22 @@ export default function VisualizarHistorico() {
             ]}
           />
 
+          {/* Selector de Frecuencia / Agrupación (Cada 1 hora, Cada 2 horas, 4h, 6h, 8h, 12h, Diario) */}
+          <PublicCustomSelectOption
+            label={isEn ? "Interval:" : "Frecuencia:"}
+            value={intervalo}
+            onChange={setIntervalo}
+            options={[
+              { value: '60', label: isEn ? 'Every 1 hour' : 'Cada 1 hora' },
+              { value: '120', label: isEn ? 'Every 2 hours' : 'Cada 2 horas (Par)' },
+              { value: '240', label: isEn ? 'Every 4 hours' : 'Cada 4 horas' },
+              { value: '360', label: isEn ? 'Every 6 hours' : 'Cada 6 horas' },
+              { value: '480', label: isEn ? 'Every 8 hours' : 'Cada 8 horas' },
+              { value: '720', label: isEn ? 'Every 12 hours' : 'Cada 12 horas' },
+              { value: '1440', label: isEn ? 'Daily (1 day)' : 'Por días (Diario)' }
+            ]}
+          />
+
           {/* Botón Refrescar Datos */}
           <button
             type="button"
@@ -967,10 +1000,16 @@ export default function VisualizarHistorico() {
                       )}
                     </span>
                   )}
-                  <span style={{ display: 'inline-flex', alignItems: 'center', color: isRedSingleActive ? '#ffffff' : theme.hex }}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-                      {theme.icon}
-                    </svg>
+                  <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                    <img
+                      src={getMetricSymbolUrl(l)}
+                      alt=""
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = `${API_BASE_URL.replace(/\/api\/?$/, '')}/symbols/default.webp`;
+                      }}
+                      style={{ width: '16px', height: '16px', objectFit: 'contain' }}
+                    />
                   </span>
                   <span>{isEn ? (l.tipo_en || l.nombre_en || l.tipo) : (l.tipo_es || l.tipo)} ({l.unidad})</span>
                 </button>
@@ -1048,18 +1087,30 @@ export default function VisualizarHistorico() {
                 <div
                   style={{
                     position: 'absolute',
-                    right: '-10px',
-                    bottom: '-12px',
-                    opacity: 0.12,
-                    color: theme.hex,
+                    right: '10px',
+                    bottom: '10px',
+                    opacity: 0.14,
                     pointerEvents: 'none',
-                    transform: 'scale(3.2)',
-                    transformOrigin: 'bottom right'
+                    width: '75px',
+                    height: '75px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
                   }}
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="40" height="40">
-                    {theme.icon}
-                  </svg>
+                  <img
+                    src={getMetricSymbolUrl(l)}
+                    alt=""
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = `${API_BASE_URL.replace(/\/api\/?$/, '')}/symbols/default.webp`;
+                    }}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain'
+                    }}
+                  />
                 </div>
 
                 {/* Cabecera de la Tarjeta */}
@@ -1074,13 +1125,23 @@ export default function VisualizarHistorico() {
                         height: '28px',
                         borderRadius: '8px',
                         background: `${theme.hex}18`,
-                        color: theme.hex,
+                        padding: '4px',
                         flexShrink: 0
                       }}
                     >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
-                        {theme.icon}
-                      </svg>
+                      <img
+                        src={getMetricSymbolUrl(l)}
+                        alt={l.tipo}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = `${API_BASE_URL.replace(/\/api\/?$/, '')}/symbols/default.webp`;
+                        }}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'contain'
+                        }}
+                      />
                     </span>
                     <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.03em', color: '#475569', lineHeight: 1.25 }}>
                       {isEn ? (l.tipo_en || l.nombre_en || l.tipo) : (l.tipo_es || l.tipo)}
@@ -1182,67 +1243,73 @@ export default function VisualizarHistorico() {
 
           {/* Grupo de Controles: Flechas de Paginación y Botones SVG */}
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* Control de Paginación en 2 Grupos de 15 Días */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '3px 8px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-              {/* Flecha Izquierda: Días Anteriores (Página 2) */}
-              <button
-                type="button"
-                onClick={() => setPaginaGrafico(2)}
-                disabled={paginaGrafico === 2}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '8px',
-                  border: `1.5px solid ${paginaGrafico === 2 ? '#e2e8f0' : '#cbd5e1'}`,
-                  backgroundColor: paginaGrafico === 2 ? '#f1f5f9' : '#ffffff',
-                  color: paginaGrafico === 2 ? '#cbd5e1' : '#0f2c59',
-                  cursor: paginaGrafico === 2 ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s ease',
-                  boxShadow: paginaGrafico === 2 ? 'none' : '0 2px 5px rgba(0,0,0,0.04)'
-                }}
-                title={isEn ? "Previous 15 Days (Days 16-30)" : "Días Anteriores (Días 16 a 30)"}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
-                  <polyline points="15 18 9 12 15 6" />
-                </svg>
-              </button>
+            {/* Control de Paginación en 2 Grupos de 15 Días o Indicador de Puntos en Modo Intradía */}
+            {intervalo === '1440' && chartTimeline.length > 15 ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '3px 8px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                {/* Flecha Izquierda: Días Anteriores (Página 2) */}
+                <button
+                  type="button"
+                  onClick={() => setPaginaGrafico(2)}
+                  disabled={paginaGrafico === 2}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    border: `1.5px solid ${paginaGrafico === 2 ? '#e2e8f0' : '#cbd5e1'}`,
+                    backgroundColor: paginaGrafico === 2 ? '#f1f5f9' : '#ffffff',
+                    color: paginaGrafico === 2 ? '#cbd5e1' : '#0f2c59',
+                    cursor: paginaGrafico === 2 ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: paginaGrafico === 2 ? 'none' : '0 2px 5px rgba(0,0,0,0.04)'
+                  }}
+                  title={isEn ? "Previous 15 Days (Days 16-30)" : "Días Anteriores (Días 16 a 30)"}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                </button>
 
-              {/* Etiqueta Indicadora de Página */}
-              <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#0f2c59', padding: '0 4px', whiteSpace: 'nowrap' }}>
-                {paginaGrafico === 1
-                  ? (isEn ? '1/2: Last 15 Days' : '1/2: Últimos 15 Días')
-                  : (isEn ? '2/2: Days 16-30' : '2/2: Días 16 a 30')}
-              </span>
+                {/* Etiqueta Indicadora de Página */}
+                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#0f2c59', padding: '0 4px', whiteSpace: 'nowrap' }}>
+                  {paginaGrafico === 1
+                    ? (isEn ? '1/2: Last 15 Days' : '1/2: Últimos 15 Días')
+                    : (isEn ? '2/2: Days 16-30' : '2/2: Días 16 a 30')}
+                </span>
 
-              {/* Flecha Derecha: Días Recientes (Página 1) */}
-              <button
-                type="button"
-                onClick={() => setPaginaGrafico(1)}
-                disabled={paginaGrafico === 1}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '8px',
-                  border: `1.5px solid ${paginaGrafico === 1 ? '#e2e8f0' : '#cbd5e1'}`,
-                  backgroundColor: paginaGrafico === 1 ? '#f1f5f9' : '#ffffff',
-                  color: paginaGrafico === 1 ? '#cbd5e1' : '#0f2c59',
-                  cursor: paginaGrafico === 1 ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s ease',
-                  boxShadow: paginaGrafico === 1 ? 'none' : '0 2px 5px rgba(0,0,0,0.04)'
-                }}
-                title={isEn ? "Recent 15 Days (Today)" : "Días Recientes (Hasta hoy)"}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-              </button>
-            </div>
+                {/* Flecha Derecha: Días Recientes (Página 1) */}
+                <button
+                  type="button"
+                  onClick={() => setPaginaGrafico(1)}
+                  disabled={paginaGrafico === 1}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    border: `1.5px solid ${paginaGrafico === 1 ? '#e2e8f0' : '#cbd5e1'}`,
+                    backgroundColor: paginaGrafico === 1 ? '#f1f5f9' : '#ffffff',
+                    color: paginaGrafico === 1 ? '#cbd5e1' : '#0f2c59',
+                    cursor: paginaGrafico === 1 ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: paginaGrafico === 1 ? 'none' : '0 2px 5px rgba(0,0,0,0.04)'
+                  }}
+                  title={isEn ? "Recent 15 Days (Today)" : "Días Recientes (Hasta hoy)"}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '4px 10px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '0.78rem', fontWeight: 800, color: '#0f2c59' }}>
+                <span>📊 {chartTimeline.length} {isEn ? 'points' : 'puntos'}</span>
+              </div>
+            )}
 
             <div style={{ width: '1px', height: '22px', background: '#cbd5e1' }} />
 

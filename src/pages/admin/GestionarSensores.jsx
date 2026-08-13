@@ -1,6 +1,6 @@
 import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { useLanguage } from '../../context/LanguageContext';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -14,6 +14,123 @@ const formatImageUrl = (urlStr) => {
   }
   const backendHost = API_BASE_URL.replace(/\/api\/?$/, '');
   return `${backendHost}${urlStr.startsWith('/') ? '' : '/'}${urlStr}`;
+};
+
+const CustomItemsPerPageSelect = ({ value, onChange, options = [6, 9, 12, 18, 24], language = 'es' }) => {
+  const [open, setOpen] = useState(false);
+  const containerRef = React.useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const suffix = language === 'en' ? 'page' : 'pág';
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '6px 14px',
+          borderRadius: '10px',
+          border: '1.5px solid #cbd5e1',
+          background: '#ffffff',
+          color: '#0f2c59',
+          fontWeight: '700',
+          fontSize: '0.82rem',
+          cursor: 'pointer',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.04)',
+          transition: 'all 0.2s ease',
+          outline: 'none'
+        }}
+      >
+        <span>{value} / {suffix}</span>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          width="12"
+          height="12"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 'calc(100% + 6px)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: '#ffffff',
+            border: '1.5px solid #e2e8f0',
+            borderRadius: '12px',
+            boxShadow: '0 12px 28px rgba(15, 23, 42, 0.18)',
+            padding: '6px',
+            minWidth: '115px',
+            zIndex: 1100,
+            maxWidth: '90vw',
+            boxSizing: 'border-box'
+          }}
+        >
+          {options.map((opt) => {
+            const isSelected = Number(opt) === Number(value);
+            return (
+              <div
+                key={opt}
+                onClick={() => {
+                  onChange(Number(opt));
+                  setOpen(false);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  width: '100%',
+                  padding: '7px 10px',
+                  borderRadius: '8px',
+                  background: isSelected ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                  color: isSelected ? '#1e40af' : '#334155',
+                  fontWeight: isSelected ? '800' : '600',
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'background 0.15s ease',
+                  boxSizing: 'border-box'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = '#f8fafc';
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <span>{opt} / {suffix}</span>
+                {isSelected && (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#1e40af" strokeWidth="3" width="12" height="12">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default function GestionarSensores() {
@@ -40,7 +157,32 @@ export default function GestionarSensores() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('name_asc');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 9;
+  const [itemsPerPage, setItemsPerPage] = useState(9);
+
+  const { pageNum } = useParams();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (pageNum) {
+      const parsed = parseInt(pageNum, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        setCurrentPage(parsed);
+      }
+    } else {
+      setCurrentPage(1);
+    }
+  }, [pageNum]);
+
+  const cambiarPagina = (p) => {
+    setCurrentPage(p);
+    const langPrefix = language === 'en' ? '/en' : '/es';
+    const sensorsPath = language === 'en' ? 'sensors' : 'sensores';
+    if (p === 1) {
+      navigate(`${langPrefix}/admin/${sensorsPath}`);
+    } else {
+      navigate(`${langPrefix}/admin/${sensorsPath}/page/${p}`);
+    }
+  };
 
   // Load Data from API
   const loadData = () => {
@@ -533,26 +675,72 @@ export default function GestionarSensores() {
             </div>
           )}
 
-          {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '28px' }}>
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                style={{ padding: '6px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: '#ffffff', opacity: currentPage === 1 ? 0.5 : 1, cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
-              >
-                &larr;
-              </button>
-              <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f2c59' }}>
-                {currentPage} / {totalPages}
-              </span>
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                style={{ padding: '6px 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', background: '#ffffff', opacity: currentPage === totalPages ? 0.5 : 1, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
-              >
-                &rarr;
-              </button>
+          {/* CONTROLES DE PAGINACIÓN DE SENSORES */}
+          {!loading && filteredSensors.length > 0 && (
+            <div className="sensors-pagination-bar" style={{ marginTop: '28px' }}>
+              <div className="pagination-info-text">
+                {isEn ? 'Showing ' : 'Mostrando '}
+                <strong>
+                  {filteredSensors.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}
+                </strong>
+                {isEn ? ' to ' : ' a '}
+                <strong>
+                  {Math.min(currentPage * itemsPerPage, filteredSensors.length)}
+                </strong>
+                {isEn ? ' of ' : ' de '}
+                <strong>{filteredSensors.length}</strong>
+                {isEn ? ' sensors' : ' sensores'}
+              </div>
+
+              <div className="pagination-controls-group">
+                <CustomItemsPerPageSelect
+                  value={itemsPerPage}
+                  onChange={(val) => { setItemsPerPage(val); cambiarPagina(1); }}
+                  options={[6, 9, 12, 18, 24]}
+                  language={language}
+                />
+
+                <div className="pagination-buttons-wrapper">
+                  <button
+                    type="button"
+                    disabled={currentPage === 1}
+                    onClick={() => cambiarPagina(Math.max(1, currentPage - 1))}
+                    className={`pagination-nav-btn prev-btn ${currentPage === 1 ? 'disabled' : ''}`}
+                    title={isEn ? 'Previous page' : 'Página anterior'}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                      <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                    <span className="pagination-btn-label">{isEn ? 'Prev' : 'Anterior'}</span>
+                  </button>
+
+                  <div className="pagination-number-list">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                      <button
+                        key={page}
+                        type="button"
+                        onClick={() => cambiarPagina(page)}
+                        className={`pagination-num-btn ${page === currentPage ? 'active' : ''}`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => cambiarPagina(Math.min(totalPages, currentPage + 1))}
+                    className={`pagination-nav-btn next-btn ${currentPage >= totalPages ? 'disabled' : ''}`}
+                    title={isEn ? 'Next page' : 'Página siguiente'}
+                  >
+                    <span className="pagination-btn-label">{isEn ? 'Next' : 'Siguiente'}</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </>

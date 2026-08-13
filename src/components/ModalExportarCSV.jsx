@@ -32,6 +32,19 @@ const getTheme = (clave, icono) => {
   return baseTheme;
 };
 
+// Helper para obtener URL absoluta de las imágenes de símbolos de métricas en /public/symbols/
+const getSymbolUrl = (symbolPath) => {
+  if (!symbolPath) return null;
+  if (typeof symbolPath !== 'string') return null;
+  if (symbolPath.startsWith('http://') || symbolPath.startsWith('https://') || symbolPath.startsWith('data:')) {
+    return symbolPath;
+  }
+  const cleanPath = symbolPath.startsWith('/') ? symbolPath : `/${symbolPath}`;
+  const fullPath = cleanPath.includes('/symbols/') ? cleanPath : `/symbols${cleanPath}`;
+  const baseUrl = API_BASE_URL.replace(/\/api\/?$/, '');
+  return `${baseUrl}${fullPath}`;
+};
+
 // Helper de Parseo y Formato de Fecha y Hora Coherente (Coincide 100% con el Dashboard en 24h)
 const parseToValidDate = (val) => {
   if (!val) return null;
@@ -527,6 +540,8 @@ export default function ModalExportarCSV({ show, onClose, nodo, defaultPeriodo =
               {nodo.lecturas && nodo.lecturas.map((l, index) => {
                 const isChecked = !!descargaMetrics[l.data_type];
                 const theme = getTheme(l.data_type, l.icono);
+                const symbolUrl = getSymbolUrl(l.symbol_image || l.icono);
+
                 return (
                   <label
                     key={index}
@@ -544,7 +559,26 @@ export default function ModalExportarCSV({ show, onClose, nodo, defaultPeriodo =
                     />
                     <div className="export-variable-card-content">
                       <span className="export-var-icon-badge" style={{ color: theme.hex, background: isChecked ? 'rgba(255,255,255,0.7)' : theme.bg }}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+                        {symbolUrl ? (
+                          <img
+                            src={symbolUrl}
+                            alt={l.tipo || ''}
+                            style={{ width: '15px', height: '15px', objectFit: 'contain' }}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              if (e.target.nextSibling) e.target.nextSibling.style.display = 'inline-block';
+                            }}
+                          />
+                        ) : null}
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          width="14"
+                          height="14"
+                          style={{ display: symbolUrl ? 'none' : 'inline-block' }}
+                        >
                           {theme.icon}
                         </svg>
                       </span>

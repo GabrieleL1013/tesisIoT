@@ -275,7 +275,7 @@ export default function AcercaDe() {
   const internsCount = parseInt(texts["ad-interns-count"] || "2", 10);
 
   // Add a new member to a category
-  const handleAddMember = async (countKey, currentCount, defaultText, keyPrefix, categoryType) => {
+  const handleAddMember = (countKey, currentCount, defaultText, keyPrefix, categoryType) => {
     const newCount = currentCount + 1;
     let newKey = `${keyPrefix}${newCount}`;
     let socialsKey = `${keyPrefix}${newCount}-socials`;
@@ -288,18 +288,22 @@ export default function AcercaDe() {
       socialsKey = `ad-lead${newCount}-socials`;
     }
 
-    await updateText(countKey, String(newCount));
-    await updateText(newKey, `${defaultText} ${newCount}`);
-    await updateText(socialsKey, ""); // Clean initial socials state
-
+    // Mostrar alerta de inmediato sin retardo
     Swal.fire({
       toast: true,
       position: 'top-end',
       showConfirmButton: false,
       timer: 2000,
       icon: 'success',
-      title: 'Integrante añadido'
+      title: language === 'en' ? 'Member added' : 'Integrante añadido'
     });
+
+    // Ejecución asíncrona en paralelo en segundo plano sin bloquear la UI
+    Promise.all([
+      updateText(countKey, String(newCount), null, false),
+      updateText(newKey, `${defaultText} ${newCount}`, null, true),
+      updateText(socialsKey, "", null, false)
+    ]).catch(err => console.error("Error updating member on backend:", err));
   };
 
   // Remove a member from a category at a specific index
@@ -311,18 +315,18 @@ export default function AcercaDe() {
         showConfirmButton: false,
         timer: 2000,
         icon: 'warning',
-        title: 'Debe haber al menos 1 integrante en esta sección'
+        title: language === 'en' ? 'There must be at least 1 member in this section' : 'Debe haber al menos 1 integrante en esta sección'
       });
       return;
     }
 
     const res = await Swal.fire({
-      title: '¿Eliminar integrante?',
-      text: 'Se removerá este integrante de la lista.',
+      title: language === 'en' ? 'Delete member?' : '¿Eliminar integrante?',
+      text: language === 'en' ? 'This member will be removed from the list.' : 'Se removerá este integrante de la lista.',
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonText: 'Sí, eliminar',
-      cancelButtonText: 'Cancelar',
+      confirmButtonText: language === 'en' ? 'Yes, delete' : 'Sí, eliminar',
+      cancelButtonText: language === 'en' ? 'Cancel' : 'Cancelar',
       confirmButtonColor: '#ef4444',
       cancelButtonColor: '#64748b'
     });
@@ -366,6 +370,18 @@ export default function AcercaDe() {
     };
     const countKey = countKeyMap[categoryType];
 
+    // Alerta de eliminación inmediata
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 2000,
+      icon: 'info',
+      title: language === 'en' ? 'Member removed' : 'Integrante eliminado'
+    });
+
+    const updatePromises = [];
+
     // Shift all member keys down from removeIndex to currentCount - 1
     for (let i = removeIndex; i < currentCount; i++) {
       const curKeys = getKeysForIndex(categoryType, i);
@@ -375,27 +391,20 @@ export default function AcercaDe() {
         const curK = curKeys[k];
         const nextK = nextKeys[k];
         const nextVal = texts[nextK] !== undefined ? texts[nextK] : '';
-        await updateText(curK, nextVal);
+        updatePromises.push(updateText(curK, nextVal, null, false));
       }
     }
 
     // Clear the last member's old keys completely
     const lastKeys = getKeysForIndex(categoryType, currentCount);
     for (const lk of lastKeys) {
-      await updateText(lk, '');
+      updatePromises.push(updateText(lk, '', null, false));
     }
 
     // Finally update count key
-    await updateText(countKey, String(currentCount - 1));
+    updatePromises.push(updateText(countKey, String(currentCount - 1), null, false));
 
-    Swal.fire({
-      toast: true,
-      position: 'top-end',
-      showConfirmButton: false,
-      timer: 2000,
-      icon: 'info',
-      title: 'Integrante eliminado'
-    });
+    Promise.all(updatePromises).catch(err => console.error("Error removing member on backend:", err));
   };
 
   return (
@@ -422,10 +431,10 @@ export default function AcercaDe() {
           </div>
           <div className="about-header-text">
             <h1 className="about-title-main">
-              <EditableText textKey="ad-main-title" />
+              <EditableText textKey="ad-main-title" defaultText="Plataforma IoT ULEAM" />
             </h1>
             <p className="about-subtitle-main">
-              <EditableText textKey="ad-main-subtitle" />
+              <EditableText textKey="ad-main-subtitle" defaultText="Investigación Multidisciplinaria con IoT e Inteligencia Artificial" />
             </p>
           </div>
         </div>
@@ -433,12 +442,12 @@ export default function AcercaDe() {
         {/* ── ¿DE QUÉ TRATA ESTE PROYECTO? ── */}
         <section className="about-section">
           <h2 className="about-section-heading">
-            <EditableText textKey="ad-about-title" />
+            <EditableText textKey="ad-about-title" defaultText="¿De qué trata este proyecto?" />
           </h2>
           <p className="about-paragraph">
             <EditableText
               textKey="ad-about-description"
-             
+              defaultText="El proyecto de Telemetría IoT ULEAM es una plataforma de investigación multidisciplinaria orientada a la recolección, procesamiento y visualización en tiempo real de datos meteorológicos y de sensores ambientales en la Universidad Laica Eloy Alfaro de Manabí."
               isTextArea={true}
             />
           </p>
@@ -447,7 +456,7 @@ export default function AcercaDe() {
         {/* ── TECNOLOGÍAS UTILIZADAS ── */}
         <section className="about-section">
           <h2 className="about-section-heading">
-            <EditableText textKey="ad-tech-title" />
+            <EditableText textKey="ad-tech-title" defaultText="Tecnologías Utilizadas" />
           </h2>
 
           <div className="about-tech-grid">
@@ -470,7 +479,7 @@ export default function AcercaDe() {
                 hint="Ícono de Next.js en la sección Tecnologías Utilizadas."
               />
               <span className="tech-card-label">
-                <EditableText textKey="ad-tech-1" />
+                <EditableText textKey="ad-tech-1" defaultText="React / Vite" />
               </span>
             </div>
 
@@ -491,7 +500,7 @@ export default function AcercaDe() {
                 hint="Ícono de Django en la sección Tecnologías Utilizadas."
               />
               <span className="tech-card-label">
-                <EditableText textKey="ad-tech-2" />
+                <EditableText textKey="ad-tech-2" defaultText="Laravel / Node.js" />
               </span>
             </div>
 
@@ -514,7 +523,7 @@ export default function AcercaDe() {
                 hint="Ícono de PostgreSQL en la sección Tecnologías Utilizadas."
               />
               <span className="tech-card-label">
-                <EditableText textKey="ad-tech-3" />
+                <EditableText textKey="ad-tech-3" defaultText="PostgreSQL / MySQL" />
               </span>
             </div>
 
@@ -535,7 +544,7 @@ export default function AcercaDe() {
                 hint="Ícono de SCRUM en la sección Tecnologías Utilizadas."
               />
               <span className="tech-card-label">
-                <EditableText textKey="ad-tech-4" />
+                <EditableText textKey="ad-tech-4" defaultText="Metodología SCRUM" />
               </span>
             </div>
 
@@ -556,7 +565,7 @@ export default function AcercaDe() {
                 hint="Ícono de Sensores IoT en la sección Tecnologías Utilizadas."
               />
               <span className="tech-card-label">
-                <EditableText textKey="ad-tech-5" />
+                <EditableText textKey="ad-tech-5" defaultText="Sensores IoT / ESP32" />
               </span>
             </div>
 
@@ -577,7 +586,7 @@ export default function AcercaDe() {
                 hint="Ícono de Gráficas ChartJS en la sección Tecnologías Utilizadas."
               />
               <span className="tech-card-label">
-                <EditableText textKey="ad-tech-6" />
+                <EditableText textKey="ad-tech-6" defaultText="Gráficas ChartJS" />
               </span>
             </div>
 
@@ -599,7 +608,7 @@ export default function AcercaDe() {
                 hint="Ícono de Mapas Leaflet.js en la sección Tecnologías Utilizadas."
               />
               <span className="tech-card-label">
-                <EditableText textKey="ad-tech-7" />
+                <EditableText textKey="ad-tech-7" defaultText="Mapas Leaflet.js" />
               </span>
             </div>
 
@@ -620,7 +629,7 @@ export default function AcercaDe() {
                 hint="Ícono de Configuración Modular en la sección Tecnologías Utilizadas."
               />
               <span className="tech-card-label">
-                <EditableText textKey="ad-tech-8" />
+                <EditableText textKey="ad-tech-8" defaultText="Configuración Modular" />
               </span>
             </div>
 
@@ -631,7 +640,7 @@ export default function AcercaDe() {
         <section className="about-section">
           <div className="about-arch-box">
             <h2 className="about-arch-title">
-              <EditableText textKey="ad-arch-title" />
+              <EditableText textKey="ad-arch-title" defaultText="Arquitectura IoT ULEAM" />
             </h2>
             <div className="about-arch-img-wrapper">
               <EditableImage
@@ -651,17 +660,17 @@ export default function AcercaDe() {
         {/* ── OBJETIVOS DEL PROYECTO ── */}
         <section className="about-section">
           <h2 className="about-section-heading">
-            <EditableText textKey="ad-obj-title" />
+            <EditableText textKey="ad-obj-title" defaultText="Objetivos del Proyecto" />
           </h2>
           <ul className="about-bullet-list">
             <li>
-              <EditableText textKey="ad-obj-item1" />
+              <EditableText textKey="ad-obj-item1" defaultText="Desplegar nodos sensores para monitoreo ambiental y climático en el campus." />
             </li>
             <li>
-              <EditableText textKey="ad-obj-item2" />
+              <EditableText textKey="ad-obj-item2" defaultText="Visualizar métricas en tiempo real con dashboards gráficos e histórico agregado." />
             </li>
             <li>
-              <EditableText textKey="ad-obj-item3" />
+              <EditableText textKey="ad-obj-item3" defaultText="Fomentar la investigación científica multidisciplinaria en telemetría e IA." />
             </li>
           </ul>
         </section>
@@ -673,7 +682,7 @@ export default function AcercaDe() {
             {/* Características Principales */}
             <div className="about-info-card">
               <h3 className="about-info-card-title">
-                <EditableText textKey="ad-feat-title" />
+                <EditableText textKey="ad-feat-title" defaultText="Características Principales" />
               </h3>
               <div className="about-info-card-list">
 
@@ -684,7 +693,7 @@ export default function AcercaDe() {
                     </svg>
                   </span>
                   <p className="info-item-text">
-                    <EditableText textKey="ad-feat-1" />
+                    <EditableText textKey="ad-feat-1" defaultText="Sensores en tiempo real con métricas configurables" />
                   </p>
                 </div>
 
@@ -696,7 +705,7 @@ export default function AcercaDe() {
                     </svg>
                   </span>
                   <p className="info-item-text">
-                    <EditableText textKey="ad-feat-2" />
+                    <EditableText textKey="ad-feat-2" defaultText="Visualización histórica y análisis estadístico" />
                   </p>
                 </div>
 
@@ -708,7 +717,7 @@ export default function AcercaDe() {
                     </svg>
                   </span>
                   <p className="info-item-text">
-                    <EditableText textKey="ad-feat-3" />
+                    <EditableText textKey="ad-feat-3" defaultText="Geolocalización interactiva en mapa Leaflet" />
                   </p>
                 </div>
 
@@ -719,7 +728,7 @@ export default function AcercaDe() {
                     </svg>
                   </span>
                   <p className="info-item-text">
-                    <EditableText textKey="ad-feat-4" />
+                    <EditableText textKey="ad-feat-4" defaultText="Gestión de roles y control de edición dinámico" />
                   </p>
                 </div>
 
@@ -729,7 +738,7 @@ export default function AcercaDe() {
             {/* Metodología de Desarrollo */}
             <div className="about-info-card">
               <h3 className="about-info-card-title">
-                <EditableText textKey="ad-method-title" />
+                <EditableText textKey="ad-method-title" defaultText="Metodología de Desarrollo" />
               </h3>
               <div className="about-info-card-list">
 
@@ -740,7 +749,7 @@ export default function AcercaDe() {
                     </svg>
                   </span>
                   <p className="info-item-text">
-                    <EditableText textKey="ad-method-1" />
+                    <EditableText textKey="ad-method-1" defaultText="Arquitectura modular desacoplada" />
                   </p>
                 </div>
 
@@ -757,7 +766,7 @@ export default function AcercaDe() {
                     </svg>
                   </span>
                   <p className="info-item-text">
-                    <EditableText textKey="ad-method-2" />
+                    <EditableText textKey="ad-method-2" defaultText="Documentación OpenAPI / Swagger" />
                   </p>
                 </div>
 
@@ -768,7 +777,7 @@ export default function AcercaDe() {
                     </svg>
                   </span>
                   <p className="info-item-text">
-                    <EditableText textKey="ad-method-3" />
+                    <EditableText textKey="ad-method-3" defaultText="Sprints ágiles con control de versiones Git" />
                   </p>
                 </div>
 
@@ -781,7 +790,7 @@ export default function AcercaDe() {
         {/* ── EQUIPO DE TRABAJO ── */}
         <section className="about-section about-team-box">
           <h2 className="about-team-main-heading">
-            <EditableText textKey="ad-team-title" />
+            <EditableText textKey="ad-team-title" defaultText="Equipo de Trabajo" />
           </h2>
 
           {/* Líderes de Proyecto */}
@@ -815,12 +824,14 @@ export default function AcercaDe() {
                       />
                     </div>
                     <div className="lead-card-body">
-                      <span className="lead-name-link"><EditableText textKey={`ad-lead${i}-name`} /></span>
+                      <span className="lead-name-link">
+                        <EditableText textKey={`ad-lead${i}-name`} defaultText={i === 1 ? "Dr. Gabriel Mendoza" : "Ing. María Fernanda López"} />
+                      </span>
                       <p className="lead-role">
-                        <EditableText textKey={`ad-lead${i}-role`} />
+                        <EditableText textKey={`ad-lead${i}-role`} defaultText={i === 1 ? "Director del Proyecto Telemetría IoT" : "Coordinadora de Investigación IoT"} />
                       </p>
                       <p className="lead-email">
-                        <EditableText textKey={`ad-lead${i}-email`} />
+                        <EditableText textKey={`ad-lead${i}-email`} defaultText={i === 1 ? "gabriel.mendoza@uleam.edu.ec" : "maria.lopez@uleam.edu.ec"} />
                       </p>
 
                       {/* Redes Sociales del Líder */}
@@ -851,7 +862,7 @@ export default function AcercaDe() {
           {/* Estudiante a cargo del desarrollo */}
           <div className="about-dev-section">
             <h3 className="about-dev-section-title">
-              <EditableText textKey="ad-dev-header" />
+              <EditableText textKey="ad-dev-header" defaultText="Estudiantes a Cargo del Desarrollo" />
             </h3>
             <div className="about-dev-cards-grid">
               {Array.from({ length: devsCount }).map((_, idx) => {
@@ -883,17 +894,18 @@ export default function AcercaDe() {
                       />
                     </div>
                     <h3 className="dev-name">
-                      <EditableText textKey={i === 1 ? "ad-dev-name" : `ad-dev${i}-name`} />
+                      <EditableText textKey={i === 1 ? "ad-dev-name" : `ad-dev${i}-name`} defaultText={i === 1 ? "Gabriele Lucas" : `Desarrollador ${i}`} />
                     </h3>
                     <p className="dev-role">
-                      <EditableText textKey={i === 1 ? "ad-dev-role" : `ad-dev${i}-role`} />
+                      <EditableText textKey={i === 1 ? "ad-dev-role" : `ad-dev${i}-role`} defaultText={i === 1 ? "Desarrollador Full-Stack & Arquitecto IoT" : "Desarrollador de Software"} />
                     </p>
                     <p className="dev-email">
-                      <EditableText textKey={i === 1 ? "ad-dev-email" : `ad-dev${i}-email`} />
+                      <EditableText textKey={i === 1 ? "ad-dev-email" : `ad-dev${i}-email`} defaultText={i === 1 ? "e1315585640@live.uleam.edu.ec" : `dev${i}@uleam.edu.ec`} />
                     </p>
                     <p className="dev-bio">
                       <EditableText
                         textKey={i === 1 ? "ad-dev-bio" : `ad-dev${i}-bio`}
+                        defaultText={i === 1 ? "Estudiante de la carrera de Tecnologías de la Información, responsable del desarrollo integral de la plataforma de telemetría IoT." : "Estudiante investigador participante en el proyecto IoT ULEAM."}
                         isTextArea={true}
                       />
                     </p>
@@ -935,7 +947,7 @@ export default function AcercaDe() {
                   </svg>
                 </span>
                 <h3 className="members-category-title">
-                  <EditableText textKey="ad-teachers-title" />
+                  <EditableText textKey="ad-teachers-title" defaultText="Docentes Directores y Tutores" />
                 </h3>
               </div>
               <div className="members-chips-wrap">
@@ -943,8 +955,10 @@ export default function AcercaDe() {
                   const i = idx + 1;
                   return (
                     <span className="chip-wrapper-editable" key={`teacher-${i}`}>
-                      <span className="member-chip" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                        <EditableText textKey={`ad-teacher${i}`} />
+                      <span className="member-chip">
+                        <span className="member-name-text">
+                          <EditableText textKey={`ad-teacher${i}`} defaultText={["Dr. Gabriel Mendoza", "Ing. Carlos Villacreses", "Dra. Patricia Quiroz", "Ing. Roberto Delgado", "Ing. José Intriago"][i - 1] || `Docente ${i}`} />
+                        </span>
                         <EditableSocials
                           textKey={`ad-teacher${i}-socials`}
                           defaultData={{}}
@@ -978,17 +992,18 @@ export default function AcercaDe() {
                   </svg>
                 </span>
                 <h3 className="members-category-title">
-                  <EditableText textKey="ad-collab-title" />
+                  <EditableText textKey="ad-collab-title" defaultText="Colaboradores Externos e Investigadores" />
                 </h3>
               </div>
-              <ul className="collabs-list">
+              <div className="members-chips-wrap">
                 {Array.from({ length: collabsCount }).map((_, idx) => {
                   const i = idx + 1;
                   return (
-                    <li className="collab-list-item chip-wrapper-editable" key={`collab-${i}`}>
-                      <span className="collab-dot"/>
-                      <span className="collab-list-text" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                        <EditableText textKey={`ad-collab${i}`} />
+                    <span className="chip-wrapper-editable" key={`collab-${i}`}>
+                      <span className="member-chip">
+                        <span className="member-name-text">
+                          <EditableText textKey={`ad-collab${i}`} defaultText={["Red Ecuatoriana de Tecnologías IoT (RETIoT)", "Laboratorio de Microelectrónica ULEAM"][i - 1] || `Colaborador ${i}`} />
+                        </span>
                         <EditableSocials
                           textKey={`ad-collab${i}-socials`}
                           defaultData={{}}
@@ -999,10 +1014,10 @@ export default function AcercaDe() {
                         <button type="button" className="chip-delete-btn" title="Eliminar este colaborador"
                           onClick={() => handleRemoveMember('collabs', collabsCount, i)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
                       )}
-                    </li>
+                    </span>
                   );
                 })}
-              </ul>
+              </div>
               {canEdit && (
                 <div className="add-member-btn-wrap">
                   <button type="button" className="add-member-btn" title="Añadir colaborador"
@@ -1022,7 +1037,7 @@ export default function AcercaDe() {
                   </svg>
                 </span>
                 <h3 className="members-category-title">
-                  <EditableText textKey="ad-students-title" />
+                  <EditableText textKey="ad-students-title" defaultText="Estudiantes Investigadores" />
                 </h3>
               </div>
               <div className="members-chips-wrap">
@@ -1030,8 +1045,10 @@ export default function AcercaDe() {
                   const i = idx + 1;
                   return (
                     <span className="chip-wrapper-editable" key={`student-${i}`}>
-                      <span className="member-chip" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                        <EditableText textKey={`ad-student${i}`} />
+                      <span className="member-chip">
+                        <span className="member-name-text">
+                          <EditableText textKey={`ad-student${i}`} defaultText={["Gabriele Lucas", "Alex Macías", "Diana Anchundia", "Kevin Zambrano", "Valeria Cedeño"][i - 1] || `Estudiante ${i}`} />
+                        </span>
                         <EditableSocials
                           textKey={`ad-student${i}-socials`}
                           defaultData={{}}
@@ -1064,7 +1081,7 @@ export default function AcercaDe() {
                   </svg>
                 </span>
                 <h3 className="members-category-title">
-                  <EditableText textKey="ad-interns-title" />
+                  <EditableText textKey="ad-interns-title" defaultText="Prácticas Pre-Profesionales" />
                 </h3>
               </div>
               <div className="members-chips-wrap">
@@ -1072,8 +1089,10 @@ export default function AcercaDe() {
                   const i = idx + 1;
                   return (
                     <span className="chip-wrapper-editable" key={`intern-${i}`}>
-                      <span className="member-chip" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                        <EditableText textKey={`ad-intern${i}`} />
+                      <span className="member-chip">
+                        <span className="member-name-text">
+                          <EditableText textKey={`ad-intern${i}`} defaultText={["Jean Carlos Bazurto", "Melissa Saltos"][i - 1] || `Practicante ${i}`} />
+                        </span>
                         <EditableSocials
                           textKey={`ad-intern${i}-socials`}
                           defaultData={{}}
@@ -1109,17 +1128,17 @@ export default function AcercaDe() {
                 <polyline points="22,6 12,13 2,6"/>
               </svg>
             </span>
-            <span><EditableText textKey="ad-cta-badge" /></span>
+            <span><EditableText textKey="ad-cta-badge" defaultText="¿Tienes alguna consulta o colaboración?" /></span>
           </div>
           <h3 className="about-cta-title">
-            <EditableText textKey="ad-cta-title" />
+            <EditableText textKey="ad-cta-title" defaultText="¿Quieres saber más sobre el proyecto?" />
           </h3>
           <p className="about-cta-subtext">
-            <EditableText textKey="ad-cta-subtext" isTextArea={true} />
+            <EditableText textKey="ad-cta-subtext" defaultText="Ponte en contacto con nuestro equipo de investigación o conoce cómo integrarte a los desarrollos de la plataforma IoT ULEAM." isTextArea={true} />
           </p>
           <div className="about-cta-btn-wrap">
             <Link to={language === 'en' ? '/en/contact' : '/es/contacto'} className="about-cta-btn">
-              <EditableText textKey="ad-cta-btn" />
+              <EditableText textKey="ad-cta-btn" defaultText="Contáctanos aquí" />
               <span className="cta-arrow-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
                   <line x1="5" y1="12" x2="19" y2="12"/>

@@ -2,7 +2,7 @@ import { API_BASE_URL, fetchDeduplicated } from '../config/api';
 import { echo } from '../config/echo';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Label, ReferenceLine } from 'recharts';
 import '../styles/VisualizarMapa.css';
 import EditableText from '../components/EditableText';
 import ModalExportarCSV from '../components/ModalExportarCSV';
@@ -68,25 +68,25 @@ const getCategorySVGIcon = (catName) => {
 };
 
 const DYNAMIC_ICONS_PUBLIC = {
-  termometro: { class: 'theme-orange', hex: '#ea580c', bg: '#fff7ed', icon: <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z" /> },
+  termometro: { class: 'theme-red', hex: '#FF0000', bg: '#fff0f0', icon: <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z" /> },
   humedad: { class: 'theme-blue', hex: '#2563eb', bg: '#eff6ff', icon: <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" /> },
-  presion: { class: 'theme-green', hex: '#10b981', bg: '#ecfdf5', icon: <><circle cx="12" cy="12" r="9" /><line x1="12" y1="12" x2="15" y2="9" /></> },
+  presion: { class: 'theme-green', hex: '#94C11F', bg: '#f7fbe9', icon: <><circle cx="12" cy="12" r="9" /><line x1="12" y1="12" x2="15" y2="9" /></> },
   viento: { class: 'theme-cyan', hex: '#06b6d4', bg: '#ecfeff', icon: <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2" /> },
   lluvia: { class: 'theme-purple', hex: '#8b5cf6', bg: '#f5f3ff', icon: <path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25M8 16v4m4-2v4m4-4v4" /> },
   luz: { class: 'theme-orange', hex: '#f59e0b', bg: '#fffbeb', icon: <><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></> },
   energia: { class: 'theme-blue', hex: '#6366f1', bg: '#eef2ff', icon: <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /> },
-  ph: { class: 'theme-green', hex: '#14b8a6', bg: '#f0fdfa', icon: <path d="M10 2v7.31L4.75 18.25A2 2 0 0 0 6.46 21.2h11.08a2 2 0 0 0 1.71-2.95L14 9.31V2" /> },
+  ph: { class: 'theme-green', hex: '#94C11F', bg: '#f7fbe9', icon: <path d="M10 2v7.31L4.75 18.25A2 2 0 0 0 6.46 21.2h11.08a2 2 0 0 0 1.71-2.95L14 9.31V2" /> },
   sonido: { class: 'theme-purple', hex: '#a855f7', bg: '#faf5ff', icon: <><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /></> },
-  general: { class: 'theme-green', hex: '#10b981', bg: '#ecfdf5', icon: <><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></> }
+  general: { class: 'theme-green', hex: '#94C11F', bg: '#f7fbe9', icon: <><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></> }
 };
 
 const VAR_PALETTE = [
-  { class: 'theme-red', hex: '#b91c1c', bg: '#fef2f2', border: '#fca5a5' },    // Solid Dark Red
+  { class: 'theme-red', hex: '#FF0000', bg: '#fff0f0', border: '#ffb3b3' },    // ULEAM Official Red
+  { class: 'theme-green', hex: '#94C11F', bg: '#f7fbe9', border: '#cce580' },  // ULEAM Official Green
+  { class: 'theme-gray', hex: '#4A4A49', bg: '#f4f4f4', border: '#d1d1d1' },   // ULEAM Official Gray
   { class: 'theme-blue', hex: '#2563eb', bg: '#eff6ff', border: '#93c5fd' },   // Vibrant Blue
-  { class: 'theme-green', hex: '#10b981', bg: '#ecfdf5', border: '#6ee7b7' },  // Emerald Green
   { class: 'theme-amber', hex: '#d97706', bg: '#fffbeb', border: '#fcd34d' },  // Amber Orange
   { class: 'theme-purple', hex: '#8b5cf6', bg: '#f5f3ff', border: '#c4b5fd' }, // Violet / Purple
-  { class: 'theme-pink', hex: '#ec4899', bg: '#fdf2f8', border: '#fbcfe8' },   // Magenta / Pink
   { class: 'theme-cyan', hex: '#06b6d4', bg: '#ecfeff', border: '#67e8f9' }    // Cyan
 ];
 
@@ -425,29 +425,111 @@ const CustomPublicChartTooltip = ({ active, payload, label }) => {
   );
 };
 
-// Garante ticks de 2 líneas (Hora arriba, Fecha con año abajo) para la XAxis en formato 24h
+const extractHHMMSS = (inputStr, rawTimestamp) => {
+  if (inputStr && typeof inputStr === 'string') {
+    const str = inputStr.trim().replace(/\s*([ap]\.?m\.?|AM|PM)/gi, '').trim();
+    if (str.includes(' ')) {
+      const parts = str.split(/\s+/);
+      const lastPart = parts[parts.length - 1];
+      if (lastPart.includes(':')) return lastPart;
+    }
+    if (str.includes('T')) {
+      const timePart = str.split('T')[1].split('.')[0];
+      if (timePart.includes(':')) return timePart;
+    }
+    if (str.includes(',')) {
+      const timePart = str.split(',')[1].trim();
+      if (timePart.includes(':')) return timePart;
+    }
+    if (str.includes(':')) {
+      return str;
+    }
+  }
+
+  const d = rawTimestamp
+    ? new Date(rawTimestamp > 1e11 ? rawTimestamp : rawTimestamp * 1000)
+    : new Date();
+  if (!isNaN(d.getTime())) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  const dNow = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(dNow.getHours())}:${pad(dNow.getMinutes())}:${pad(dNow.getSeconds())}`;
+};
+
+// Garante ticks con hora exacta en formato 24h (hh:mm:ss) para la XAxis
 const CustomXAxisTick = ({ x, y, payload }) => {
   if (!payload || !payload.value) return null;
   const rawStr = String(payload.value).trim().replace(/\s*([ap]\.?m\.?|AM|PM)/gi, '');
   const parts = rawStr.split(' ');
-  let dateText = '';
-  let timeText = '';
-
-  if (parts.length >= 2) {
-    dateText = parts[0];
-    timeText = parts.slice(1).join(' ');
-  } else if (rawStr.includes('/')) {
-    dateText = rawStr;
-  } else {
-    timeText = rawStr;
-  }
+  let timeText = parts.length >= 2 ? parts[parts.length - 1] : rawStr;
+  let dateText = parts.length >= 2 ? parts[0] : '';
 
   return (
     <g transform={`translate(${x},${y})`}>
       <text textAnchor="middle" fill="#0f172a">
-        {timeText && <tspan x="0" dy="11" fill="#0f2c59" fontSize="10" fontWeight="800">{timeText}</tspan>}
-        {dateText && <tspan x="0" dy={timeText ? "13" : "11"} fill="#64748b" fontSize="8.5" fontWeight="600">{dateText}</tspan>}
+        <tspan x="0" dy="11" fill="#0f2c59" fontSize="10" fontWeight="800">{timeText}</tspan>
+        {dateText && <tspan x="0" dy="13" fill="#64748b" fontSize="8.5" fontWeight="600">{dateText}</tspan>}
       </text>
+    </g>
+  );
+};
+
+// Helper para obtener la URL completa de la imagen del símbolo de la métrica desde la BD (backend/public/symbols/...)
+const getMetricSymbolUrl = (l) => {
+  const backendHost = API_BASE_URL.replace(/\/api\/?$/, '');
+  const symbolImage = l?.symbol_image || l?.metric_symbol_image || l?.icono_imagen || l?.metric?.symbol_image || l?.subvariable?.symbol_image;
+
+  if (symbolImage && typeof symbolImage === 'string' && symbolImage.trim() !== '') {
+    if (symbolImage.startsWith('data:') || symbolImage.startsWith('http://') || symbolImage.startsWith('https://')) {
+      return symbolImage;
+    }
+    const cleanPath = symbolImage.startsWith('/') ? symbolImage : `/${symbolImage}`;
+    const relativePath = cleanPath.startsWith('/storage/') ? cleanPath.replace('/storage', '') : cleanPath;
+    return `${backendHost}${relativePath}`;
+  }
+
+  return `${backendHost}/symbols/default.webp`;
+};
+
+// Etiqueta flotante en la derecha a la altura Y exacta del último valor recibido (con overflow visible sin entrecortarse)
+const CustomRightLabel = (props) => {
+  const { viewBox, valueText, color } = props;
+  if (!viewBox || !valueText) return null;
+  const { x, y, width } = viewBox;
+  const rightX = x + width + 4;
+  const badgeWidth = Math.max((valueText || '').length * 8 + 18, 56);
+
+  return (
+    <g transform={`translate(${rightX}, ${y})`} style={{ overflow: 'visible' }}>
+      <circle cx="-4" cy="0" r="4.5" fill={color} stroke="#ffffff" strokeWidth="1.5" />
+      <g transform="translate(2, -12)">
+        <rect
+          x="0"
+          y="0"
+          width={badgeWidth}
+          height="24"
+          rx="6"
+          ry="6"
+          fill={color}
+          stroke="#ffffff"
+          strokeWidth="1.5"
+          style={{ filter: 'drop-shadow(0px 3px 6px rgba(0,0,0,0.25))' }}
+        />
+        <text
+          x={badgeWidth / 2}
+          y="15.5"
+          fill="#ffffff"
+          fontSize="11"
+          fontWeight="900"
+          textAnchor="middle"
+          fontFamily="'Outfit', 'Inter', sans-serif"
+        >
+          {valueText}
+        </text>
+      </g>
     </g>
   );
 };
@@ -460,13 +542,18 @@ const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables =
   const activeLecturas = lecturas.filter(l => Boolean(activeVariables && activeVariables[l.data_type]));
   const [hoveredVar, setHoveredVar] = useState(null);
 
+  const mainUnit = useMemo(() => {
+    if (!activeLecturas || activeLecturas.length === 0) return '';
+    return activeLecturas[0]?.unidad || '';
+  }, [activeLecturas]);
+
   const chartData = useMemo(() => {
     if (!history || history.length === 0) return [];
     return history.slice(-10);
   }, [history]);
 
   return (
-    <div className="dashboard-chart-svg-container" style={{ padding: isAmpliado ? '1rem' : '0.5rem 0' }}>
+    <div className="dashboard-chart-svg-container" style={{ padding: isAmpliado ? '1rem' : '0.5rem 0', overflow: 'visible' }}>
       {/* Leyenda Dinámica de Variables Activas */}
       <div className="dashboard-chart-legend" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '0.85rem', alignItems: 'center' }}>
         {activeLecturas.map((l, idx) => {
@@ -496,9 +583,15 @@ const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables =
                 boxShadow: isHovered ? `0 4px 12px ${theme.hex}44` : 'none'
               }}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-                {theme.icon}
-              </svg>
+              <img
+                src={getMetricSymbolUrl(l)}
+                alt=""
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = `${API_BASE_URL.replace(/\/api\/?$/, '')}/symbols/default.webp`;
+                }}
+                style={{ width: '16px', height: '16px', objectFit: 'contain' }}
+              />
               <span>{isEn ? (l.tipo_en || l.nombre_en || l.tipo) : (l.tipo_es || l.tipo)} ({l.unidad})</span>
             </div>
           );
@@ -510,8 +603,8 @@ const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables =
         )}
       </div>
 
-      {/* Gráfico Recharts con Único Eje Izquierdo */}
-      <div style={{ width: '100%', height: isAmpliado ? '100%' : '260px', flex: isAmpliado ? 1 : 'initial', minHeight: isAmpliado ? '220px' : 'auto', display: 'flex', flexDirection: 'column' }}>
+      {/* Gráfico Recharts con Único Eje Izquierdo y Unidad */}
+      <div style={{ width: '100%', height: isAmpliado ? '100%' : '310px', flex: isAmpliado ? 1 : 'initial', minHeight: isAmpliado ? '220px' : 'auto', display: 'flex', flexDirection: 'column', overflow: 'visible' }}>
         {activeLecturas.length === 0 ? (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#94a3b8', fontSize: '0.9rem' }}>
             Sin variables activas marcadas
@@ -521,12 +614,27 @@ const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables =
             {liveMode ? 'Cargando datos en tiempo real...' : 'No existen registros guardados'}
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" style={{ overflow: 'visible' }}>
             {tipoGrafico === 'bar' ? (
-              <BarChart data={chartData} margin={{ top: 15, right: 35, left: 10, bottom: liveMode ? 10 : 45 }}>
+              <BarChart data={chartData} margin={{ top: 25, right: 90, left: 10, bottom: 45 }} style={{ overflow: 'visible' }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#cbd5e1" strokeOpacity={0.65} />
-                <XAxis dataKey="time" height={liveMode ? 15 : 56} tick={liveMode ? false : <CustomXAxisTick />} axisLine={{ stroke: '#334155', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.2 }} />
-                <YAxis orientation="left" width={45} tick={{ fontSize: 11, fill: '#0f2c59', fontWeight: 800 }} axisLine={{ stroke: '#334155', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.2 }} />
+                <XAxis dataKey="time" height={56} tick={<CustomXAxisTick />} axisLine={{ stroke: '#334155', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.2 }} interval="preserveStartEnd" />
+                <YAxis orientation="left" width={45} tick={{ fontSize: 11, fill: '#0f2c59', fontWeight: 800 }} axisLine={{ stroke: '#334155', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.2 }}>
+                  {mainUnit && (
+                    <Label
+                      value={mainUnit}
+                      position="top"
+                      offset={10}
+                      style={{
+                        textAnchor: 'middle',
+                        fill: '#0f2c59',
+                        fontSize: '12px',
+                        fontWeight: '900',
+                        letterSpacing: '0.04em'
+                      }}
+                    />
+                  )}
+                </YAxis>
 
                 <Tooltip content={<CustomPublicChartTooltip />} />
 
@@ -546,9 +654,34 @@ const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables =
                     />
                   );
                 })}
+
+                {/* Mostrar el último valor en tiempo real en la parte derecha a su altura Y exacta */}
+                {activeLecturas.map((l, idx) => {
+                  const theme = getTheme(l.data_type, l.icono, idx);
+                  const lastPoint = chartData.length > 0 ? chartData[chartData.length - 1] : null;
+                  const rawVal = lastPoint ? parseFloat(lastPoint[l.data_type]) : null;
+                  const valueText = (rawVal !== null && rawVal !== undefined && !isNaN(rawVal))
+                    ? `${rawVal} ${l.unidad}`
+                    : null;
+
+                  return (
+                    <React.Fragment key={`ref-bar-line-${l.data_type}`}>
+                      {lastPoint && rawVal !== null && !isNaN(rawVal) && valueText && (
+                        <ReferenceLine
+                          y={rawVal}
+                          stroke={`${theme.hex}55`}
+                          strokeDasharray="3 3"
+                          strokeWidth={1.5}
+                          isFront={true}
+                          label={<CustomRightLabel valueText={valueText} color={theme.hex} />}
+                        />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </BarChart>
             ) : (
-              <AreaChart data={chartData} margin={{ top: 15, right: 35, left: 10, bottom: liveMode ? 10 : 45 }}>
+              <AreaChart data={chartData} margin={{ top: 25, right: 90, left: 10, bottom: 45 }} style={{ overflow: 'visible' }}>
                 <defs>
                   {activeLecturas.map((l, idx) => {
                     const theme = getTheme(l.data_type, l.icono, idx);
@@ -561,8 +694,23 @@ const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables =
                   })}
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#cbd5e1" strokeOpacity={0.65} />
-                <XAxis dataKey="time" height={liveMode ? 15 : 56} tick={liveMode ? false : <CustomXAxisTick />} axisLine={{ stroke: '#334155', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.2 }} />
-                <YAxis orientation="left" width={45} tick={{ fontSize: 11, fill: '#0f2c59', fontWeight: 800 }} axisLine={{ stroke: '#334155', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.2 }} />
+                <XAxis dataKey="time" height={56} tick={<CustomXAxisTick />} axisLine={{ stroke: '#334155', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.2 }} interval="preserveStartEnd" />
+                <YAxis orientation="left" width={45} tick={{ fontSize: 11, fill: '#0f2c59', fontWeight: 800 }} axisLine={{ stroke: '#334155', strokeWidth: 1.8 }} tickLine={{ stroke: '#64748b', strokeWidth: 1.2 }}>
+                  {mainUnit && (
+                    <Label
+                      value={mainUnit}
+                      position="top"
+                      offset={10}
+                      style={{
+                        textAnchor: 'middle',
+                        fill: '#0f2c59',
+                        fontSize: '12px',
+                        fontWeight: '900',
+                        letterSpacing: '0.04em'
+                      }}
+                    />
+                  )}
+                </YAxis>
 
                 <Tooltip content={<CustomPublicChartTooltip />} />
 
@@ -585,6 +733,31 @@ const PublicRechartsChart = ({ history = [], nodoSeleccionado, activeVariables =
                       dot={{ r: isHovered ? 5 : 3, strokeWidth: 1.5, fill: '#ffffff', stroke: theme.hex }}
                       activeDot={{ r: 7, strokeWidth: 0, fill: theme.hex }}
                     />
+                  );
+                })}
+
+                {/* Mostrar el último valor en tiempo real en la parte derecha a su altura Y exacta */}
+                {activeLecturas.map((l, idx) => {
+                  const theme = getTheme(l.data_type, l.icono, idx);
+                  const lastPoint = chartData.length > 0 ? chartData[chartData.length - 1] : null;
+                  const rawVal = lastPoint ? parseFloat(lastPoint[l.data_type]) : null;
+                  const valueText = (rawVal !== null && rawVal !== undefined && !isNaN(rawVal))
+                    ? `${rawVal} ${l.unidad}`
+                    : null;
+
+                  return (
+                    <React.Fragment key={`ref-area-line-${l.data_type}`}>
+                      {lastPoint && rawVal !== null && !isNaN(rawVal) && valueText && (
+                        <ReferenceLine
+                          y={rawVal}
+                          stroke={`${theme.hex}55`}
+                          strokeDasharray="3 3"
+                          strokeWidth={1.5}
+                          isFront={true}
+                          label={<CustomRightLabel valueText={valueText} color={theme.hex} />}
+                        />
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </AreaChart>
@@ -624,6 +797,7 @@ export default function VisualizarMapa() {
   const isEn = language === 'en';
   const [searchParams, setSearchParams] = useSearchParams();
   const [categorias, setCategorias] = useState([]);
+  const [nodeCounts, setNodeCounts] = useState({});
   const [nodos, setNodos] = useState([]);
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState(null);
   const [nodoSeleccionado, setNodoSeleccionado] = useState(null);
@@ -881,11 +1055,14 @@ export default function VisualizarMapa() {
   const nodeParam = searchParams.get('nodo');
   const lecturaParam = searchParams.get('lectura');
 
-  // Cargar categorías y nodos de forma directa y bajo demanda desde la BD
+  // Cargar categorías, conteo de nodos habilitados y nodos de forma directa y bajo demanda desde la BD
   useEffect(() => {
     setPageLoading(true);
 
-    const fetches = [fetchDeduplicated(`${API_BASE_URL}/categorias?lang=${language}`).then(res => res.json())];
+    const fetches = [
+      fetchDeduplicated(`${API_BASE_URL}/categorias?lang=${language}`).then(res => res.json()),
+      fetchDeduplicated(`${API_BASE_URL}/categorias/nodos-count`).then(res => res.json()).catch(() => ({ counts: {} }))
+    ];
     if (catParam) {
       fetches.push(fetchDeduplicated(`${API_BASE_URL}/nodos?categoria=${encodeURIComponent(catParam)}&lang=${language}`).then(res => res.json()));
     } else {
@@ -893,8 +1070,9 @@ export default function VisualizarMapa() {
     }
 
     Promise.all(fetches)
-      .then(([catData, nodosData]) => {
+      .then(([catData, countsData, nodosData]) => {
         setCategorias(Array.isArray(catData) ? catData : []);
+        setNodeCounts(countsData?.counts || {});
         const nodeList = Array.isArray(nodosData) ? nodosData : [];
         setNodos(nodeList);
 
@@ -972,17 +1150,14 @@ export default function VisualizarMapa() {
   }, [lecturaParam, nodoSeleccionado]);
 
   // Cargar lecturas reales registradas en la BD y escuchar eventos en tiempo real cada 5s via WebSockets
+  // Cargar lecturas reales registradas en la BD y escuchar eventos en tiempo real via WebSockets
   useEffect(() => {
     const serial = nodoSeleccionado?.serial_number;
     if (!serial) return;
 
-    // Timestamp de la última recepción via WebSocket (ref para no re-disparar el effect)
-    const lastWsTs = { current: 0 };
-
     const processTelemetryPacket = (newData, source = 'ws') => {
       if (!newData) return;
 
-      // Registrar recepción de datos en tiempo real
       lastLivePacketTime.current = Date.now();
       setIsReceivingLive(true);
 
@@ -994,8 +1169,10 @@ export default function VisualizarMapa() {
       } else if (shortT && !fullT) {
         fullT = `${new Date().toLocaleDateString('es-ES')}, ${shortT}`;
       } else if (!shortT && !fullT) {
-        shortT = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-        fullT = `${new Date().toLocaleDateString('es-ES')}, ${shortT}`;
+        const d = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        shortT = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+        fullT = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}, ${shortT}`;
       }
 
       if (shortT) shortT = shortT.replace(/\s*([ap]\.?m\.?|AM|PM)/gi, '').trim();
@@ -1007,17 +1184,37 @@ export default function VisualizarMapa() {
         dateTime: fullT
       };
 
-      // 1. SIEMPRE actualizar el buffer en vivo en memoria (máximo 10 lecturas deslizantes en memoria)
+      // 1. SIEMPRE actualizar el buffer en vivo en memoria (modo Reloj encendido) con la frecuencia exacta del listener WebSocket
       setLiveBuffer(prev => {
         if (prev.length > 0) {
           const last = prev[prev.length - 1];
-          if (last.dateTime === fullT && last.time === shortT) return prev;
+          // Evitar descartar datos si la hora coincide exactamente pero trae nuevos valores o timestamps de milisegundo
+          if (last.dateTime === fullT && last.time === shortT && JSON.stringify(last) === JSON.stringify(parsedData)) {
+            return prev;
+          }
         }
         const nextBuffer = [...prev, parsedData];
-        return nextBuffer.length > 10 ? nextBuffer.slice(-10) : nextBuffer;
+        return nextBuffer.length > 15 ? nextBuffer.slice(-15) : nextBuffer;
       });
 
-      // 2. ÚNICAMENTE actualizar el historial de Base de Datos y los últimos valores de BD si es un registro guardado en la BD
+      // 2. SIEMPRE actualizar valores mas recientes para la tarjeta KPI en tiempo real
+      setValoresUltimos(prev => {
+        const updated = { ...prev };
+        Object.keys(newData).forEach(k => {
+          if (k !== 'time' && k !== 'dateTime' && k !== 'shortTime' && k !== 'id' && k !== 'node_id' && k !== 'serial_number' && k !== 'created_at' && k !== 'updated_at' && k !== 'timestamp') {
+            if (newData[k] !== null && newData[k] !== undefined) {
+              updated[k] = {
+                valor: newData[k],
+                fecha: fullT,
+                _created_at: newData.created_at || null
+              };
+            }
+          }
+        });
+        return updated;
+      });
+
+      // 3. Actualizar el historial de Base de Datos estático únicamente cuando sea un registro guardado en BD
       const isSavedInDB = Boolean(newData.id || newData.is_saved || source === 'db');
       if (isSavedInDB) {
         setHistory(prev => {
@@ -1031,24 +1228,7 @@ export default function VisualizarMapa() {
             }
           }
           const updated = [...prev, parsedData];
-          // Mantener estrictamente MÁXIMO 10 puntos en el gráfico en modo BD (elimina 1 viejo y desplaza)
           return updated.length > 10 ? updated.slice(-10) : updated;
-        });
-
-        setValoresUltimos(prev => {
-          const updated = { ...prev };
-          Object.keys(newData).forEach(k => {
-            if (k !== 'time' && k !== 'dateTime' && k !== 'shortTime' && k !== 'id' && k !== 'node_id' && k !== 'serial_number' && k !== 'created_at' && k !== 'updated_at' && k !== 'timestamp') {
-              if (newData[k] !== null && newData[k] !== undefined) {
-                updated[k] = {
-                  valor: newData[k],
-                  fecha: fullT,
-                  _created_at: newData.created_at || null
-                };
-              }
-            }
-          });
-          return updated;
         });
       }
     };
@@ -1058,12 +1238,14 @@ export default function VisualizarMapa() {
     try {
       const channelName = `telemetry.${serial}`;
       channel = echo.channel(channelName);
-      channel.listen('.LecturaRecibida', (e) => {
-        const newData = e.data || e;
+      const handlePayload = (e) => {
+        const newData = e?.data || e?.lectura || e?.payload || e;
         if (newData) {
           processTelemetryPacket(newData, 'ws');
         }
-      });
+      };
+      channel.listen('.LecturaRecibida', handlePayload);
+      channel.listen('LecturaRecibida', handlePayload);
     } catch (e) {
       console.warn("WebSocket channel error:", e);
     }
@@ -1073,6 +1255,60 @@ export default function VisualizarMapa() {
         echo.leaveChannel(`telemetry.${serial}`);
       }
     };
+  }, [nodoSeleccionado?.serial_number, liveMode]);
+
+  // Polling continuo en tiempo real cuando el modo en vivo (reloj) está activo
+  useEffect(() => {
+    if (!liveMode || !nodoSeleccionado?.serial_number) return;
+
+    const serial = nodoSeleccionado.serial_number;
+
+    const fetchLiveRecent = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/lecturas/recientes?serial_number=${serial}&live=1&limit=15`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const dataAsc = [...data].sort((a, b) => {
+            const tA = a.timestamp ? Number(a.timestamp) : (a.created_at ? new Date(a.created_at).getTime() : 0);
+            const tB = b.timestamp ? Number(b.timestamp) : (b.created_at ? new Date(b.created_at).getTime() : 0);
+            return tA - tB;
+          });
+
+          const points = dataAsc.map(item => {
+            const shortT = extractHHMMSS(item.shortTime || item.time || item.dateTime || item.created_at, item.timestamp);
+            let fullT = item.dateTime || item.created_at;
+            if (!fullT) {
+              const d = new Date();
+              const pad = (n) => String(n).padStart(2, '0');
+              fullT = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}, ${shortT}`;
+            }
+            return { ...item, time: shortT, dateTime: fullT };
+          });
+
+          setLiveBuffer(points.slice(-15));
+
+          const lastItem = points[points.length - 1];
+          if (lastItem) {
+            const map = {};
+            Object.keys(lastItem).forEach(k => {
+              if (k !== 'time' && k !== 'dateTime' && k !== 'shortTime' && k !== 'id' && k !== 'node_id' && k !== 'serial_number' && k !== 'created_at' && k !== 'updated_at' && k !== 'timestamp') {
+                if (lastItem[k] !== null && lastItem[k] !== undefined) {
+                  map[k] = { valor: lastItem[k], fecha: lastItem.dateTime };
+                }
+              }
+            });
+            setValoresUltimos(prev => ({ ...prev, ...map }));
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching live recent readings:", err);
+      }
+    };
+
+    fetchLiveRecent();
+    const liveInterval = setInterval(fetchLiveRecent, 2000);
+    return () => clearInterval(liveInterval);
   }, [nodoSeleccionado?.serial_number, liveMode]);
 
   const handleCategoryClick = (catName) => {
@@ -1673,35 +1909,57 @@ export default function VisualizarMapa() {
             <EditableText textKey="map_choose_category" defaultText={t("map.choose_category", "Elige una categoría de investigación")} />
           </h3>
           <div className="categories-grid">
-            {categorias.length === 0 ? (
-              <div className="empty-state-card">
-                <span>{t("common.no_results", "No hay categorías registradas en el sistema.")}</span>
-              </div>
-            ) : (
-              categorias.map(cat => (
-                <div
-                  key={cat.id}
-                  className="category-card"
-                  onClick={() => handleCategoryClick(cat.nombre)}
-                >
-                  {/* Icono vectorial SVG en lugar de emojis */}
-                  <div className="category-icon-wrapper">
-                    {getCategorySVGIcon(cat.nombre)}
+            {(() => {
+              const categoriasHabilitadas = categorias.filter(cat => {
+                const count = nodeCounts[cat.id] ?? nodeCounts[cat.nombre] ?? nodeCounts[cat.nombre_es] ?? nodeCounts[cat.nombre_en] ?? 0;
+                return count > 0;
+              });
+
+              if (categoriasHabilitadas.length === 0) {
+                return (
+                  <div className="empty-state-card">
+                    <span>{language === 'en' ? "No categories with active nodes currently available." : "No existen categorías con nodos habilitados disponibles."}</span>
                   </div>
-                  <h4 className="category-card-title">{cat.nombre}</h4>
-                  <p className="category-card-desc">
-                    {cat.descripcion || (language === 'en' ? 'Explore smart nodes and telemetry associated with this group.' : 'Explorar los nodos inteligentes y la telemetría asociada a este grupo.')}
-                  </p>
-                  <span className="category-action-link">
-                    <EditableText textKey="map_view_network_nodes" defaultText={t("map.view_network_nodes", "Ver Nodos de Red")} />
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14" style={{ marginLeft: '4px' }}>
-                      <line x1="5" y1="12" x2="19" y2="12" />
-                      <polyline points="12 5 19 12 12 19" />
-                    </svg>
-                  </span>
-                </div>
-              ))
-            )}
+                );
+              }
+
+              return categoriasHabilitadas.map(cat => {
+                const count = nodeCounts[cat.id] ?? nodeCounts[cat.nombre] ?? nodeCounts[cat.nombre_es] ?? nodeCounts[cat.nombre_en] ?? 0;
+                const nodeLabel = count === 1
+                  ? (language === 'en' ? 'Active Node' : 'Nodo Habilitado')
+                  : (language === 'en' ? 'Active Nodes' : 'Nodos Habilitados');
+
+                return (
+                  <div
+                    key={cat.id}
+                    className="category-card"
+                    onClick={() => handleCategoryClick(cat.nombre)}
+                  >
+                    {/* Badge con Conteo de Nodos Habilitados (estado = true) */}
+                    <div className="category-node-count-badge" title={`${count} ${nodeLabel}`}>
+                      <span className={`node-count-dot ${count > 0 ? 'active' : 'inactive'}`} />
+                      <span>{count} {nodeLabel}</span>
+                    </div>
+
+                    {/* Icono vectorial SVG en lugar de emojis */}
+                    <div className="category-icon-wrapper">
+                      {getCategorySVGIcon(cat.nombre)}
+                    </div>
+                    <h4 className="category-card-title">{cat.nombre}</h4>
+                    <p className="category-card-desc">
+                      {cat.descripcion || (language === 'en' ? 'Explore smart nodes and telemetry associated with this group.' : 'Explorar los nodos inteligentes y la telemetría asociada a este grupo.')}
+                    </p>
+                    <span className="category-action-link">
+                      <EditableText textKey="map_view_network_nodes" defaultText={t("map.view_network_nodes", "Ver Nodos de Red")} />
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14" style={{ marginLeft: '4px' }}>
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                        <polyline points="12 5 19 12 12 19" />
+                      </svg>
+                    </span>
+                  </div>
+                );
+              });
+            })()}
           </div>
         </div>
       )}
@@ -2040,18 +2298,30 @@ export default function VisualizarMapa() {
                               <div
                                 style={{
                                   position: 'absolute',
-                                  right: '-8px',
-                                  bottom: '-10px',
-                                  opacity: 0.12,
-                                  color: theme.hex,
+                                  right: '8px',
+                                  bottom: '8px',
+                                  opacity: 0.14,
                                   pointerEvents: 'none',
-                                  transform: 'scale(2.6)',
-                                  transformOrigin: 'bottom right'
+                                  width: '65px',
+                                  height: '65px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
                                 }}
                               >
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="40" height="40">
-                                  {theme.icon}
-                                </svg>
+                                <img
+                                  src={getMetricSymbolUrl(l)}
+                                  alt=""
+                                  onError={(e) => {
+                                    e.target.onerror = null;
+                                    e.target.src = `${API_BASE_URL.replace(/\/api\/?$/, '')}/symbols/default.webp`;
+                                  }}
+                                  style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'contain'
+                                  }}
+                                />
                               </div>
 
                               {/* Cabecera con ícono temático y nombre de variable */}
@@ -2062,16 +2332,26 @@ export default function VisualizarMapa() {
                                       display: 'inline-flex',
                                       alignItems: 'center',
                                       justifyContent: 'center',
-                                      width: '26px',
-                                      height: '26px',
+                                      width: '28px',
+                                      height: '28px',
                                       borderRadius: '8px',
                                       background: `${theme.hex}18`,
-                                      color: theme.hex
+                                      padding: '4px'
                                     }}
                                   >
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
-                                      {theme.icon}
-                                    </svg>
+                                    <img
+                                      src={getMetricSymbolUrl(l)}
+                                      alt={l.tipo}
+                                      onError={(e) => {
+                                        e.target.onerror = null;
+                                        e.target.src = `${API_BASE_URL.replace(/\/api\/?$/, '')}/symbols/default.webp`;
+                                      }}
+                                      style={{
+                                        width: '100%',
+                                        height: '100%',
+                                        objectFit: 'contain'
+                                      }}
+                                    />
                                   </span>
                                   <span style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.03em', color: '#475569' }}>
                                     {language === 'en' ? (l.tipo_en || l.nombre_en || l.tipo) : (l.tipo_es || l.tipo)}

@@ -1,4 +1,4 @@
-import React, { useEffect, lazy, Suspense } from "react";
+import React, { useEffect, useRef, lazy, Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation, useParams, useNavigationType } from "react-router-dom";
 import i18n from "./i18n";
 import { LanguageProvider, useLanguage } from "./context/LanguageContext";
@@ -76,12 +76,35 @@ function RedirectToLocalizedRoute() {
     return <Navigate to={`/${currentLang}/login`} replace />;
   }
 
+  if (pathname.startsWith("/category") || pathname.startsWith("/categorias")) {
+    const targetCatPath = currentLang === "en" ? "categories" : "categorias";
+    return <Navigate to={`/${currentLang}/${targetCatPath}`} replace />;
+  }
+
+  if (pathname.startsWith("/news") || pathname.startsWith("/noticias")) {
+    const targetNewsPath = currentLang === "en" ? "news" : "noticias";
+    return <Navigate to={`/${currentLang}/${targetNewsPath}`} replace />;
+  }
+
+  if (pathname.startsWith("/acerca-de") || pathname.startsWith("/about-us") || pathname.startsWith("/software")) {
+    return <Navigate to={`/${currentLang}/software`} replace />;
+  }
+
   return <Navigate to={`/${currentLang}/404`} replace />;
 }
 
 function ScrollToTop() {
   const location = useLocation();
   const navType = useNavigationType();
+  const prevPathnameRef = useRef(location.pathname);
+
+  const currentPathRef = useRef(location.pathname);
+  const currentKeyRef = useRef(location.key);
+
+  useEffect(() => {
+    currentPathRef.current = location.pathname;
+    currentKeyRef.current = location.key;
+  }, [location.pathname, location.key]);
 
   // Permite la gestión manual de la posición de scroll
   useEffect(() => {
@@ -90,34 +113,48 @@ function ScrollToTop() {
     }
   }, []);
 
-  // Guarda continuamente la posición del scroll antes de cambiar de página
+  // Guarda continuamente la posición del scroll activa para la ruta en curso
   useEffect(() => {
     const handleScroll = () => {
-      if (location.key) {
-        sessionStorage.setItem(`scroll_pos_${location.key}`, window.scrollY.toString());
+      const y = window.scrollY || window.pageYOffset || 0;
+      if (y > 0) {
+        if (currentKeyRef.current) {
+          sessionStorage.setItem(`scroll_pos_key_${currentKeyRef.current}`, y.toString());
+        }
+        sessionStorage.setItem(`scroll_pos_path_${currentPathRef.current}`, y.toString());
       }
     };
+
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [location.key]);
+  }, []);
 
   useEffect(() => {
+    const pathChanged = prevPathnameRef.current !== location.pathname;
+    prevPathnameRef.current = location.pathname;
+
     // Si la navegación es retroceder/avanzar en la flecha del navegador ("POP")
     if (navType === 'POP') {
-      const savedPos = location.key ? sessionStorage.getItem(`scroll_pos_${location.key}`) : null;
+      const savedKeyPos = location.key ? sessionStorage.getItem(`scroll_pos_key_${location.key}`) : null;
+      const savedPathPos = sessionStorage.getItem(`scroll_pos_path_${location.pathname}`);
+      const savedPos = savedKeyPos !== null ? savedKeyPos : savedPathPos;
+
       if (savedPos !== null) {
         const y = parseInt(savedPos, 10);
-        setTimeout(() => {
-          window.scrollTo(0, y);
-        }, 60);
+        requestAnimationFrame(() => window.scrollTo(0, y));
+        [10, 60, 180, 350, 600].forEach(delay => {
+          setTimeout(() => {
+            window.scrollTo(0, y);
+          }, delay);
+        });
       }
-    } else {
-      // Si se hizo clic explícito en un enlace/menú ("PUSH" o "REPLACE"), se reinicia arriba
+    } else if (pathChanged && !location.pathname.includes('/page/')) {
+      // Solo reiniciar al tope si la ruta principal cambió y no es una sub-paginación
       window.scrollTo(0, 0);
       if (document.documentElement) document.documentElement.scrollTop = 0;
       if (document.body) document.body.scrollTop = 0;
     }
-  }, [location.pathname, location.key, navType]);
+  }, [location.pathname, location.search, location.key, navType]);
 
   return null;
 }
@@ -202,15 +239,23 @@ export default function App() {
                       <Route index element={<Navigate to="dashboard" replace />} />
                       <Route path="dashboard" element={<Dashboard />} />
                       <Route path="nodos" element={<RegistrarNodo />} />
+                      <Route path="nodos/page/:pageNum" element={<RegistrarNodo />} />
                       <Route path="sensores" element={<GestionarSensores />} />
+                      <Route path="sensores/page/:pageNum" element={<GestionarSensores />} />
                       <Route path="metricas" element={<GestionarMetricas />} />
+                      <Route path="metricas/page/:pageNum" element={<GestionarMetricas />} />
                       <Route path="categorias" element={<GestionarCategorias />} />
+                      <Route path="categorias/page/:pageNum" element={<GestionarCategorias />} />
                       <Route path="ubicaciones" element={<GestionarUbicaciones />} />
+                      <Route path="ubicaciones/page/:pageNum" element={<GestionarUbicaciones />} />
                       <Route path="usuarios" element={<GestionarUsuarios />} />
+                      <Route path="usuarios/page/:pageNum" element={<GestionarUsuarios />} />
                       <Route path="roles" element={<GestionarRoles />} />
                       <Route path="interfaces" element={<GestionarInterfaces />} />
                       <Route path="noticias" element={<GestionarNoticias />} />
+                      <Route path="noticias/page/:pageNum" element={<GestionarNoticias />} />
                       <Route path="articulos" element={<GestionarArticulos />} />
+                      <Route path="articulos/page/:pageNum" element={<GestionarArticulos />} />
                       <Route path="monitor-en-vivo" element={<MonitorEnVivo />} />
                       <Route path="historico" element={<HistoricoAgregado />} />
                       <Route path="notificaciones" element={<Notificaciones />} />
@@ -222,11 +267,15 @@ export default function App() {
                     <Route element={<PublicLayout />}>
                       <Route index element={<Inicio />} />
                       <Route path="categorias" element={<VisualizarMapa />} />
-                      <Route path="category" element={<Navigate to="/es/categorias" replace />} />
+                      <Route path="category/*" element={<Navigate to="/es/categorias" replace />} />
                       <Route path="analisis-historico" element={<VisualizarHistorico />} />
                       <Route path="noticias" element={<NoticiasPublicas />} />
+                      <Route path="noticias/page/:pageNum" element={<NoticiasPublicas />} />
+                      <Route path="news/*" element={<Navigate to="/es/noticias" replace />} />
                       <Route path="articulos" element={<ArticulosPublicos />} />
+                      <Route path="articulos/page/:pageNum" element={<ArticulosPublicos />} />
                       <Route path="software" element={<AcercaDe />} />
+                      <Route path="acerca-de/*" element={<Navigate to="/es/software" replace />} />
                       <Route path="contacto" element={<Contacto />} />
                     </Route>
 
@@ -244,15 +293,23 @@ export default function App() {
                       <Route index element={<Navigate to="dashboard" replace />} />
                       <Route path="dashboard" element={<Dashboard />} />
                       <Route path="nodes" element={<RegistrarNodo />} />
+                      <Route path="nodes/page/:pageNum" element={<RegistrarNodo />} />
                       <Route path="sensors" element={<GestionarSensores />} />
+                      <Route path="sensors/page/:pageNum" element={<GestionarSensores />} />
                       <Route path="metrics" element={<GestionarMetricas />} />
+                      <Route path="metrics/page/:pageNum" element={<GestionarMetricas />} />
                       <Route path="categories" element={<GestionarCategorias />} />
+                      <Route path="categories/page/:pageNum" element={<GestionarCategorias />} />
                       <Route path="locations" element={<GestionarUbicaciones />} />
+                      <Route path="locations/page/:pageNum" element={<GestionarUbicaciones />} />
                       <Route path="users" element={<GestionarUsuarios />} />
+                      <Route path="users/page/:pageNum" element={<GestionarUsuarios />} />
                       <Route path="roles" element={<GestionarRoles />} />
                       <Route path="interfaces" element={<GestionarInterfaces />} />
                       <Route path="news" element={<GestionarNoticias />} />
+                      <Route path="news/page/:pageNum" element={<GestionarNoticias />} />
                       <Route path="articles" element={<GestionarArticulos />} />
+                      <Route path="articles/page/:pageNum" element={<GestionarArticulos />} />
                       <Route path="live-monitor" element={<MonitorEnVivo />} />
                       <Route path="history" element={<HistoricoAgregado />} />
                       <Route path="notifications" element={<Notificaciones />} />
@@ -264,11 +321,16 @@ export default function App() {
                     <Route element={<PublicLayout />}>
                       <Route index element={<Inicio />} />
                       <Route path="categories" element={<VisualizarMapa />} />
-                      <Route path="category" element={<Navigate to="/en/categories" replace />} />
+                      <Route path="category/*" element={<Navigate to="/en/categories" replace />} />
                       <Route path="historical-analysis" element={<VisualizarHistorico />} />
                       <Route path="news" element={<NoticiasPublicas />} />
+                      <Route path="news/page/:pageNum" element={<NoticiasPublicas />} />
+                      <Route path="noticias/*" element={<Navigate to="/en/news" replace />} />
                       <Route path="articles" element={<ArticulosPublicos />} />
+                      <Route path="articles/page/:pageNum" element={<ArticulosPublicos />} />
                       <Route path="software" element={<AcercaDe />} />
+                      <Route path="about-us/*" element={<Navigate to="/en/software" replace />} />
+                      <Route path="acerca-de/*" element={<Navigate to="/en/software" replace />} />
                       <Route path="contact" element={<Contacto />} />
                     </Route>
 

@@ -184,6 +184,19 @@ export default function IotTicker() {
       : "No se pudieron guardar los cambios del carrusel en la base de datos."
   };
 
+  const DEFAULT_TICKER_ITEMS = [
+    { id: 1, label: "Sensores IoT", iconIndex: 0 },
+    { id: 2, label: "Gateways LoRaWAN", iconIndex: 1 },
+    { id: 3, label: "Base de Datos", iconIndex: 2 },
+    { id: 4, label: "Agricultura Inteligente", iconIndex: 3 },
+    { id: 5, label: "Monitoreo Hídrico", iconIndex: 4 },
+    { id: 6, label: "Iluminación Smart", iconIndex: 5 },
+    { id: 7, label: "Panel de Métricas", iconIndex: 6 },
+    { id: 8, label: "Temperatura y Clima", iconIndex: 7 },
+    { id: 9, label: "Seguridad y Redes", iconIndex: 8 },
+    { id: 10, label: "Telemetría LoRa", iconIndex: 9 }
+  ];
+
   // Determinar la lista activa de ítems desde la BD o defaults
   let activeItems = [];
   if (texts["ticker_items"]) {
@@ -195,6 +208,10 @@ export default function IotTicker() {
     } catch (e) {
       activeItems = [];
     }
+  }
+
+  if (activeItems.length === 0) {
+    activeItems = DEFAULT_TICKER_ITEMS;
   }
 
   useEffect(() => {
@@ -216,6 +233,24 @@ export default function IotTicker() {
     animationId = requestAnimationFrame(playScroll);
     return () => cancelAnimationFrame(animationId);
   }, [activeItems.length]);
+
+  // Handle ESC and Enter key shortcuts inside modal
+  useEffect(() => {
+    if (!showModal) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setShowModal(false);
+      } else if (e.key === "Enter" && !saving) {
+        if (document.activeElement?.tagName !== "TEXTAREA") {
+          e.preventDefault();
+          handleSaveChanges();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showModal, saving, draftItems]);
 
   const handleMouseDown = (e) => {
     isDown.current = true;
@@ -430,7 +465,7 @@ export default function IotTicker() {
     <section className="iot-ticker-section">
       <div className="iot-ticker-header-wrap">
         <h2 className="iot-ticker-section-title" style={{ margin: 0 }}>
-          <EditableText textKey="ticker_section_title" />
+          <EditableText textKey="ticker_section_title" defaultText={isEn ? "TECHNOLOGY & INNOVATION" : "TECNOLOGÍA E INNOVACIÓN"} />
         </h2>
         {editMode && hasPermission && (
           <button
@@ -467,7 +502,7 @@ export default function IotTicker() {
                 ) : (
                   DEFAULT_ICONS[item.iconIndex ?? 0] || <SensorNodeIcon />
                 )}
-                <span className="iot-ticker-label"><EditableText textKey={`ticker_item_${item.id}_label`} /></span>
+                <span className="iot-ticker-label"><EditableText textKey={`ticker_item_${item.id}_label`} defaultText={item.label || (isEn ? `Item ${item.id}` : `Ítem ${item.id}`)} /></span>
               </div>
             );
           })}

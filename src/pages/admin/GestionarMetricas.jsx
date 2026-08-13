@@ -1,5 +1,6 @@
 import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { useLanguage } from '../../context/LanguageContext';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -163,6 +164,8 @@ const convertImageToWebP = (file, quality = 0.85) => {
 export default function GestionarMetricas() {
   const { language } = useLanguage();
   const isEn = language === 'en';
+  const { pageNum } = useParams();
+  const navigate = useNavigate();
 
   usePageTitle({ es: 'Métricas / Unidades', en: 'Metrics / Units' }, 'Admin · IoT ULEAM');
 
@@ -190,8 +193,33 @@ export default function GestionarMetricas() {
   const [itemsPerPage, setItemsPerPage]       = useState(6);
   const [currentPage, setCurrentPage]         = useState(1);
 
+  // Sincronización de paginación con la URL
   useEffect(() => {
-    setCurrentPage(1);
+    if (pageNum) {
+      const parsed = parseInt(pageNum, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        setCurrentPage(parsed);
+      }
+    } else {
+      setCurrentPage(1);
+    }
+  }, [pageNum]);
+
+  const cambiarPagina = (p) => {
+    setCurrentPage(p);
+    const langPrefix = language === 'en' ? '/en' : '/es';
+    const metricsPath = language === 'en' ? 'metrics' : 'metricas';
+    if (p === 1) {
+      navigate(`${langPrefix}/admin/${metricsPath}`);
+    } else {
+      navigate(`${langPrefix}/admin/${metricsPath}/page/${p}`);
+    }
+  };
+
+  useEffect(() => {
+    if (currentPage !== 1 && busqueda) {
+      cambiarPagina(1);
+    }
   }, [busqueda, orden]);
 
   const metricasFiltradas = metricas
@@ -1114,7 +1142,7 @@ export default function GestionarMetricas() {
                                         border: isStd ? '1.5px solid #93c5fd' : '1.5px solid #cbd5e1',
                                         boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
                                       }}>
-                                        <span>{isStd ? `★ ${kName}` : kName}</span>
+                                        <span>{kName}</span>
                                         <button
                                           type="button"
                                           onClick={() => handleRemoveKeyFromSubvariable(sIdx, kName)}
@@ -1339,93 +1367,109 @@ export default function GestionarMetricas() {
             </button>
           </div>
 
-          {/* ── Cards de Métricas Generales ── */}
-          <div className="met-grid">
-            {loading && <div className="met-loading-text">{isEn ? 'Loading metrics...' : 'Cargando métricas...'}</div>}
+          {/* ── Tabla de Métricas (Formato Lista/Tabla Eficiente) ── */}
+          <div className="met-table-wrapper" style={{ overflowX: 'auto', background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 16px rgba(15, 23, 42, 0.04)', marginBottom: '1.5rem' }}>
+            {loading && <div className="met-loading-text" style={{ padding: '2.5rem', textAlign: 'center', fontWeight: '700', color: '#64748b' }}>{isEn ? 'Loading metrics...' : 'Cargando métricas...'}</div>}
             {!loading && metricasFiltradas.length === 0 && (
-              <div className="met-empty-state">{isEn ? 'No registered metrics found.' : 'No se encontraron métricas registradas.'}</div>
+              <div className="met-empty-state" style={{ padding: '3rem', textAlign: 'center', fontWeight: '700', color: '#64748b' }}>{isEn ? 'No registered metrics found.' : 'No se encontraron métricas registradas.'}</div>
             )}
 
-            {!loading && paginatedMetricas.map((m, idx) => {
-              const mName = m.name || m.name_es || m.nombre || 'Métrica';
-              const unitsList = m.units || [];
+            {!loading && metricasFiltradas.length > 0 && (
+              <table className="met-data-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', color: '#475569', fontSize: '0.82rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <th style={{ padding: '14px 16px', width: '60px' }}>#</th>
+                    <th style={{ padding: '14px 16px', width: '80px' }}>{isEn ? 'Icon' : 'Símbolo'}</th>
+                    <th style={{ padding: '14px 16px', minWidth: '180px' }}>{isEn ? 'Metric Name' : 'Nombre de Métrica'}</th>
+                    <th style={{ padding: '14px 16px' }}>{isEn ? 'Subvariables / Units' : 'Subvariables / Unidades'}</th>
+                    <th style={{ padding: '14px 16px', textAlign: 'right', width: '180px' }}>{isEn ? 'Actions' : 'Acciones'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedMetricas.map((m, idx) => {
+                    const mName = m.name || m.name_es || m.nombre || 'Métrica';
+                    const unitsList = m.units || [];
 
-              return (
-                <div key={m.id} className="met-card">
-                  <div className="met-card-img-wrapper">
-                    <img
-                      src={formatImageUrl(m.symbol_image || m.imagen)}
-                      alt={mName}
-                      className={(m.symbol_image || m.imagen) ? 'met-card-img' : 'met-card-img met-card-img--default'}
-                    />
-                    <div className="met-card-idx">#{startIndex + idx + 1}</div>
-                  </div>
+                    return (
+                      <tr key={m.id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s ease' }} className="met-table-row">
+                        {/* Index */}
+                        <td style={{ padding: '14px 16px', fontSize: '0.85rem', fontWeight: 800, color: '#64748b' }}>
+                          #{startIndex + idx + 1}
+                        </td>
 
-                  <div className="met-card-content">
-                    <h3 className="met-card-name">
-                      {mName}
-                    </h3>
+                        {/* Símbolo */}
+                        <td style={{ padding: '14px 16px' }}>
+                          <div style={{ width: '42px', height: '42px', borderRadius: '8px', background: '#ffffff', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: '4px' }}>
+                            <img
+                              src={formatImageUrl(m.symbol_image || m.imagen)}
+                              alt={mName}
+                              style={{ maxWidth: '30px', maxHeight: '30px', objectFit: 'contain' }}
+                              onError={(e) => { e.target.onerror = null; e.target.src = iotLogoDefault; }}
+                            />
+                          </div>
+                        </td>
 
-                    <div className="met-card-section-title">📐 {isEn ? 'Subvariables / Units' : 'Subvariables de Métrica'}</div>
+                        {/* Nombre Métrica */}
+                        <td style={{ padding: '14px 16px', fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>
+                          {mName}
+                        </td>
 
-                    <div className="met-card-subs">
-                      {unitsList.length === 0 ? (
-                        <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>{isEn ? 'No units registered' : 'Sin unidades registradas'}</span>
-                      ) : (
-                        unitsList.map((u, i) => {
-                          const uName = u.name || u.name_es || 'Unidad';
-                          const uSymbol = u.unit ? `(${u.unit})` : '';
-                          const keys = u.json_keys || [];
-                          const stdKeyObj = keys.find(k => k.is_standard) || keys[0];
-                          const stdKeyName = stdKeyObj ? (typeof stdKeyObj === 'string' ? stdKeyObj : stdKeyObj.key_name) : '';
+                        {/* Subvariables / Unidades (Con Scroll Horizontal Autocontenido) */}
+                        <td style={{ padding: '14px 16px', maxWidth: '380px' }}>
+                          {unitsList.length === 0 ? (
+                            <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                              {isEn ? 'No units registered' : 'Sin unidades registradas'}
+                            </span>
+                          ) : (
+                            <div className="met-subvariables-scroll-container">
+                              {unitsList.map((u, uIdx) => {
+                                const uName = u.name || u.name_es || 'Unidad';
+                                const uSymbol = u.unit ? `(${u.unit})` : '';
+                                const keys = u.json_keys || [];
+                                const stdKeyObj = keys.find(k => k.is_standard) || keys[0];
+                                const stdKeyName = stdKeyObj ? (typeof stdKeyObj === 'string' ? stdKeyObj : stdKeyObj.key_name) : '';
 
-                          return (
-                            <div key={i} style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              gap: '6px',
-                              padding: '6px 10px',
-                              background: '#f8fafc',
-                              border: '1.5px solid #e2e8f0',
-                              borderRadius: '8px',
-                              width: '100%'
-                            }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0f2c59' }}>{uName}</span>
-                                {uSymbol && <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#2563eb' }}>{uSymbol}</span>}
-                              </div>
-                              {stdKeyName && (
-                                <span style={{ fontSize: '0.72rem', fontWeight: 800, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '1px 7px', borderRadius: '6px' }}>
-                                  ★ {stdKeyName}
-                                </span>
-                              )}
+                                return (
+                                  <div key={uIdx} className="met-subvariable-chip">
+                                    <span style={{ fontWeight: 800, color: '#0f2c59' }}>{uName}</span>
+                                    {uSymbol && <span style={{ fontWeight: 800, color: '#2563eb' }}>{uSymbol}</span>}
+                                    {stdKeyName && (
+                                      <span className="met-subvariable-key-badge">
+                                        {stdKeyName}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
+                          )}
+                        </td>
 
-                  <div className="met-card-actions">
-                    <button className="met-btn-edit" onClick={() => cargarEdicion(m)}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                        <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                      </svg>
-                      {isEn ? 'Edit' : 'Editar'}
-                    </button>
-                    <button className="met-btn-delete" onClick={() => eliminar(m.id)}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
-                        <polyline points="3 6 5 6 21 6"/>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                      </svg>
-                      {isEn ? 'Delete' : 'Eliminar'}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+                        {/* Acciones */}
+                        <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: '8px', justifyContent: 'flex-end' }}>
+                            <button className="met-btn-edit" onClick={() => cargarEdicion(m)} title={isEn ? 'Edit' : 'Editar'}>
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                              </svg>
+                              <span className="met-btn-text">{isEn ? 'Edit' : 'Editar'}</span>
+                            </button>
+                            <button className="met-btn-delete" onClick={() => eliminar(m.id)} title={isEn ? 'Delete' : 'Eliminar'}>
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                              </svg>
+                              <span className="met-btn-text">{isEn ? 'Delete' : 'Eliminar'}</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
 
           {/* CONTROLES DE PAGINACIÓN */}
@@ -1440,7 +1484,7 @@ export default function GestionarMetricas() {
               <div className="pagination-controls-group">
                 <CustomItemsPerPageSelect
                   value={itemsPerPage}
-                  onChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+                  onChange={(val) => { setItemsPerPage(val); cambiarPagina(1); }}
                   options={[6, 12, 24, 48]}
                   language={language}
                 />
@@ -1448,7 +1492,7 @@ export default function GestionarMetricas() {
                 <div className="pagination-buttons-wrapper">
                   <button
                     type="button"
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    onClick={() => cambiarPagina(Math.max(1, currentPage - 1))}
                     disabled={currentPage === 1}
                     className={`pagination-nav-btn prev-btn ${currentPage === 1 ? 'disabled' : ''}`}
                     title={isEn ? 'Previous page' : 'Página anterior'}
@@ -1464,7 +1508,7 @@ export default function GestionarMetricas() {
                       <button
                         key={p}
                         type="button"
-                        onClick={() => setCurrentPage(p)}
+                        onClick={() => cambiarPagina(p)}
                         className={`pagination-num-btn ${p === currentPage ? 'active' : ''}`}
                       >
                         {p}
@@ -1474,7 +1518,7 @@ export default function GestionarMetricas() {
 
                   <button
                     type="button"
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    onClick={() => cambiarPagina(Math.min(totalPages, currentPage + 1))}
                     disabled={currentPage === totalPages}
                     className={`pagination-nav-btn next-btn ${currentPage === totalPages ? 'disabled' : ''}`}
                     title={isEn ? 'Next page' : 'Página siguiente'}

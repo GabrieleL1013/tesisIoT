@@ -81,8 +81,8 @@ const FacebookIcon = () => (
 );
 
 const TwitterIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"/>
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
   </svg>
 );
 
@@ -130,11 +130,14 @@ export default function Contacto() {
   }, [language]);
 
   const handleEditSocialLinks = async () => {
+    const isEn = language === 'en';
     const permitted = await checkEditPermission();
     if (!permitted) {
       Swal.fire({
-        title: "Permiso Denegado",
-        text: "No cumples con el nivel de permiso o rol configurado en Gestión de Interfaces para editar este contenido.",
+        title: isEn ? "Permission Denied" : "Permiso Denegado",
+        text: isEn
+          ? "You do not have the required permissions in Interface Management to edit this content."
+          : "No cumples con el nivel de permiso o rol configurado en Gestión de Interfaces para editar este contenido.",
         icon: "error",
         background: "#0b0f19",
         color: "#ffffff",
@@ -143,60 +146,124 @@ export default function Contacto() {
       return;
     }
 
-    const fbDefault = texts['contacto_social_facebook'] || "https://facebook.com/UleamEc";
-    const twDefault = texts['contacto_social_twitter'] || "https://twitter.com/UleamEc";
-    const ytDefault = texts['contacto_social_youtube'] || "https://youtube.com";
-    const ghDefault = texts['contacto_social_github'] || "https://github.com";
+    const fbDefault = texts['contacto_social_facebook'] ?? "https://facebook.com/UleamEc";
+    const twDefault = texts['contacto_social_twitter'] ?? "https://twitter.com/UleamEc";
+    const ytDefault = texts['contacto_social_youtube'] ?? "https://youtube.com";
+    const ghDefault = texts['contacto_social_github'] ?? "https://github.com";
+
+    const fbHide = texts['contacto_social_facebook_hide'] === "1";
+    const twHide = texts['contacto_social_twitter_hide'] === "1";
+    const ytHide = texts['contacto_social_youtube_hide'] === "1";
+    const ghHide = texts['contacto_social_github_hide'] === "1";
+
+    const hideLabel = isEn ? "Hide" : "Ocultar";
 
     const { value: formValues } = await Swal.fire({
-      title: 'Editar Enlaces de Redes Sociales',
+      title: isEn ? 'Edit Social Media Links' : 'Editar Enlaces de Redes Sociales',
       html: `
-        <div style="text-align: left; font-size: 0.9rem;">
-          <label style="display:block; margin-bottom:4px; font-weight:600; color:#cbd5e1;">Facebook URL:</label>
-          <input id="swal-input-fb" class="swal2-input" style="width:100%; margin:0 0 12px 0; box-sizing:border-box;" value="${fbDefault}" placeholder="https://facebook.com/..." />
-          <label style="display:block; margin-bottom:4px; font-weight:600; color:#cbd5e1;">X (Twitter) URL:</label>
-          <input id="swal-input-tw" class="swal2-input" style="width:100%; margin:0 0 12px 0; box-sizing:border-box;" value="${twDefault}" placeholder="https://twitter.com/..." />
-          <label style="display:block; margin-bottom:4px; font-weight:600; color:#cbd5e1;">YouTube URL:</label>
-          <input id="swal-input-yt" class="swal2-input" style="width:100%; margin:0 0 12px 0; box-sizing:border-box;" value="${ytDefault}" placeholder="https://youtube.com/..." />
-          <label style="display:block; margin-bottom:4px; font-weight:600; color:#cbd5e1;">GitHub URL:</label>
-          <input id="swal-input-gh" class="swal2-input" style="width:100%; margin:0 0 12px 0; box-sizing:border-box;" value="${ghDefault}" placeholder="https://github.com/..." />
+        <div style="text-align: left; font-size: 0.9rem; color: #cbd5e1;">
+          <div style="margin-bottom: 12px;">
+            <label style="display:block; margin-bottom:4px; font-weight:600;">Facebook URL:</label>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <input id="swal-input-fb" class="swal2-input" style="flex:1; margin:0;" value="${fbDefault}" placeholder="https://facebook.com/..." />
+              <label style="font-size:0.8rem; display:flex; align-items:center; gap:4px; cursor:pointer; white-space:nowrap;">
+                <input type="checkbox" id="swal-hide-fb" ${fbHide ? "checked" : ""} /> ${hideLabel}
+              </label>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 12px;">
+            <label style="display:block; margin-bottom:4px; font-weight:600;">X (Twitter) URL:</label>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <input id="swal-input-tw" class="swal2-input" style="flex:1; margin:0;" value="${twDefault}" placeholder="https://twitter.com/..." />
+              <label style="font-size:0.8rem; display:flex; align-items:center; gap:4px; cursor:pointer; white-space:nowrap;">
+                <input type="checkbox" id="swal-hide-tw" ${twHide ? "checked" : ""} /> ${hideLabel}
+              </label>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 12px;">
+            <label style="display:block; margin-bottom:4px; font-weight:600;">YouTube URL:</label>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <input id="swal-input-yt" class="swal2-input" style="flex:1; margin:0;" value="${ytDefault}" placeholder="https://youtube.com/..." />
+              <label style="font-size:0.8rem; display:flex; align-items:center; gap:4px; cursor:pointer; white-space:nowrap;">
+                <input type="checkbox" id="swal-hide-yt" ${ytHide ? "checked" : ""} /> ${hideLabel}
+              </label>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 12px;">
+            <label style="display:block; margin-bottom:4px; font-weight:600;">GitHub URL:</label>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <input id="swal-input-gh" class="swal2-input" style="flex:1; margin:0;" value="${ghDefault}" placeholder="https://github.com/..." />
+              <label style="font-size:0.8rem; display:flex; align-items:center; gap:4px; cursor:pointer; white-space:nowrap;">
+                <input type="checkbox" id="swal-hide-gh" ${ghHide ? "checked" : ""} /> ${hideLabel}
+              </label>
+            </div>
+          </div>
         </div>
       `,
       focusConfirm: false,
       showCancelButton: true,
-      confirmButtonText: 'Guardar Enlaces',
-      cancelButtonText: 'Cancelar',
+      confirmButtonText: isEn ? 'Save Links' : 'Guardar Enlaces',
+      cancelButtonText: isEn ? 'Cancel' : 'Cancelar',
       background: '#0b0f19',
       color: '#ffffff',
       confirmButtonColor: '#d0182b',
       cancelButtonColor: '#475569',
+      didOpen: () => {
+        const popup = Swal.getPopup();
+        if (popup) {
+          popup.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              Swal.clickConfirm();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              Swal.clickCancel();
+            }
+          });
+        }
+      },
       preConfirm: () => {
         return {
           facebook: document.getElementById('swal-input-fb').value.trim(),
+          facebook_hide: document.getElementById('swal-hide-fb').checked ? "1" : "0",
           twitter: document.getElementById('swal-input-tw').value.trim(),
+          twitter_hide: document.getElementById('swal-hide-tw').checked ? "1" : "0",
           youtube: document.getElementById('swal-input-yt').value.trim(),
-          github: document.getElementById('swal-input-gh').value.trim()
+          youtube_hide: document.getElementById('swal-hide-yt').checked ? "1" : "0",
+          github: document.getElementById('swal-input-gh').value.trim(),
+          github_hide: document.getElementById('swal-hide-gh').checked ? "1" : "0"
         };
       }
     });
 
     if (formValues) {
-      try {
-        await Promise.all([
-          updateText('contacto_social_facebook', formValues.facebook),
-          updateText('contacto_social_twitter', formValues.twitter),
-          updateText('contacto_social_youtube', formValues.youtube),
-          updateText('contacto_social_github', formValues.github)
-        ]);
-        Swal.fire({
-          title: '¡Enlaces Guardados!',
-          text: 'Los enlaces de las redes sociales han sido actualizados en la base de datos.',
-          icon: 'success',
-          background: '#0b0f19',
-          color: '#ffffff',
-          confirmButtonColor: '#d0182b'
-        });
-      } catch (err) {
+      Swal.fire({
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 2500,
+        timerProgressBar: true,
+        icon: "success",
+        title: isEn ? "Social media links updated" : "Enlaces de redes sociales actualizados"
+      });
+
+      Promise.all([
+        updateText('contacto_social_facebook', formValues.facebook, '/global'),
+        updateText('contacto_social_facebook_hide', formValues.facebook_hide, '/global'),
+
+        updateText('contacto_social_twitter', formValues.twitter, '/global'),
+        updateText('contacto_social_twitter_hide', formValues.twitter_hide, '/global'),
+
+        updateText('contacto_social_youtube', formValues.youtube, '/global'),
+        updateText('contacto_social_youtube_hide', formValues.youtube_hide, '/global'),
+
+        updateText('contacto_social_github', formValues.github, '/global'),
+        updateText('contacto_social_github_hide', formValues.github_hide, '/global')
+      ]).catch(err => {
+        console.error("Error al guardar redes sociales:", err);
         Swal.fire({
           title: 'Error',
           text: 'No se pudieron guardar los enlaces.',
@@ -205,7 +272,7 @@ export default function Contacto() {
           color: '#ffffff',
           confirmButtonColor: '#d0182b'
         });
-      }
+      });
     }
   };
 
@@ -414,18 +481,26 @@ export default function Contacto() {
                     <EditableText textKey="contacto_social_desc" isTextArea={true} />
                   </p>
                   <div className="social-only-icons-row">
-                    <a href={texts['contacto_social_facebook'] || "https://facebook.com/UleamEc"} target="_blank" rel="noopener noreferrer" className="social-icon-circle facebook" title="Facebook">
-                      <FacebookIcon />
-                    </a>
-                    <a href={texts['contacto_social_twitter'] || "https://twitter.com/UleamEc"} target="_blank" rel="noopener noreferrer" className="social-icon-circle twitter" title="X (Twitter)">
-                      <TwitterIcon />
-                    </a>
-                    <a href={texts['contacto_social_youtube'] || "https://youtube.com"} target="_blank" rel="noopener noreferrer" className="social-icon-circle youtube" title="YouTube">
-                      <YoutubeIcon />
-                    </a>
-                    <a href={texts['contacto_social_github'] || "https://github.com"} target="_blank" rel="noopener noreferrer" className="social-icon-circle github" title="GitHub">
-                      <GithubIcon />
-                    </a>
+                    {(texts['contacto_social_facebook'] ?? "https://facebook.com/UleamEc").trim() !== '' && texts['contacto_social_facebook_hide'] !== "1" && (
+                      <a href={texts['contacto_social_facebook'] || "https://facebook.com/UleamEc"} target="_blank" rel="noopener noreferrer" className="social-icon-circle facebook" title="Facebook">
+                        <FacebookIcon />
+                      </a>
+                    )}
+                    {(texts['contacto_social_twitter'] ?? "https://twitter.com/UleamEc").trim() !== '' && texts['contacto_social_twitter_hide'] !== "1" && (
+                      <a href={texts['contacto_social_twitter'] || "https://twitter.com/UleamEc"} target="_blank" rel="noopener noreferrer" className="social-icon-circle twitter" title="X (Twitter)">
+                        <TwitterIcon />
+                      </a>
+                    )}
+                    {(texts['contacto_social_youtube'] ?? "https://youtube.com").trim() !== '' && texts['contacto_social_youtube_hide'] !== "1" && (
+                      <a href={texts['contacto_social_youtube'] || "https://youtube.com"} target="_blank" rel="noopener noreferrer" className="social-icon-circle youtube" title="YouTube">
+                        <YoutubeIcon />
+                      </a>
+                    )}
+                    {(texts['contacto_social_github'] ?? "https://github.com").trim() !== '' && texts['contacto_social_github_hide'] !== "1" && (
+                      <a href={texts['contacto_social_github'] || "https://github.com"} target="_blank" rel="noopener noreferrer" className="social-icon-circle github" title="GitHub">
+                        <GithubIcon />
+                      </a>
+                    )}
                   </div>
                 </div>
               </div>

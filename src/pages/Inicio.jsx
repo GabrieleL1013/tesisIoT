@@ -14,10 +14,19 @@ import IotJpg from "../assets/IOT.jpg";
 import { formatExternalUrl } from "../utils/urlUtils";
 
 const formatFecha = (dateStr, lang = 'es') => {
-  if (!dateStr) return 'N/A';
-  const date = new Date(dateStr);
-  const locale = lang === 'en' ? 'en-US' : 'es-ES';
-  return date.toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' });
+  if (!dateStr) return '';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return String(dateStr);
+    const monthNamesEs = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const monthNamesEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const month = lang === 'en' ? monthNamesEn[date.getMonth()] : monthNamesEs[date.getMonth()];
+    const day = date.getDate();
+    const year = date.getFullYear();
+    return `${month.toUpperCase()} ${day}, ${year}`;
+  } catch (e) {
+    return String(dateStr);
+  }
 };
 
 const ShieldCheckIcon = () => (
@@ -144,37 +153,77 @@ export default function Inicio() {
     };
   }, [noticias, articulos, openNoticias, openArticulos]);
 
+  const [noticiasTimerKey, setNoticiasTimerKey] = useState(0);
+  const [articulosTimerKey, setArticulosTimerKey] = useState(0);
+  const [noticiasAnimDir, setNoticiasAnimDir] = useState('right');
+  const [articulosAnimDir, setArticulosAnimDir] = useState('right');
+
   const scrollNoticias = (direction) => {
+    if (!noticiasCarouselRef.current) return;
+    const container = noticiasCarouselRef.current;
+    const firstCard = container.querySelector('.portal-news-card');
+    const cardWidth = firstCard ? firstCard.offsetWidth : 360;
+    const scrollStep = cardWidth + 35;
+
     if (direction === 'left') {
-      setNoticias(prev => {
-        if (prev.length <= 1) return prev;
-        const last = prev[prev.length - 1];
-        return [last, ...prev.slice(0, prev.length - 1)];
-      });
+      if (container.scrollLeft <= 10) {
+        container.scrollTo({ left: container.scrollWidth, behavior: 'smooth' });
+      } else {
+        container.scrollBy({ left: -scrollStep, behavior: 'smooth' });
+      }
     } else {
-      setNoticias(prev => {
-        if (prev.length <= 1) return prev;
-        const first = prev[0];
-        return [...prev.slice(1), first];
-      });
+      if (Math.ceil(container.scrollLeft + container.clientWidth) >= container.scrollWidth - 10) {
+        container.scrollTo({ left: 0, behavior: 'smooth' });
+      } else {
+        container.scrollBy({ left: scrollStep, behavior: 'smooth' });
+      }
     }
+    setNoticiasTimerKey(k => k + 1);
   };
 
   const scrollArticulos = (direction) => {
+    if (!articulosCarouselRef.current) return;
+    const container = articulosCarouselRef.current;
+    const firstCard = container.querySelector('.pub-art-card');
+    const cardWidth = firstCard ? firstCard.offsetWidth : 360;
+    const scrollStep = cardWidth + 35;
+
     if (direction === 'left') {
-      setArticulos(prev => {
-        if (prev.length <= 1) return prev;
-        const last = prev[prev.length - 1];
-        return [last, ...prev.slice(0, prev.length - 1)];
-      });
+      if (container.scrollLeft <= 10) {
+        container.scrollTo({ left: container.scrollWidth, behavior: 'smooth' });
+      } else {
+        container.scrollBy({ left: -scrollStep, behavior: 'smooth' });
+      }
     } else {
-      setArticulos(prev => {
-        if (prev.length <= 1) return prev;
-        const first = prev[0];
-        return [...prev.slice(1), first];
-      });
+      if (Math.ceil(container.scrollLeft + container.clientWidth) >= container.scrollWidth - 10) {
+        container.scrollTo({ left: 0, behavior: 'smooth' });
+      } else {
+        container.scrollBy({ left: scrollStep, behavior: 'smooth' });
+      }
     }
+    setArticulosTimerKey(k => k + 1);
   };
+
+  const [isNoticiasHovered, setIsNoticiasHovered] = useState(false);
+  const [isArticulosHovered, setIsArticulosHovered] = useState(false);
+
+  // Auto-scroll de noticias cada 3s si no hay interacción (reinicia temporizador al hacer clic)
+  useEffect(() => {
+    if (isNoticiasHovered || !openNoticias || noticias.length <= 1) return;
+    const timer = setInterval(() => {
+      scrollNoticias('right');
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [isNoticiasHovered, openNoticias, noticias.length, noticiasTimerKey]);
+
+  // Auto-scroll de artículos cada 3s si no hay interacción (reinicia temporizador al hacer clic)
+  useEffect(() => {
+    if (isArticulosHovered || !openArticulos || articulos.length <= 1) return;
+    const timer = setInterval(() => {
+      scrollArticulos('right');
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [isArticulosHovered, openArticulos, articulos.length, articulosTimerKey]);
 
   const dbHeroEntry = images["home_hero_bg"];
   const heroBgUrl = dbHeroEntry?.image_data
@@ -208,36 +257,56 @@ export default function Inicio() {
         setNodosCount(resNodos?.count ?? 0);
         setCategoriasCount(resCategorias?.count ?? 0);
 
-        const noticiasList = Array.isArray(dataNoticias)
-          ? dataNoticias
-              .filter(item => item.estado === 'Publicado')
-              .map(item => ({
-                id: item.id,
-                tipo: 'noticia',
-                titulo: item.titulo,
-                autor: item.autor,
-                contenido: item.contenido,
-                imagenUrl: item.imagen_url || item.imagenUrl || '',
-                createdAt: item.created_at ? new Date(item.created_at) : new Date(0),
-                fechaStr: formatFecha(item.created_at, language)
-              }))
-          : [];
+        const listNoticias = (dataNoticias && Array.isArray(dataNoticias.data)) 
+          ? dataNoticias.data 
+          : (Array.isArray(dataNoticias) ? dataNoticias : []);
 
-        const articulosList = Array.isArray(dataArticulos)
-          ? dataArticulos
-              .filter(item => item.estado === 'Publicado')
-              .map(item => ({
-                id: item.id,
-                tipo: 'articulo',
-                tipo_registro: item.tipo_registro,
-                revista: item.revista,
-                titulo: item.titulo,
-                autores: item.autores,
-                url_pdf: item.url_pdf,
-                createdAt: item.created_at ? new Date(item.created_at) : new Date(0),
-                created_at: item.created_at
-              }))
-          : [];
+        const listArticulos = (dataArticulos && Array.isArray(dataArticulos.data)) 
+          ? dataArticulos.data 
+          : (Array.isArray(dataArticulos) ? dataArticulos : []);
+
+        const noticiasList = listNoticias
+          .filter(item => item.estado === 'Publicado')
+          .sort((a, b) => {
+            const dateA = new Date(a.updated_at || a.updatedAt || a.created_at || a.createdAt || 0);
+            const dateB = new Date(b.updated_at || b.updatedAt || b.created_at || b.createdAt || 0);
+            return dateB - dateA;
+          })
+          .map(item => {
+            const dateToUse = item.updated_at || item.updatedAt || item.created_at || item.createdAt;
+            return {
+              id: item.id,
+              tipo: 'noticia',
+              titulo: item.titulo,
+              autor: item.autor,
+              contenido: item.contenido,
+              imagenUrl: item.imagen_url || item.imagenUrl || '',
+              createdAt: dateToUse ? new Date(dateToUse) : new Date(0),
+              fechaStr: formatFecha(dateToUse, language)
+            };
+          });
+
+        const articulosList = listArticulos
+          .filter(item => item.estado === 'Publicado')
+          .sort((a, b) => {
+            const dateA = new Date(a.updated_at || a.updatedAt || a.created_at || a.createdAt || 0);
+            const dateB = new Date(b.updated_at || b.updatedAt || b.created_at || b.createdAt || 0);
+            return dateB - dateA;
+          })
+          .map(item => {
+            const dateToUse = item.updated_at || item.updatedAt || item.created_at || item.createdAt;
+            return {
+              id: item.id,
+              tipo: 'articulo',
+              tipo_registro: item.tipo_registro,
+              revista: item.revista,
+              titulo: item.titulo,
+              autores: item.autores,
+              url_pdf: item.url_pdf,
+              createdAt: dateToUse ? new Date(dateToUse) : new Date(0),
+              created_at: dateToUse
+            };
+          });
 
         setNoticias(noticiasList);
         setArticulos(articulosList);
@@ -448,15 +517,28 @@ export default function Inicio() {
                   <div className="carousel-with-side-arrows-wrapper">
                     {noticias.length > 0 && (
                       <button 
+                        type="button"
                         className="carousel-side-arrow prev-arrow" 
-                        onClick={() => scrollNoticias('left')} 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          scrollNoticias('left');
+                        }} 
                         aria-label="Anterior"
                       >
                         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                       </button>
                     )}
 
-                    <div className="news-cards-grid" ref={noticiasCarouselRef} onScroll={checkNoticiasScrollPosition}>
+                    <div 
+                      className="news-cards-grid" 
+                      ref={noticiasCarouselRef} 
+                      onScroll={checkNoticiasScrollPosition}
+                      onMouseEnter={() => setIsNoticiasHovered(true)}
+                      onMouseLeave={() => setIsNoticiasHovered(false)}
+                      onTouchStart={() => setIsNoticiasHovered(true)}
+                      onTouchEnd={() => setIsNoticiasHovered(false)}
+                    >
                       {noticias.length === 0 ? (
                         <div className="no-news-banner" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3.5rem 1.5rem', color: '#64748b', fontStyle: 'italic', border: '2px dashed #cbd5e1', borderRadius: '16px', background: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="48" height="48" style={{ color: '#cbd5e1' }}>
@@ -466,7 +548,7 @@ export default function Inicio() {
                           <span>{t("common.no_news", "No hay noticias registradas en el sistema.")}</span>
                         </div>
                       ) : (
-                        noticias.slice(0, 5).map((n) => (
+                        noticias.map((n) => (
                           <div key={`noticia-${n.id}`} className="portal-news-card news-card-uleam-style">
                             <img 
                               src={n.imagenUrl || IotJpg} 
@@ -505,8 +587,13 @@ export default function Inicio() {
 
                     {noticias.length > 0 && (
                       <button 
+                        type="button"
                         className="carousel-side-arrow next-arrow" 
-                        onClick={() => scrollNoticias('right')} 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          scrollNoticias('right');
+                        }} 
                         aria-label="Siguiente"
                       >
                         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
@@ -557,22 +644,35 @@ export default function Inicio() {
                   <div className="carousel-with-side-arrows-wrapper">
                     {articulos.length > 0 && (
                       <button 
+                        type="button"
                         className="carousel-side-arrow prev-arrow" 
-                        onClick={() => scrollArticulos('left')} 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          scrollArticulos('left');
+                        }} 
                         aria-label="Anterior"
                       >
                         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                       </button>
                     )}
 
-                    <div className="news-cards-grid" ref={articulosCarouselRef} onScroll={checkArticulosScrollPosition}>
+                    <div 
+                      className="news-cards-grid" 
+                      ref={articulosCarouselRef} 
+                      onScroll={checkArticulosScrollPosition}
+                      onMouseEnter={() => setIsArticulosHovered(true)}
+                      onMouseLeave={() => setIsArticulosHovered(false)}
+                      onTouchStart={() => setIsArticulosHovered(true)}
+                      onTouchEnd={() => setIsArticulosHovered(false)}
+                    >
                       {articulos.length === 0 ? (
                         <div className="no-news-banner" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3.5rem 1.5rem', color: '#64748b', fontStyle: 'italic', border: '2px dashed #cbd5e1', borderRadius: '16px', background: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                           <BookOpenIcon />
                           <span>{t("common.no_articles", "No hay artículos científicos registrados en el sistema.")}</span>
                         </div>
                       ) : (
-                        articulos.slice(0, 5).map((n) => (
+                        articulos.map((n) => (
                           <Link 
                             key={`articulo-${n.id}`} 
                             to={n.tipo_registro === 'PDF' && n.url_pdf ? formatExternalUrl(n.url_pdf) : `/${language}/${articlesSlug}?id=${n.id}`}
@@ -611,8 +711,13 @@ export default function Inicio() {
 
                     {articulos.length > 0 && (
                       <button 
+                        type="button"
                         className="carousel-side-arrow next-arrow" 
-                        onClick={() => scrollArticulos('right')} 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          scrollArticulos('right');
+                        }} 
                         aria-label="Siguiente"
                       >
                         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>

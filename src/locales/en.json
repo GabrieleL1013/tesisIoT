@@ -15,7 +15,8 @@
     "my_account": "My Account",
     "edit_mode": "Edit Mode",
     "view_platform": "View Platform",
-    "categories": "Categories"
+    "categories": "Categories",
+    "categories_menu": "Categories Menu"
   },
   "common": {
     "close": "Close",

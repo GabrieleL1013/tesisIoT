@@ -1,5 +1,6 @@
 import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { useLanguage } from '../../context/LanguageContext';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -326,6 +327,31 @@ export default function GestionarUsuarios() {
   // Estados de Paginación
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  const { pageNum } = useParams();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (pageNum) {
+      const parsed = parseInt(pageNum, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        setCurrentPage(parsed);
+      }
+    } else {
+      setCurrentPage(1);
+    }
+  }, [pageNum]);
+
+  const cambiarPagina = (p) => {
+    setCurrentPage(p);
+    const langPrefix = language === 'en' ? '/en' : '/es';
+    const usersPath = language === 'en' ? 'users' : 'usuarios';
+    if (p === 1) {
+      navigate(`${langPrefix}/admin/${usersPath}`);
+    } else {
+      navigate(`${langPrefix}/admin/${usersPath}/page/${p}`);
+    }
+  };
 
   const getRoleDisplayName = (rName) => {
     if (!rName) return '';
@@ -818,7 +844,7 @@ export default function GestionarUsuarios() {
                 <div className="pagination-controls-group">
                   <CustomItemsPerPageSelect
                     value={itemsPerPage}
-                    onChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+                    onChange={(val) => { setItemsPerPage(val); cambiarPagina(1); }}
                     options={[5, 10, 20, 50]}
                     language={language}
                   />
@@ -826,7 +852,7 @@ export default function GestionarUsuarios() {
                   <div className="pagination-buttons-wrapper">
                     <button
                       type="button"
-                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      onClick={() => cambiarPagina(Math.max(1, currentPage - 1))}
                       disabled={currentPage === 1}
                       className={`pagination-nav-btn prev-btn ${currentPage === 1 ? 'disabled' : ''}`}
                       title={language === 'en' ? 'Previous page' : 'Página anterior'}
@@ -842,7 +868,7 @@ export default function GestionarUsuarios() {
                         <button
                           key={p}
                           type="button"
-                          onClick={() => setCurrentPage(p)}
+                          onClick={() => cambiarPagina(p)}
                           className={`pagination-num-btn ${p === currentPage ? 'active' : ''}`}
                         >
                           {p}
@@ -852,7 +878,7 @@ export default function GestionarUsuarios() {
 
                     <button
                       type="button"
-                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      onClick={() => cambiarPagina(Math.min(totalPages, currentPage + 1))}
                       disabled={currentPage === totalPages}
                       className={`pagination-nav-btn next-btn ${currentPage === totalPages ? 'disabled' : ''}`}
                       title={language === 'en' ? 'Next page' : 'Página siguiente'}

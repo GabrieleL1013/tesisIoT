@@ -1,6 +1,6 @@
 import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { useLanguage } from '../../context/LanguageContext';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -152,10 +152,33 @@ export default function RegistrarNodo() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(9);
 
+  const { pageNum } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const categoriaFiltro = searchParams.get('categoria');
   const navigate = useNavigate();
   const isEn = language === 'en';
+
+  useEffect(() => {
+    if (pageNum) {
+      const parsed = parseInt(pageNum, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        setCurrentPage(parsed);
+      }
+    } else {
+      setCurrentPage(1);
+    }
+  }, [pageNum]);
+
+  const cambiarPagina = (p) => {
+    setCurrentPage(p);
+    const langPrefix = language === 'en' ? '/en' : '/es';
+    const nodesPath = language === 'en' ? 'nodes' : 'nodos';
+    if (p === 1) {
+      navigate(`${langPrefix}/admin/${nodesPath}`);
+    } else {
+      navigate(`${langPrefix}/admin/${nodesPath}/page/${p}`);
+    }
+  };
 
   // Estados del Formulario y Vista
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
@@ -3061,7 +3084,7 @@ export default function RegistrarNodo() {
                 <div className="pagination-controls-group">
                   <CustomItemsPerPageSelect
                     value={itemsPerPage}
-                    onChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+                    onChange={(val) => { setItemsPerPage(val); cambiarPagina(1); }}
                     options={[6, 9, 12, 18, 24]}
                     language={language}
                   />
@@ -3070,7 +3093,7 @@ export default function RegistrarNodo() {
                     <button
                       type="button"
                       disabled={currentPage === 1}
-                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      onClick={() => cambiarPagina(Math.max(1, currentPage - 1))}
                       className={`pagination-nav-btn prev-btn ${currentPage === 1 ? 'disabled' : ''}`}
                       title={isEn ? 'Previous page' : 'Página anterior'}
                     >
@@ -3093,7 +3116,7 @@ export default function RegistrarNodo() {
                             <button
                               key={page}
                               type="button"
-                              onClick={() => setCurrentPage(page)}
+                              onClick={() => cambiarPagina(page)}
                               className={`pagination-num-btn ${isSelected ? 'active' : ''}`}
                             >
                               {page}
@@ -3104,7 +3127,7 @@ export default function RegistrarNodo() {
                           (page === 2 && currentPage > 3) ||
                           (page === totalPages - 1 && currentPage < totalPages - 2)
                         ) {
-                          return <span key={page} style={{ padding: '0 4px', color: '#94a3b8', fontSize: '0.8rem' }}>...</span>;
+                          return <span key={page} className="pagination-ellipsis">...</span>;
                         }
                         return null;
                       })}
@@ -3113,7 +3136,7 @@ export default function RegistrarNodo() {
                     <button
                       type="button"
                       disabled={currentPage >= totalPages}
-                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      onClick={() => cambiarPagina(Math.min(totalPages, currentPage + 1))}
                       className={`pagination-nav-btn next-btn ${currentPage >= totalPages ? 'disabled' : ''}`}
                       title={isEn ? 'Next page' : 'Página siguiente'}
                     >

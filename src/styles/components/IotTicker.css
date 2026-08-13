@@ -1,7 +1,7 @@
 /* CSS for the IoT Infinite Icons Ticker */
 
 .iot-ticker-section {
-  padding: 4rem 0;
+  padding: 1.8rem 0;
   background-color: #ffffff;
   border-top: 1px solid #f1f5f9;
   text-align: center;
@@ -15,7 +15,7 @@
   text-transform: uppercase;
   color: #64748b;
   letter-spacing: 0.15em;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 }
 
 .iot-ticker-container {

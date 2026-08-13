@@ -1,6 +1,6 @@
 import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { useLanguage } from '../../context/LanguageContext';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -133,6 +133,31 @@ export default function GestionarUbicaciones() {
   const [showOrdenPanel, setShowOrdenPanel] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  const { pageNum } = useParams();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (pageNum) {
+      const parsed = parseInt(pageNum, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        setCurrentPage(parsed);
+      }
+    } else {
+      setCurrentPage(1);
+    }
+  }, [pageNum]);
+
+  const cambiarPagina = (p) => {
+    setCurrentPage(p);
+    const langPrefix = language === 'en' ? '/en' : '/es';
+    const locationsPath = language === 'en' ? 'locations' : 'ubicaciones';
+    if (p === 1) {
+      navigate(`${langPrefix}/admin/${locationsPath}`);
+    } else {
+      navigate(`${langPrefix}/admin/${locationsPath}/page/${p}`);
+    }
+  };
 
   useEffect(() => {
     setCurrentPage(1);
@@ -1111,7 +1136,7 @@ export default function GestionarUbicaciones() {
                 <div className="pagination-buttons-wrapper">
                   <button
                     type="button"
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    onClick={() => cambiarPagina(Math.max(1, currentPage - 1))}
                     disabled={currentPage === 1}
                     className={`pagination-nav-btn prev-btn ${currentPage === 1 ? 'disabled' : ''}`}
                     title={language === 'en' ? 'Previous page' : 'Página anterior'}
@@ -1127,7 +1152,7 @@ export default function GestionarUbicaciones() {
                       <button
                         key={p}
                         type="button"
-                        onClick={() => setCurrentPage(p)}
+                        onClick={() => cambiarPagina(p)}
                         className={`pagination-num-btn ${p === currentPage ? 'active' : ''}`}
                       >
                         {p}
@@ -1137,7 +1162,7 @@ export default function GestionarUbicaciones() {
 
                   <button
                     type="button"
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    onClick={() => cambiarPagina(Math.min(totalPages, currentPage + 1))}
                     disabled={currentPage === totalPages}
                     className={`pagination-nav-btn next-btn ${currentPage === totalPages ? 'disabled' : ''}`}
                     title={language === 'en' ? 'Next page' : 'Página siguiente'}

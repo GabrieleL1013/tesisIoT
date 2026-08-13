@@ -325,7 +325,7 @@ export default function EditableImage({
   // ── Skeleton state: active while global text/image data is loading ──
   const isShowingSkeleton = imagesLoading || textLoading;
 
-  // ── Check permissions ──
+  // Check permissions
   useEffect(() => {
     const checkRole = () => {
       checkEditPermission().then(res => setHasPermission(res));
@@ -338,6 +338,19 @@ export default function EditableImage({
       window.removeEventListener("appInterfacesUpdated", checkRole);
     };
   }, []);
+
+  // Handle ESC and Enter key shortcuts inside modal
+  useEffect(() => {
+    if (!showModal) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setShowModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showModal]);
 
   const handlePickFile = () => fileInputRef.current?.click();
 

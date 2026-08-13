@@ -223,7 +223,7 @@ svg.rotated {
   background: #ffffff;
   min-width: 210px;
   box-shadow: 0 12px 35px rgba(15, 23, 42, 0.15), 0 4px 12px rgba(0, 0, 0, 0.05);
-  border-top: 3.5px solid #94C11F; /* Verde ULEAM */
+  border-top: 3.5px solid #d0182b; /* Rojo ULEAM / Noticias */
   border-radius: 0 0 12px 12px;
   margin-top: 0;
   z-index: 200;
@@ -264,7 +264,7 @@ svg.rotated {
   transform: translateY(-50%) scaleY(0);
   width: 4px;
   height: 55%;
-  background: linear-gradient(to bottom, #94C11F, #7da51a);
+  background: linear-gradient(to bottom, #d0182b, #d0182b);
   border-radius: 0 4px 4px 0;
   transition: none;
   transform-origin: center;
@@ -275,14 +275,27 @@ svg.rotated {
 }
 
 .nav-dropdown-link:hover {
-  background: rgba(148, 193, 31, 0.1);
-  color: #94C11F;
+  background: rgba(208, 24, 43, 0.08);
+  color: #d0182b;
   padding-left: 1.8rem;
 }
 
 .nav-dropdown-link.active {
-  color: #94C11F;
+  color: #d0182b;
   font-weight: 700;
+}
+
+
+.nav-dropdown-link.category-menu-header {
+  border-bottom: 1px solid #f3f4f6;
+  font-weight: 700;
+  color: #111827;
+  background-color: #fafafa;
+}
+
+.nav-dropdown-link.category-menu-header:hover {
+  background: rgba(148, 193, 31, 0.12);
+  color: #94C11F;
 }
 
 .nav-item-wrapper:hover .nav-dropdown {
@@ -349,7 +362,7 @@ svg.rotated {
   min-width: 160px;
   box-shadow: 0 12px 35px rgba(15, 23, 42, 0.15), 0 4px 12px rgba(0, 0, 0, 0.05);
   border-radius: 0 0 12px 12px;
-  border-top: 3.5px solid #94C11F;
+  border-top: 3.5px solid #d0182b;
   z-index: 200;
   overflow: hidden;
   margin-top: 0;
@@ -374,8 +387,8 @@ svg.rotated {
 }
 
 .nav-lang-dropdown-item:hover {
-  background: rgba(148, 193, 31, 0.1);
-  color: #94C11F;
+  background: rgba(208, 24, 43, 0.08);
+  color: #d0182b;
   padding-left: 1.8rem;
 }
 
@@ -444,7 +457,7 @@ svg.rotated {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #94C11F 0%, #7ca517 100%);
+  background: linear-gradient(135deg, #00c853 0%, #00c853 100%);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -471,7 +484,7 @@ svg.rotated {
   background: #ffffff;
   min-width: 230px;
   box-shadow: 0 12px 35px rgba(15, 23, 42, 0.15), 0 4px 12px rgba(0, 0, 0, 0.05);
-  border-top: 3.5px solid #94C11F;
+  border-top: 3.5px solid #d0182b;
   border-radius: 0 0 12px 12px;
   z-index: 200;
   overflow: hidden;
@@ -536,8 +549,8 @@ svg.rotated {
 }
 
 .nav-profile-dropdown-item:hover {
-  background: rgba(148, 193, 31, 0.1);
-  color: #94C11F;
+  background: rgba(208, 24, 43, 0.08);
+  color: #d0182b;
   padding-left: 1.8rem;
 }
 
@@ -684,7 +697,7 @@ svg.rotated {
 
 .nav-mobile-btn.active,
 .nav-mobile-btn.dropdown-open {
-  color: #94C11F;
+  color: #00c853;
 }
 
 .nav-mobile-dropdown {
@@ -703,7 +716,7 @@ svg.rotated {
 }
 
 .nav-mobile-dropdown-link.active {
-  color: #94C11F;
+  color: #00c853;
   font-weight: 700;
 }
 
@@ -737,7 +750,7 @@ svg.rotated {
 }
 
 .nav-mobile-lang-opt.active {
-  color: #94C11F;
+  color: #00c853;
   background: rgba(148, 193, 31, 0.18);
 }
 

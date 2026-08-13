@@ -914,23 +914,25 @@
 }
 
 .pub-news-main-title {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Montserrat', sans-serif;
   font-size: clamp(2.2rem, 5vw, 3.2rem);
   font-weight: 900;
   letter-spacing: -0.04em;
-  background: linear-gradient(135deg, #0f172a 35%, #d0182b 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #d0182b !important;
+  background: none !important;
+  -webkit-background-clip: unset !important;
+  background-clip: unset !important;
+  -webkit-text-fill-color: #d0182b !important;
   margin: 0;
   display: inline-block;
 }
 
 .pub-news-main-title .editable-text-container {
   background: inherit;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #d0182b !important;
+  -webkit-background-clip: unset !important;
+  background-clip: unset !important;
+  -webkit-text-fill-color: #d0182b !important;
 }
 
 .pub-news-title-underline {
@@ -1316,6 +1318,35 @@
   transform: scale(1.1);
 }
 
+.pub-news-search-clear-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #f1f5f9;
+  border: none !important;
+  color: #64748b;
+  border-radius: 50% !important;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 20;
+  transition: all 0.2s ease;
+  padding: 0;
+  outline: none;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.06);
+}
+
+.pub-news-search-clear-btn:hover {
+  background: #fee2e2;
+  color: #d0182b;
+  transform: translateY(-50%) scale(1.1);
+  box-shadow: 0 3px 8px rgba(208, 24, 43, 0.15);
+}
+
 /* Toolbar & Unified Filter System */
 .pub-news-toolbar {
   position: relative;
@@ -1461,8 +1492,8 @@
   border: none;
   color: #1e40af;
   border-radius: 50%;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1470,6 +1501,13 @@
   font-weight: 800;
   font-size: 0.85rem;
   transition: all 0.2s ease;
+  padding: 0;
+}
+
+.pub-news-search-related-clear:hover {
+  background: #ef4444;
+  color: #ffffff;
+  transform: scale(1.1);
 }
 
 /* Flechas de carrusel en móvil */

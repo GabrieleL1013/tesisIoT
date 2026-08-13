@@ -1501,3 +1501,85 @@
     font-size: 0.75rem;
   }
 }
+
+/* Data Table Row Hover */
+.met-table-row:hover {
+  background-color: #f8fafc !important;
+}
+
+/* ── Subvariables con scroll horizontal propio si no caben ── */
+.met-subvariables-scroll-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+  max-width: 100%;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.met-subvariables-scroll-container::-webkit-scrollbar {
+  height: 4px;
+}
+
+.met-subvariables-scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.met-subvariables-scroll-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.met-subvariables-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.met-subvariable-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  flex-shrink: 0;
+}
+
+.met-subvariable-key-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  padding: 1px 7px;
+  border-radius: 6px;
+}
+
+/* ── Adaptación Responsiva para Celular ── */
+@media (max-width: 640px) {
+  .met-table-wrapper {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .met-data-table {
+    min-width: 620px;
+  }
+
+  /* Mostrar ÚNICAMENTE iconos SVG en botones de Editar y Eliminar */
+  .met-btn-edit .met-btn-text,
+  .met-btn-delete .met-btn-text {
+    display: none !important;
+  }
+
+  .met-btn-edit,
+  .met-btn-delete {
+    padding: 8px 10px !important;
+    justify-content: center;
+    border-radius: 8px;
+  }
+}

@@ -1,7 +1,7 @@
 import { API_BASE_URL, fetchDeduplicated } from '../config/api';
 import SEO from "../components/SEO";
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useInterfaceText } from '../context/InterfaceTextContext';
@@ -22,6 +22,7 @@ export default function ArticulosPublicos() {
   const { texts } = useInterfaceText();
   usePageTitle(language === 'en' ? 'Articles' : 'Artículos');
   const navigate = useNavigate();
+  const { pageNum } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const [articulos, setArticulos] = useState([]);
   const [articuloSeleccionado, setArticuloSeleccionado] = useState(null);
@@ -34,7 +35,12 @@ export default function ArticulosPublicos() {
   const [filtroTipo, setFiltroTipo] = useState(null);
   const [filtroAnio, setFiltroAnio] = useState(null);
   const [ordenarPor, setOrdenarPor] = useState(null);
-  const [paginaActual, setPaginaActual] = useState(1);
+
+  const articleSlug = language === 'en' ? 'articles' : 'articulos';
+  const routePage = pageNum ? parseInt(pageNum, 10) : null;
+  const queryPage = searchParams.get('pag') || searchParams.get('page');
+  const initialPagina = routePage && !isNaN(routePage) ? Math.max(1, routePage) : (queryPage ? Math.max(1, parseInt(queryPage, 10) || 1) : 1);
+  const [paginaActual, setPaginaActual] = useState(initialPagina);
   const [aniosDisponibles, setAniosDisponibles] = useState([]);
   const [modalImagenFull, setModalImagenFull] = useState(null);
   const [searchExpanded, setSearchExpanded] = useState(false);
@@ -42,6 +48,34 @@ export default function ArticulosPublicos() {
   
   const searchInputRef = useRef(null);
   const artCarouselRef = useRef(null);
+
+  // Sync state with route params and searchParams when user navigates
+  useEffect(() => {
+    let target = 1;
+    if (pageNum) {
+      const p = parseInt(pageNum, 10);
+      if (!isNaN(p) && p > 0) target = p;
+    } else if (searchParams.get('pag') || searchParams.get('page')) {
+      const p = parseInt(searchParams.get('pag') || searchParams.get('page'), 10);
+      if (!isNaN(p) && p > 0) target = p;
+    }
+    if (target !== paginaActual) {
+      setPaginaActual(target);
+    }
+  }, [pageNum, searchParams]);
+
+  const cambiarPagina = (nuevaPagina) => {
+    setPaginaActual(nuevaPagina);
+    const basePath = `/${language}/${articleSlug}`;
+    const currentParamsStr = searchParams.toString();
+    const searchString = currentParamsStr ? `?${currentParamsStr}` : '';
+    if (nuevaPagina > 1) {
+      navigate(`${basePath}/page/${nuevaPagina}${searchString}`);
+    } else {
+      navigate(`${basePath}${searchString}`);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Debounce para evitar llamadas repetidas a la API al escribir
   useEffect(() => {
@@ -73,8 +107,31 @@ export default function ArticulosPublicos() {
     }
   }, [searchExpanded]);
 
+  const prevFilterStateRef = useRef({
+    busqueda: debouncedBusqueda,
+    filtroTipo,
+    filtroAnio,
+    ordenarPor
+  });
+
   useEffect(() => {
-    setPaginaActual(1);
+    const prev = prevFilterStateRef.current;
+    const filterChanged =
+      prev.busqueda !== debouncedBusqueda ||
+      prev.filtroTipo !== filtroTipo ||
+      prev.filtroAnio !== filtroAnio ||
+      prev.ordenarPor !== ordenarPor;
+
+    prevFilterStateRef.current = {
+      busqueda: debouncedBusqueda,
+      filtroTipo,
+      filtroAnio,
+      ordenarPor
+    };
+
+    if (filterChanged && paginaActual !== 1) {
+      cambiarPagina(1);
+    }
   }, [debouncedBusqueda, filtroTipo, filtroAnio, ordenarPor]);
 
   const articuloIdParam = searchParams.get('id');
@@ -123,17 +180,24 @@ export default function ArticulosPublicos() {
   }, [language, paginaActual, debouncedBusqueda, filtroAnio, ordenarPor]);
 
   useEffect(() => {
-    if (articulos.length > 0 && articuloIdParam) {
+    if (articuloIdParam) {
       const encontrado = articulos.find(a => String(a.id) === String(articuloIdParam));
       if (encontrado && (encontrado.tipo_registro !== 'PDF' || !encontrado.url_pdf)) {
         setArticuloSeleccionado(encontrado);
       } else {
-        setArticuloSeleccionado(null);
+        fetchDeduplicated(`${API_BASE_URL}/articulos/${articuloIdParam}?lang=${language}`)
+          .then(res => res.json())
+          .then(item => {
+            if (item && item.id) {
+              setArticuloSeleccionado(item);
+            }
+          })
+          .catch(() => {});
       }
-    } else if (!articuloIdParam) {
+    } else {
       setArticuloSeleccionado(null);
     }
-  }, [articuloIdParam, articulos]);
+  }, [articuloIdParam, articulos, language]);
 
   useEffect(() => {
     const handleOutsideClick = (e) => {
@@ -179,17 +243,21 @@ export default function ArticulosPublicos() {
 
   // Mantener actualizado el slug en la URL al cambiar de idioma dentro de un artículo
   useEffect(() => {
-    if (articuloSeleccionado) {
+    if (articuloSeleccionado && articuloIdParam) {
       const slug = slugify(articuloSeleccionado.titulo);
-      setSearchParams({ id: articuloSeleccionado.id, slug: slug });
+      if (searchParams.get('slug') !== slug) {
+        setSearchParams({ id: articuloSeleccionado.id, slug: slug }, { replace: true });
+      }
     }
-  }, [language, articuloSeleccionado]);
+  }, [language, articuloSeleccionado, articuloIdParam]);
 
   const handleVolverClick = (e) => {
-    if (e) e.stopPropagation();
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setArticuloSeleccionado(null);
-    setSearchParams({});
-    window.scrollTo(0, 0);
+    setSearchParams({}, { replace: true });
   };
 
   const scrollCarousel = (direction) => {
@@ -644,9 +712,13 @@ export default function ArticulosPublicos() {
                 type="button"
                 className="pub-news-search-clear-btn"
                 onClick={() => { setBusqueda(''); setSearchExpanded(false); }}
-                title="Limpiar"
+                title={language === 'en' ? 'Clear' : 'Limpiar'}
+                aria-label="Limpiar búsqueda"
               >
-                ✕
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
               </button>
             )}
           </div>
@@ -668,8 +740,12 @@ export default function ArticulosPublicos() {
             className="pub-news-search-related-clear"
             onClick={() => { setBusqueda(''); setSearchExpanded(false); }}
             title={language === 'en' ? 'Clear search' : 'Limpiar búsqueda'}
+            aria-label="Limpiar búsqueda"
           >
-            ✕
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         </div>
       )}
@@ -758,7 +834,7 @@ export default function ArticulosPublicos() {
             <div className="pub-art-pagination">
               <button
                 className="pub-art-pagination-btn"
-                onClick={() => { setPaginaActual(prev => Math.max(prev - 1, 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                onClick={() => cambiarPagina(Math.max(paginaActual - 1, 1))}
                 disabled={paginaActual === 1}
                 title={language === 'en' ? 'Previous page' : 'Página anterior'}
               >
@@ -773,7 +849,7 @@ export default function ArticulosPublicos() {
                   <button
                     key={num}
                     className={`pub-art-pagination-number ${num === paginaActual ? 'active' : ''}`}
-                    onClick={() => { setPaginaActual(num); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    onClick={() => cambiarPagina(num)}
                   >
                     {num}
                   </button>
@@ -782,7 +858,7 @@ export default function ArticulosPublicos() {
 
               <button
                 className="pub-art-pagination-btn"
-                onClick={() => { setPaginaActual(prev => Math.min(prev + 1, totalPaginas)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                onClick={() => cambiarPagina(Math.min(paginaActual + 1, totalPaginas))}
                 disabled={paginaActual === totalPaginas}
                 title={language === 'en' ? 'Next page' : 'Página siguiente'}
               >

@@ -118,23 +118,35 @@ export default function Navbar() {
 
   useEffect(() => {
     const mapSlug = language === "en" ? "categories" : "categorias";
-    fetchDeduplicated(`${API_BASE_URL}/categorias?lang=${language}`)
-      .then(res => res.json())
-      .then(catData => {
+    Promise.all([
+      fetchDeduplicated(`${API_BASE_URL}/categorias?lang=${language}`).then(res => res.json()),
+      fetchDeduplicated(`${API_BASE_URL}/categorias/nodos-count`).then(res => res.json()).catch(() => ({ counts: {} }))
+    ])
+      .then(([catData, countsData]) => {
         const catList = Array.isArray(catData) ? catData : [];
-        if (catList.length > 0) {
-          const menuCategorias = {
-            label: t("nav.categories", "Categorías"),
-            path: `/${language}/${mapSlug}`,
-            children: catList.map(cat => ({
+        const counts = countsData?.counts || {};
+
+        // Ocultar categorías que no poseen ningún nodo habilitado (estado = true)
+        const catListActive = catList.filter(cat => {
+          const count = counts[cat.id] ?? counts[cat.nombre] ?? counts[cat.nombre_es] ?? counts[cat.nombre_en] ?? 0;
+          return count > 0;
+        });
+
+        const menuCategorias = {
+          label: t("nav.categories", "Categorías"),
+          path: `/${language}/${mapSlug}`,
+          children: [
+            {
+              label: t("nav.categories_menu", "Menú de Categorías"),
+              path: `/${language}/${mapSlug}`
+            },
+            ...catListActive.map(cat => ({
               label: cat.nombre,
               path: `/${language}/${mapSlug}?categoria=${encodeURIComponent(cat.nombre)}`
             }))
-          };
-          setCategoriasDinamicas([menuCategorias]);
-        } else {
-          setCategoriasDinamicas([]);
-        }
+          ]
+        };
+        setCategoriasDinamicas([menuCategorias]);
       })
       .catch(err => {
         console.error("Error fetching categories in Navbar:", err);
@@ -150,7 +162,18 @@ export default function Navbar() {
 
   const NAV_ITEMS = [
     { label: t("nav.home", "Inicio"), path: `/${language}` },
-    ...(categoriasDinamicas.length > 0 ? categoriasDinamicas : [{ label: t("nav.categories", "Categorías"), path: `/${language}/${mapSlug}` }]),
+    ...(categoriasDinamicas.length > 0
+      ? categoriasDinamicas
+      : [{
+          label: t("nav.categories", "Categorías"),
+          path: `/${language}/${mapSlug}`,
+          children: [
+            {
+              label: t("nav.categories_menu", "Menú de Categorías"),
+              path: `/${language}/${mapSlug}`
+            }
+          ]
+        }]),
     { label: t("nav.news", "Noticias"), path: `/${language}/${newsSlug}` },
     { label: t("nav.articles", "Artículos"), path: `/${language}/${articlesSlug}` }, 
     { 
@@ -291,16 +314,22 @@ export default function Navbar() {
                 
                 {item.children && openDropdown === item.label && (
                   <div className="nav-dropdown">
-                    {item.children.map((child) => (
-                      <Link 
-                        key={child.label} 
-                        to={child.path} 
-                        onClick={() => setOpenDropdown(null)}
-                        className={`nav-dropdown-link ${isChildActive(child.path) ? "active" : ""}`}
-                      >
-                        {child.label}
-                      </Link>
-                    ))}
+                    {item.children.map((child, idx) => {
+                      const isCatMenu = item.label === t("nav.categories", "Categorías");
+                      const isHeader = idx === 0 && isCatMenu;
+                      const isSub = idx > 0 && isCatMenu;
+
+                      return (
+                        <Link 
+                          key={child.label} 
+                          to={child.path} 
+                          onClick={() => setOpenDropdown(null)}
+                          className={`nav-dropdown-link ${isChildActive(child.path) ? "active" : ""} ${isHeader ? "category-menu-header" : ""} ${isSub ? "category-subitem" : ""}`}
+                        >
+                          {child.label}
+                        </Link>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -464,19 +493,25 @@ export default function Navbar() {
                       </button>
                       {openDropdown === item.label && (
                         <div className="nav-mobile-dropdown">
-                          {item.children.map((child) => (
-                            <Link 
-                              key={child.label} 
-                              to={child.path} 
-                              onClick={() => {
-                                setMobileOpen(false);
-                                setOpenDropdown(null);
-                              }}
-                              className={`nav-mobile-dropdown-link ${isChildActive(child.path) ? "active" : ""}`}
-                            >
-                              {child.label}
-                            </Link>
-                          ))}
+                          {item.children.map((child, idx) => {
+                            const isCatMenu = item.label === t("nav.categories", "Categorías");
+                            const isHeader = idx === 0 && isCatMenu;
+                            const isSub = idx > 0 && isCatMenu;
+
+                            return (
+                              <Link 
+                                key={child.label} 
+                                to={child.path} 
+                                onClick={() => {
+                                  setMobileOpen(false);
+                                  setOpenDropdown(null);
+                                }}
+                                className={`nav-mobile-dropdown-link ${isChildActive(child.path) ? "active" : ""} ${isHeader ? "category-menu-header" : ""} ${isSub ? "category-subitem" : ""}`}
+                              >
+                                {child.label}
+                              </Link>
+                            );
+                          })}
                         </div>
                       )}
                     </>

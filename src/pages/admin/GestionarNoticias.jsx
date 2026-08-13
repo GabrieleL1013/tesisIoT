@@ -1,5 +1,6 @@
 import { API_BASE_URL, fetchWithAuth } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { useLanguage } from '../../context/LanguageContext';
 import { usePageTitle } from '../../hooks/usePageTitle';
@@ -179,6 +180,31 @@ export default function GestionarNoticias() {
   // Estados de Paginación
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  const { pageNum } = useParams();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (pageNum) {
+      const parsed = parseInt(pageNum, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        setCurrentPage(parsed);
+      }
+    } else {
+      setCurrentPage(1);
+    }
+  }, [pageNum]);
+
+  const cambiarPagina = (p) => {
+    setCurrentPage(p);
+    const langPrefix = language === 'en' ? '/en' : '/es';
+    const newsPath = language === 'en' ? 'news' : 'noticias';
+    if (p === 1) {
+      navigate(`${langPrefix}/admin/${newsPath}`);
+    } else {
+      navigate(`${langPrefix}/admin/${newsPath}/page/${p}`);
+    }
+  };
 
   // Resetear página actual al cambiar filtros o búsqueda
   useEffect(() => {
@@ -936,14 +962,14 @@ export default function GestionarNoticias() {
               <div className="news-pagination-controls">
                 <CustomItemsPerPageSelect
                   value={itemsPerPage}
-                  onChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+                  onChange={(val) => { setItemsPerPage(val); cambiarPagina(1); }}
                   options={[10, 20, 50]}
                   language={language}
                 />
 
                 <button
                   type="button"
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  onClick={() => cambiarPagina(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
                   className="news-pagination-btn prev-btn"
                   title={language === 'en' ? 'Previous page' : 'Página anterior'}
@@ -958,7 +984,7 @@ export default function GestionarNoticias() {
                   <button
                     key={p}
                     type="button"
-                    onClick={() => setCurrentPage(p)}
+                    onClick={() => cambiarPagina(p)}
                     className={`news-pagination-page-btn ${p === currentPage ? 'active' : ''}`}
                   >
                     {p}
@@ -967,7 +993,7 @@ export default function GestionarNoticias() {
 
                 <button
                   type="button"
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  onClick={() => cambiarPagina(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
                   className="news-pagination-btn next-btn"
                   title={language === 'en' ? 'Next page' : 'Página siguiente'}
